@@ -21,6 +21,8 @@ function XIcon({ size = 16, style, color = "currentColor" }) {
     </svg>
   );
 }
+import Register from "./pages/Register";
+
 function GitHubIcon({ size = 16, style, color = "currentColor" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color} style={style}>
@@ -1192,13 +1194,9 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   const [closing, setClosing] = useState(false);
   const [mode, setMode] = useState("login");
   const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [avatarKey, setAvatarKey] = useState(AVATAR_OPTIONS[0].key);
   const [busy, setBusy] = useState(false);
   const [discordBusy, setDiscordBusy] = useState(false);
-  const [isPremium, setIsPremium] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [forgotStep, setForgotStep] = useState("email");
   const [forgotEmail, setForgotEmail] = useState("");
@@ -1206,7 +1204,7 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [portalTarget, setPortalTarget] = useState(null);
   const [toast, setToast] = useState(null);
-  const [showPw, setShowPw] = useState({ password: false, confirm: false, newPassword: false, newPasswordConfirm: false });
+  const [showPw, setShowPw] = useState({ password: false, newPassword: false, newPasswordConfirm: false });
   const [loginAttempts, setLoginAttempts] = useState(0);
   const [lockUntil, setLockUntil] = useState(0);
 
@@ -1238,9 +1236,9 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   }, [open]);
 
   function reset() {
-    setEmail(""); setUsername(""); setPassword(""); setConfirm(""); setBusy(false); setDiscordBusy(false); setIsPremium(false); setRememberMe(false);
+    setEmail(""); setPassword(""); setBusy(false); setDiscordBusy(false); setRememberMe(false);
     setForgotStep("email"); setForgotEmail(""); setNewPassword(""); setNewPasswordConfirm("");
-    setShowPw({ password: false, confirm: false, newPassword: false, newPasswordConfirm: false });
+    setShowPw({ password: false, newPassword: false, newPasswordConfirm: false });
   }
 
   function openModal() {
@@ -1289,23 +1287,6 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
     setCurrentUser(profile);
     setDiscordBusy(false);
     closeModal();
-  }
-
-  async function submitRegister(e) {
-    e.preventDefault();
-
-    // Validation des champs conservée uniquement pour afficher les messages
-    // d'erreur à l'utilisateur (aucune donnée n'est enregistrée ensuite).
-    const clean = email.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return notify("error", "Adresse e-mail invalide.");
-    if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())) return notify("error", "Nom d'utilisateur : 3 à 20 caractères (lettres, chiffres, _).");
-    const errMsg = passwordErrorMessage(password);
-    if (errMsg) return notify("error", errMsg);
-    if (password !== confirm) return notify("error", "Les mots de passe ne correspondent pas.");
-
-    // 👉 Brancher ici ta propre logique d'inscription (appel à ton
-    // backend, etc.). Tout ce qui suivait avant (hash local, sauvegarde
-    // des profils/identifiants, session) a été retiré.
   }
 
   async function submitLogin(e) {
@@ -1530,42 +1511,7 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
                     </form>
                   )
                 ) : (
-                  <form onSubmit={submitRegister} className="space-y-2.5 gowl-fade-in">
-                    <Field label="E-mail"><input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="root@gowlsec.fr" autoComplete="email" className="gowl-auth-input w-full px-3 py-2.5 rounded-xl text-sm" style={{ ...inputStyle, background: `${C.panel2}CC` }} /></Field>
-                    <Field label="Nom d'utilisateur"><input value={username} onChange={(e) => setUsername(e.target.value)} placeholder="ex : n0va_hxr" autoComplete="username" className="gowl-auth-input w-full px-3 py-2.5 rounded-xl text-sm" style={{ ...inputStyle, background: `${C.panel2}CC` }} /></Field>
-                    <PasswordField
-                      label="Mot de passe" value={password} onChange={(e) => setPassword(e.target.value)}
-                      show={showPw.password} onToggleShow={() => setShowPw((s) => ({ ...s, password: !s.password }))}
-                      validate autoComplete="new-password"
-                    />
-                    <PasswordField
-                      label="Confirmer le mot de passe" value={confirm} onChange={(e) => setConfirm(e.target.value)}
-                      show={showPw.confirm} onToggleShow={() => setShowPw((s) => ({ ...s, confirm: !s.confirm }))}
-                      autoComplete="new-password"
-                    />
-                    <Field label="Photo de profil">
-                      <div className="flex flex-wrap gap-2">
-                        {AVATAR_OPTIONS.map((a) => {
-                          const Icon = a.icon;
-                          const active = avatarKey === a.key;
-                          return (
-                            <button type="button" key={a.key} onClick={() => setAvatarKey(a.key)}
-                              className="gowl-avatar-pick w-9 h-9 rounded-full flex items-center justify-center"
-                              style={{ background: a.color, outline: active ? `2px solid ${C.text}` : "none", outlineOffset: 2, transform: active ? "scale(1.08)" : "scale(1)" }}>
-                              <Icon size={17} color="#fff" />
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </Field>
-                    <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-                      <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} style={{ accentColor: C.primary }} />
-                      Se souvenir de moi sur cet appareil
-                    </label>
-                    <PrimaryButton type="submit" disabled={busy} style={{ background: "linear-gradient(120deg, #5B6EF5 0%, #2ED9A3 100%)", width: "100%", justifyContent: "center" }}>
-                      {busy ? <><Loader2 size={15} className="animate-spin" /> Création…</> : "Créer mon compte"}
-                    </PrimaryButton>
-                  </form>
+                  <Register />
                 )}
               </div>
             </div>
