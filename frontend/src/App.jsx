@@ -1293,40 +1293,19 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
 
   async function submitRegister(e) {
     e.preventDefault();
+
+    // Validation des champs conservée uniquement pour afficher les messages
+    // d'erreur à l'utilisateur (aucune donnée n'est enregistrée ensuite).
     const clean = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return notify("error", "Adresse e-mail invalide.");
-    if (profiles.some((p) => p.email === clean)) return notify("error", "Un compte existe déjà avec cet e-mail.");
     if (!/^[a-zA-Z0-9_]{3,20}$/.test(username.trim())) return notify("error", "Nom d'utilisateur : 3 à 20 caractères (lettres, chiffres, _).");
-    if (profiles.some((p) => p.username.toLowerCase() === username.trim().toLowerCase())) return notify("error", "Ce nom d'utilisateur est déjà pris.");
     const errMsg = passwordErrorMessage(password);
     if (errMsg) return notify("error", errMsg);
     if (password !== confirm) return notify("error", "Les mots de passe ne correspondent pas.");
 
-    setBusy(true);
-    const salt = makeSalt(clean);
-    const hash = await hashText(password, salt);
-
-    // Calculate trial expiration (7 days from now) if premium
-    const premiumUntil = isPremium ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null;
-
-    const profile = {
-      id: uid(), email: clean, username: username.trim(), provider: "email",
-      avatarKey, banner: "indigo", bannerImage: "", joinedAt: new Date().toISOString(),
-      socials: { github: "", twitter: "", discord: "" },
-      isPremium,
-      premiumUntil,
-    };
-    const nextProfiles = [...profiles, profile];
-    const nextCreds = [...credentials.filter((c) => c.email !== clean), { email: clean, hash, profileId: profile.id, salt, version: 2 }];
-    setProfiles(nextProfiles); setCredentials(nextCreds);
-    await Promise.all([
-      saveCollection("gowlsec:profiles", nextProfiles),
-      saveCollection("gowlsec:credentials", nextCreds, false),
-      rememberMe ? saveSession(profile, true) : clearSession(),
-    ]);
-    setCurrentUser(profile);
-    setBusy(false);
-    closeModal();
+    // 👉 Brancher ici ta propre logique d'inscription (appel à ton
+    // backend, etc.). Tout ce qui suivait avant (hash local, sauvegarde
+    // des profils/identifiants, session) a été retiré.
   }
 
   async function submitLogin(e) {
