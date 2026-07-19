@@ -138,14 +138,15 @@ res.cookie("refreshToken", refreshTokenValue, {
 
 // Réponse
 return res.json({
-    success: true,
-    message: "Connexion réussie.",
-    accessToken,
-    user: {
-        id: user.id,
-        username: user.username,
-        email: user.email
-    }
+  success: true,
+  message: "Connexion réussie.",
+  accessToken,
+  user: {
+    id: user.id,
+    username: user.username,
+    email: user.email,
+    role: user.role
+  }
 });
 
   } catch (error) {

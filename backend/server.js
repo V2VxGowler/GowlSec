@@ -26,7 +26,7 @@ app.use(
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    "https://gowlsec-production.up.railway.app"
+    process.env.FRONTEND_URL
   ],
   credentials: true
 }));
