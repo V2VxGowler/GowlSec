@@ -1,34 +1,41 @@
+const API_URL = import.meta.env.VITE_API_URL;
+
 export async function register({ username, email, password }) {
-  const response = await fetch("/api/auth/register", {
+  const response = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ username, email, password }),
   });
- 
+
   const data = await response.json().catch(() => null);
- 
+
   if (!response.ok) {
     throw new Error(data?.message || "Échec de l'inscription.");
   }
- 
+
   return data;
 }
- 
+
 export async function login({ email, password }) {
-  const response = await fetch("/api/auth/login", {
+  const response = await fetch(`${API_URL}/api/auth/login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ email, password }),
   });
- 
+
   const data = await response.json().catch(() => null);
- 
+
   if (!response.ok) {
     throw new Error(data?.message || "Échec de la connexion.");
   }
- 
+
   return data;
 }
+
 export function saveSession(data) {
   localStorage.setItem("gowlsec_token", data.accessToken);
   localStorage.setItem("gowlsec_user", JSON.stringify(data.user));
