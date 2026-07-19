@@ -26,7 +26,8 @@ app.use(
 app.use(cors({
   origin: [
     "http://localhost:5173",
-    process.env.FRONTEND_URL
+    "https://gowlsec.org",
+    "https://www.gowlsec.org"
   ],
   credentials: true
 }));
