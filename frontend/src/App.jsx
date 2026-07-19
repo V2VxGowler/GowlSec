@@ -21,7 +21,10 @@ function XIcon({ size = 16, style, color = "currentColor" }) {
     </svg>
   );
 }
+import ProtectedTab from "./components/ProtectedTab";
+import { useAuth } from "./context/AuthContext";
 import Register from "./pages/Register";
+import { login, saveSession } from "./api/auth";
 
 function GitHubIcon({ size = 16, style, color = "currentColor" }) {
   return (
@@ -277,8 +280,7 @@ const SHOP_PRODUCTS = [
 
       
     ],
-    format: "Les coachings se déroulent à distance via Discord, TeamSpeak ou Telegram, avec partage d'écran si nécessaire pour un accompagnement pratique et interactif.",
-    format: "1 semaine – créneaux à définir ensemble selon vos disponibilités.",
+    format: "Les coachings se déroulent à distance via Discord, TeamSpeak ou Telegram, avec partage d'écran si nécessaire pour un accompagnement pratique et interactif. Durée : 1 semaine – créneaux à définir ensemble selon vos disponibilités.",
     price: 29.99,
   },
   
@@ -650,7 +652,7 @@ async function loadAccountCredentials() {
   return loadCollection("gowlsec:credentials", [], false);
 }
 
-async function saveSession(profile, rememberMe = false) {
+async function saveLocalSession(profile, rememberMe = false) {
   try {
     await window.storage.set("gowlsec:session", JSON.stringify({
       profileId: profile?.id || null,
@@ -1196,7 +1198,6 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
-  const [discordBusy, setDiscordBusy] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const [forgotStep, setForgotStep] = useState("email");
   const [forgotEmail, setForgotEmail] = useState("");
@@ -1205,8 +1206,6 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   const [portalTarget, setPortalTarget] = useState(null);
   const [toast, setToast] = useState(null);
   const [showPw, setShowPw] = useState({ password: false, newPassword: false, newPasswordConfirm: false });
-  const [loginAttempts, setLoginAttempts] = useState(0);
-  const [lockUntil, setLockUntil] = useState(0);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -1236,7 +1235,7 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   }, [open]);
 
   function reset() {
-    setEmail(""); setPassword(""); setBusy(false); setDiscordBusy(false); setRememberMe(false);
+    setEmail(""); setPassword(""); setBusy(false); setRememberMe(false);
     setForgotStep("email"); setForgotEmail(""); setNewPassword(""); setNewPasswordConfirm("");
     setShowPw({ password: false, newPassword: false, newPasswordConfirm: false });
   }
@@ -1263,71 +1262,34 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
     setToast({ type, message });
   }
 
-  async function connectDiscord() {
-    setDiscordBusy(true);
-    const tag = String(Math.floor(1000 + Math.random() * 9000));
-
-    // Calculate trial expiration (7 days from now)
-    const trialExpiration = new Date();
-    trialExpiration.setDate(trialExpiration.getDate() + 7);
-
-    const profile = {
-      id: uid(), email: null, username: `Membre${tag}`, provider: "discord",
-      avatarKey: "ghost", banner: "indigo", bannerImage: "", joinedAt: new Date().toISOString(),
-      socials: { github: "", twitter: "", discord: "" },
-      isPremium: true,
-      premiumUntil: trialExpiration.toISOString(),
-    };
-    const next = [...profiles, profile];
-    setProfiles(next);
-    await Promise.all([
-      saveCollection("gowlsec:profiles", next),
-      rememberMe ? saveSession(profile, true) : clearSession(),
-    ]);
-    setCurrentUser(profile);
-    setDiscordBusy(false);
-    closeModal();
+  function connectDiscord() {
+    notify("success", "La connexion via Discord arrive bientôt — utilise l'e-mail en attendant.");
   }
 
   async function submitLogin(e) {
-    e.preventDefault();
-    const clean = email.trim().toLowerCase();
+  e.preventDefault();
 
-    const now0 = Date.now();
-    if (now0 < lockUntil) {
-      const secs = Math.ceil((lockUntil - now0) / 1000);
-      return notify("error", `Trop de tentatives échouées. Réessaie dans ${secs}s.`);
-    }
-    function registerFailedAttempt() {
-      const next = loginAttempts + 1;
-      setLoginAttempts(next);
-      if (next >= 5) {
-        setLockUntil(Date.now() + 30000);
-        setLoginAttempts(0);
-      }
-    }
+  setBusy(true);
 
-    const profile = profiles.find((p) => p.email === clean);
-    if (!profile) { registerFailedAttempt(); return notify("error", "Aucun compte trouvé avec cet e-mail."); }
-    const cred = credentials.find((c) => c.email === clean);
-    if (!cred) { registerFailedAttempt(); return notify("error", "Mot de passe non reconnu sur cet appareil (démo sans back-end : reconnecte-toi depuis l'appareil où le compte a été créé, ou utilise Discord)."); }
-    setBusy(true);
-    const valid = await verifyPassword(password, cred);
-    if (!valid) { setBusy(false); registerFailedAttempt(); return notify("error", "Mot de passe incorrect."); }
-    setLoginAttempts(0);
+  try {
+    const result = await login({
+      email: email.trim().toLowerCase(),
+      password,
+    });
 
-    // Preserve existing premium status if any
-    const updatedProfile = {
-      ...profile,
-      isPremium: profile.isPremium || false,
-      premiumUntil: profile.premiumUntil || null,
-    };
+    await (rememberMe ? saveSession(result.user, true) : clearSession());
 
-    await (rememberMe ? saveSession(updatedProfile, true) : clearSession());
-    setCurrentUser(updatedProfile);
-    setBusy(false);
+    notify("success", "Connexion réussie.");
+
+    setCurrentUser(result.user);
     closeModal();
+
+  } catch (err) {
+    notify("error", err.message || "Erreur de connexion.");
+  } finally {
+    setBusy(false);
   }
+}
 
   async function submitForgotStart(e) {
     e.preventDefault();
@@ -1413,8 +1375,8 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
                 {mode !== "forgot" && (
                   <>
                     <div className="rounded-2xl border p-3.5 mb-4" style={{ background: `${C.panel2}CC`, borderColor: `${C.primary}22` }}>
-                      <button onClick={connectDiscord} disabled={discordBusy}
-                        className="gowl-discord-btn w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold disabled:opacity-60"
+                      <button onClick={connectDiscord}
+                        className="gowl-discord-btn w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold"
                         style={{
                           background: "linear-gradient(135deg, #5865F2 0%, #7289DA 100%)",
                           color: "#fff",
@@ -1422,11 +1384,11 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
                           boxShadow: "0 10px 24px rgba(88, 101, 242, 0.28)",
                         }}
                       >
-                        {discordBusy ? <Loader2 size={17} className="animate-spin" /> : <MessageSquare size={17} />}
-                        <span>{discordBusy ? "Connexion en cours…" : "Continuer avec Discord"}</span>
+                        <MessageSquare size={17} />
+                        <span>Continuer avec Discord</span>
                       </button>
                       <p className="text-xs mt-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-                        Connexion Discord simulée pour la démo, avec une expérience plus fluide et moderne.
+                        Connexion Discord bientôt disponible — utilise l'e-mail en attendant.
                       </p>
                     </div>
 
@@ -4678,24 +4640,34 @@ const TABS = [
 
 export default function GowlSec() {
   const [tab, setTab] = useState("accueil");
-  const [currentUser, setCurrentUser] = useState(null);
+  const { user, setUser, logout } = useAuth();
+  const currentUser = user;
+  const setCurrentUser = setUser;
   const [guestPseudo] = useState("invite" + Math.floor(Math.random() * 900 + 100));
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [lang, setLang] = useState(null);
   const [langLoading, setLangLoading] = useState(true);
+
   useEffect(() => {
     (async () => {
       try {
         const res = await window.storage.get("gowlsec:lang", false);
         if (res?.value) setLang(res.value);
-      } catch { /* best effort */ }
+      } catch {
+        /* best effort */
+      }
       setLangLoading(false);
     })();
   }, []);
+
   async function chooseLang(key) {
     setLang(key);
-    try { await window.storage.set("gowlsec:lang", key, false); } catch { /* best effort */ }
+    try {
+      await window.storage.set("gowlsec:lang", key, false);
+    } catch {
+      /* best effort */
+    }
   }
   const L = (key) => t(lang || "fr", key);
 
@@ -5115,14 +5087,8 @@ export default function GowlSec() {
             {tab === "boutique" && <ShopTab pseudo={pseudo} currentUser={currentUser} orders={orders} setOrders={setOrders} />}
             {tab === "assistant" && <AIAssistantTab pseudo={pseudo} />}
             {tab === "support" && <SupportTab pseudo={pseudo} currentUser={currentUser} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} />}
-            {tab === "profil" && <ProfileTab currentUser={currentUser} setCurrentUser={setCurrentUser} profiles={profiles} setProfiles={setProfiles} questions={questions} trophies={trophies} labs={labs} teams={teams} messages={messages} setTab={setTab} />}
-            {tab === "admin" && (
-              <AdminTab isAdmin={isAdmin} setIsAdmin={setIsAdmin} questions={questions} setQuestions={setQuestions}
-                messages={messages} setMessages={setMessages} trophies={trophies} setTrophies={setTrophies} events={events} setEvents={setEvents} profiles={profiles}
-                teams={teams} setTeams={setTeams} teamAnnouncements={teamAnnouncements} setTeamAnnouncements={setTeamAnnouncements}
-                orders={orders} setOrders={setOrders} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages}
-                tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} />
-            )}
+            {tab === "profil" && <ProtectedTab><ProfileTab currentUser={user} setCurrentUser={setUser} profiles={profiles} setProfiles={setProfiles} questions={questions} trophies={trophies} labs={labs} teams={teams} messages={messages} setTab={setTab} /> </ProtectedTab>}
+            {tab === "admin" && (user?.role === "admin" ? <AdminTab isAdmin={isAdmin} setIsAdmin={setIsAdmin} questions={questions} setQuestions={setQuestions} messages={messages} setMessages={setMessages} trophies={trophies} setTrophies={setTrophies} events={events} setEvents={setEvents} profiles={profiles} teams={teams} setTeams={setTeams} teamAnnouncements={teamAnnouncements} setTeamAnnouncements={setTeamAnnouncements} orders={orders} setOrders={setOrders} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} /> : <div style={{ padding: "40px", textAlign: "center", color: "#fff" }}><h2>Accès refusé</h2><p>Vous devez être administrateur pour accéder à cette page.</p></div>)}
           </>
         )}
       </main>
