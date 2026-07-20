@@ -13,41 +13,61 @@ export async function sendVerificationEmail(email, token) {
 
   const url = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
 
-  await resend.emails.send({
-  from: "GowlSec <contact@gowlsec.org>",
-  to: email,
-  subject: "Vérification de votre adresse e-mail",
-  html: `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:30px;text-align:center;">
-      
-      <img src="https://gowlsec.org/logo.png" width="90" alt="GowlSec">
+  const { data, error } = await resend.emails.send({
+    from: "GowlSec <contact@gowlsec.org>",
+    to: email,
+    subject: "Vérification de votre email",
+    html: `
+      <!doctype html>
+      <html lang="fr">
+        <body style="margin:0;padding:0;background:#0f172a;font-family:Arial,sans-serif;">
+          <div style="max-width:600px;margin:0 auto;padding:40px 20px;text-align:center;">
+            <div style="background:#111827;border-radius:16px;padding:36px;">
+              <img
+                src="https://gowlsec.org/logo.png"
+                alt="GowlSec"
+                width="100"
+                style="display:block;margin:0 auto 24px;"
+              />
 
-      <h1 style="color:#0F172A;">Bienvenue sur GowlSec</h1>
+              <h1 style="color:#ffffff;margin:0 0 16px;">
+                Bienvenue sur GowlSec
+              </h1>
 
-      <p>
-        Merci de votre inscription.<br>
-        Cliquez sur le bouton ci-dessous pour vérifier votre adresse e-mail.
-      </p>
+              <p style="color:#cbd5e1;font-size:16px;line-height:1.6;">
+                Clique sur le bouton ci-dessous pour vérifier ton adresse email.
+              </p>
 
-      <a href="${url}"
-         style="
-           display:inline-block;
-           margin-top:20px;
-           padding:14px 28px;
-           background:#2563EB;
-           color:white;
-           text-decoration:none;
-           border-radius:8px;
-           font-weight:bold;
-         ">
-        Vérifier mon compte
-      </a>
+              <a
+                href="${url}"
+                style="
+                  display:inline-block;
+                  margin-top:20px;
+                  padding:14px 26px;
+                  background:#2563eb;
+                  color:#ffffff;
+                  text-decoration:none;
+                  border-radius:8px;
+                  font-weight:bold;
+                "
+              >
+                Vérifier mon email
+              </a>
 
-      <p style="margin-top:35px;color:#666;font-size:13px;">
-        Si vous n'êtes pas à l'origine de cette demande,
-        vous pouvez ignorer cet e-mail.
-      </p>
+              <p style="color:#94a3b8;font-size:13px;margin-top:28px;">
+                Si tu n’es pas à l’origine de cette inscription, ignore cet email.
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `,
+  });
 
-    </div>
-  `
-});
+  if (error) {
+    console.error("Erreur Resend :", error);
+    throw new Error("Impossible d’envoyer l’email de vérification");
+  }
+
+  return data;
+}
