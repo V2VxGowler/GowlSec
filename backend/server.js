@@ -15,26 +15,33 @@ const app = express();
 
 app.set("trust proxy", 1);
 
-
 app.use(
-    helmet({
-        hidePoweredBy: true
-    })
+  helmet({
+    hidePoweredBy: true,
+  })
 );
 
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://gowlsec.org",
+  "https://www.gowlsec.org",
+  "https://gowl-4g9awmpdp-gowl-sec.vercel.app",
+];
 
-app.use(cors({
-  origin: [
-    "http://localhost:5173",
-    "https://gowlsec.org",
-    "https://www.gowlsec.org"
-  ],
-  credentials: true
-})); 
+app.use(
+  cors({
+    origin(origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
 
+      return callback(new Error(`Origine CORS refusée : ${origin}`));
+    },
+    credentials: true,
+  })
+);
 
 app.use(express.json());
-
 app.use(cookieParser());
 
 
