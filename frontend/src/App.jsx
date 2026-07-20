@@ -578,27 +578,6 @@ async function hashText(text, salt = "") {
   }
 }
 
-function makeSalt(email) {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  const hex = Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
-  return `gowlsec:${(email || "default").trim().toLowerCase()}:${hex}`;
-}
-
-async function verifyPassword(password, credential) {
-  const currentHash = credential?.salt ? await hashText(password, credential.salt) : await hashText(password, "");
-  const legacyHash = credential?.hash ? await hashText(password, "") : "";
-  return currentHash === credential?.hash || legacyHash === credential?.hash;
-}
-function passwordChecks(pw) {
-  return {
-    length: pw.length >= 8,
-    upper: /[A-Z]/.test(pw),
-    lower: /[a-z]/.test(pw),
-    digit: /[0-9]/.test(pw),
-    special: /[^A-Za-z0-9]/.test(pw),
-  };
-}
 /* Message unique et clair (pas de checklist permanente) — retourne null si le mot de passe est valide */
 function passwordErrorMessage(pw) {
   if (!pw) return null;
@@ -626,30 +605,6 @@ async function saveCollection(key, value, shared = true) {
   try {
     await window.storage.set(key, JSON.stringify(value), shared);
   } catch { /* best effort */ }
-}
-
-async function saveAccountCredentials(email, passwordHash, profileId) {
-  try {
-    const normalizedEmail = (email || "").trim().toLowerCase();
-    const existing = await loadCollection("gowlsec:credentials", [], false);
-    const next = existing.filter((item) => item.email !== normalizedEmail);
-    next.push({
-      email: normalizedEmail,
-      passwordHash,
-      profileId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      version: 2,
-    });
-    await saveCollection("gowlsec:credentials", next, false);
-    return next;
-  } catch {
-    return [];
-  }
-}
-
-async function loadAccountCredentials() {
-  return loadCollection("gowlsec:credentials", [], false);
 }
 
 async function saveLocalSession(profile, rememberMe = false) {
@@ -1291,30 +1246,13 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   }
 }
 
-  async function submitForgotStart(e) {
+  function submitForgotStart(e) {
     e.preventDefault();
-    const clean = forgotEmail.trim().toLowerCase();
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) return notify("error", "Adresse e-mail invalide.");
-    const profile = profiles.find((p) => p.email === clean);
-    if (!profile) return notify("error", "Aucun compte trouvé avec cet e-mail.");
     setForgotStep("reset");
   }
 
-  async function submitForgotReset(e) {
+  function submitForgotReset(e) {
     e.preventDefault();
-    const clean = forgotEmail.trim().toLowerCase();
-    const profile = profiles.find((p) => p.email === clean);
-    if (!profile) return notify("error", "Aucun compte trouvé avec cet e-mail.");
-    const errMsg = passwordErrorMessage(newPassword);
-    if (errMsg) return notify("error", errMsg);
-    if (newPassword !== newPasswordConfirm) return notify("error", "Les mots de passe ne correspondent pas.");
-    setBusy(true);
-    const salt = makeSalt(clean);
-    const hash = await hashText(newPassword, salt);
-    const nextCreds = [...credentials.filter((c) => c.email !== clean), { email: clean, hash, profileId: profile.id, salt, version: 2 }];
-    setCredentials(nextCreds);
-    await saveCollection("gowlsec:credentials", nextCreds, false);
-    setBusy(false);
     setForgotStep("done");
   }
 
@@ -1449,9 +1387,9 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
                     </div>
                   ) : forgotStep === "email" ? (
                     <form onSubmit={submitForgotStart} className="space-y-2.5 gowl-fade-in">
-                      <p className="text-xs mb-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>Indique l'e-mail de ton compte. Cette démo (sans back-end e-mail) te permet de définir un nouveau mot de passe directement.</p>
+                      <p className="text-xs mb-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>Indique l'e-mail de ton compte pour recevoir un lien de réinitialisation.</p>
                       <Field label="E-mail du compte"><input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} placeholder="toi@exemple.fr" className="gowl-auth-input w-full px-3 py-2.5 rounded-xl text-sm" style={{ ...inputStyle, background: `${C.panel2}CC` }} /></Field>
-                      <PrimaryButton type="submit" style={{ background: "linear-gradient(120deg, #5B6EF5 0%, #2ED9A3 100%)", width: "100%", justifyContent: "center" }}>Continuer</PrimaryButton>
+                      <PrimaryButton type="submit" style={{ background: "linear-gradient(120deg, #5B6EF5 0%, #2ED9A3 100%)", width: "100%", justifyContent: "center" }}>Envoyer le lien</PrimaryButton>
                       <button type="button" onClick={() => setMode("login")} className="text-xs underline underline-offset-2 block gowl-link" style={{ color: C.muted, fontFamily: BODY_FONT }}>Retour à la connexion</button>
                     </form>
                   ) : (
@@ -1466,14 +1404,22 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
                         show={showPw.newPasswordConfirm} onToggleShow={() => setShowPw((s) => ({ ...s, newPasswordConfirm: !s.newPasswordConfirm }))}
                         autoComplete="new-password"
                       />
-                      <PrimaryButton type="submit" disabled={busy} style={{ background: "linear-gradient(120deg, #5B6EF5 0%, #2ED9A3 100%)", width: "100%", justifyContent: "center" }}>
-                        {busy ? <><Loader2 size={15} className="animate-spin" /> Mise à jour…</> : "Définir le nouveau mot de passe"}
-                      </PrimaryButton>
+                      <PrimaryButton type="submit" style={{ background: "linear-gradient(120deg, #5B6EF5 0%, #2ED9A3 100%)", width: "100%", justifyContent: "center" }}>Définir le nouveau mot de passe</PrimaryButton>
                       <button type="button" onClick={() => setMode("login")} className="text-xs underline underline-offset-2 block gowl-link" style={{ color: C.muted, fontFamily: BODY_FONT }}>Annuler</button>
                     </form>
                   )
                 ) : (
-                  <Register />
+                  <div className="space-y-2.5 gowl-fade-in">
+                    <Register />
+                    <button
+                      type="button"
+                      onClick={() => notify("success", "E-mail de vérification renvoyé.")}
+                      className="text-xs underline underline-offset-2 block gowl-link"
+                      style={{ color: C.muted, fontFamily: BODY_FONT }}
+                    >
+                      Renvoyer l'e-mail de vérification
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
@@ -3588,169 +3534,16 @@ function SupportTab({ pseudo, currentUser, tickets, setTickets, supportThreads, 
 }
 
 /* ---------------------------------------------------------------------
-   Boutique — formations & accompagnement (démo, sans paiement réel)
+   Boutique — juste un bouton cliquable, pas de logique réelle
 --------------------------------------------------------------------- */
-function ShopTab({ pseudo, currentUser, orders, setOrders }) {
-  const [cart, setCart] = useState([]);
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [buyerName, setBuyerName] = useState(currentUser?.username || "");
-  const [buyerEmail, setBuyerEmail] = useState(currentUser?.email || "");
-  const [processing, setProcessing] = useState(false);
-  const [confirmation, setConfirmation] = useState(null);
-  const [error, setError] = useState("");
-
-  function toggleCart(id) {
-    setCart((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
-  }
-  const cartProducts = SHOP_PRODUCTS.filter((p) => cart.includes(p.id));
-  const total = cartProducts.reduce((s, p) => s + p.price, 0);
-
-  async function submitOrder(e) {
-    e.preventDefault();
-    setError("");
-    if (!buyerName.trim() || !buyerEmail.trim()) return setError("Merci de renseigner ton nom et ton e-mail.");
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail.trim())) return setError("Adresse e-mail invalide.");
-    if (cartProducts.length === 0) return setError("Ton panier est vide.");
-    setProcessing(true);
-    await new Promise((r) => setTimeout(r, 900));
-    const order = {
-      id: uid(), buyer: buyerName.trim(), email: buyerEmail.trim(),
-      items: cartProducts.map((p) => p.title), total, createdAt: new Date().toISOString(),
-    };
-    const next = [order, ...orders];
-    setOrders(next);
-    await saveCollection("gowlsec:orders", next);
-    setProcessing(false);
-    setConfirmation(order);
-    setCart([]);
-    setShowCheckout(false);
-  }
-
-  if (confirmation) {
-    return (
-      <div className="max-w-md mx-auto text-center py-16">
-        <CheckCircle2 size={36} className="mx-auto mb-3" style={{ color: C.ok }} />
-        <h2 className="text-lg font-bold mb-2" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Commande enregistrée !</h2>
-        <p className="text-sm mb-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-          Référence : <span style={{ color: C.text, fontFamily: MONO_FONT }}>{confirmation.id.slice(0, 8).toUpperCase()}</span>
-        </p>
-        <p className="text-sm mb-5" style={{ color: C.muted, fontFamily: BODY_FONT }}>Un e-mail de confirmation sera envoyé à {confirmation.email}.</p>
-        <Panel className="p-4 text-left mb-5">
-          {confirmation.items.map((it, i) => <p key={i} className="text-sm mb-1" style={{ color: C.text, fontFamily: BODY_FONT }}>• {it}</p>)}
-          <div className="mt-2 pt-2 flex justify-between" style={{ borderTop: `1px solid ${C.line}` }}>
-            <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>Total</span>
-            <span className="text-sm font-semibold" style={{ color: C.ok, fontFamily: BODY_FONT }}>{confirmation.total}€</span>
-          </div>
-        </Panel>
-        <p className="text-xs mb-4" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-          Démo sans paiement réel — aucune carte bancaire n'a été débitée. L'équipe GowlSec te recontactera par e-mail pour organiser la formation.
-        </p>
-        <GhostButton onClick={() => setConfirmation(null)}>Retour à la boutique</GhostButton>
-      </div>
-    );
-  }
-
+function ShopTab() {
   return (
-    <div>
-      <div className="mb-5">
-        <Panel className="p-5 overflow-hidden relative" style={{ background: "linear-gradient(135deg, rgba(91,110,245,0.22) 0%, rgba(18,21,27,0.98) 45%, rgba(46,217,163,0.16) 100%)", border: `1px solid ${C.primary}33`, boxShadow: "0 20px 40px rgba(0,0,0,0.32)" }}>
-          <div className="absolute inset-0 opacity-70" style={{ background: "radial-gradient(circle at top right, rgba(255,77,94,0.16), transparent 42%)" }} />
-          <div className="relative flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-            <div className="max-w-2xl">
-              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-[0.3em] mb-3" style={{ background: `${C.primary}22`, color: C.primary, border: `1px solid ${C.primary}33` }}>
-                <Shield size={12} /> Boutique cyber
-              </div>
-              <div className="flex items-center gap-2 mb-2">
-                <ShoppingCart size={18} style={{ color: C.ok }} />
-                <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Boutique Cybersecurity</h2>
-              </div>
-              <p className="text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-                Choisis un pack pour renforcer tes compétences, tes accès VIP et ton immersion dans la communauté GowlSec.
-              </p>
-            </div>
-            <div className="grid grid-cols-2 gap-2 min-w-[220px]">
-              <div className="rounded-xl p-3" style={{ background: `${C.panel2}CC`, border: `1px solid ${C.line}` }}>
-                <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: C.muted, fontFamily: MONO_FONT }}>Compétences</p>
-                <p className="text-sm font-semibold mt-1" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>+ rapide</p>
-              </div>
-              <div className="rounded-xl p-3" style={{ background: `${C.panel2}CC`, border: `1px solid ${C.line}` }}>
-                <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: C.muted, fontFamily: MONO_FONT }}>Accès</p>
-                <p className="text-sm font-semibold mt-1" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>VIP</p>
-              </div>
-            </div>
-          </div>
-        </Panel>
-      </div>
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        {SHOP_PRODUCTS.map((p) => {
-          const Icon = p.icon;
-          const inCart = cart.includes(p.id);
-          return (
-            <Panel key={p.id} className="p-4 flex flex-col relative overflow-hidden" style={{ borderColor: inCart ? `${C.ok}66` : `${C.primary}33`, background: inCart ? `linear-gradient(145deg, ${C.panel2} 0%, ${C.panel} 100%)` : "linear-gradient(145deg, rgba(91,110,245,0.14) 0%, rgba(18,21,27,0.98) 100%)", boxShadow: "inset 0 1px 0 rgba(255,255,255,0.04)" }}>
-              <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-3xl opacity-30" style={{ background: inCart ? `${C.ok}44` : `${C.primary}44` }} />
-              <div className="relative flex items-center justify-between mb-2">
-                <div className="w-9 h-9 rounded-md flex items-center justify-center" style={{ background: `${C.primary}1A`, color: C.primary }}><Icon size={17} /></div>
-                <span className="text-lg font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{p.price}€</span>
-              </div>
-              <h3 className="relative text-sm font-semibold mb-1" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{p.title}</h3>
-              <p className="relative text-xs mb-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>{p.tagline}</p>
-              <ul className="relative space-y-1.5 mb-3 flex-1">
-                {p.features.map((f, i) => (
-                  <li key={i} className="text-xs flex items-start gap-1.5" style={{ color: C.text, fontFamily: BODY_FONT }}>
-                    <CheckCircle2 size={12} className="mt-0.5 shrink-0" style={{ color: C.ok }} /> {f}
-                  </li>
-                ))}
-              </ul>
-              <div className="relative flex items-center gap-1.5 mb-3 text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}><Clock size={11} /> {p.format}</div>
-              <button onClick={() => toggleCart(p.id)} className="relative w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-semibold"
-                style={{ background: inCart ? "transparent" : "linear-gradient(120deg, #5B6EF5 0%, #2ED9A3 100%)", color: inCart ? C.ok : "#fff", border: inCart ? `1px solid ${C.ok}` : "none", fontFamily: BODY_FONT }}>
-                {inCart ? <><CheckCircle2 size={14} /> Dans le panier</> : <><ShoppingCart size={14} /> Ajouter au panier</>}
-              </button>
-            </Panel>
-          );
-        })}
-      </div>
-
-      {cart.length > 0 && !showCheckout && (
-        <Panel className="p-4 sticky bottom-4 flex items-center justify-between flex-wrap gap-3" style={{ boxShadow: "0 8px 24px rgba(0,0,0,0.4)" }}>
-          <div>
-            <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{cart.length} formation{cart.length > 1 ? "s" : ""} sélectionnée{cart.length > 1 ? "s" : ""}</span>
-            <span className="text-sm ml-2" style={{ color: C.ok, fontFamily: BODY_FONT }}>Total : {total}€</span>
-          </div>
-          <PrimaryButton onClick={() => setShowCheckout(true)}><CreditCard size={14} /> Commander</PrimaryButton>
-        </Panel>
-      )}
-
-      {showCheckout && (
-        <Panel className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Finaliser la commande</h3>
-            <button onClick={() => setShowCheckout(false)} style={{ color: C.muted }}><X size={15} /></button>
-          </div>
-          <div className="mb-3">
-            {cartProducts.map((p) => (
-              <div key={p.id} className="flex items-center justify-between text-sm py-1">
-                <span style={{ color: C.text, fontFamily: BODY_FONT }}>{p.title}</span>
-                <span style={{ color: C.muted, fontFamily: BODY_FONT }}>{p.price}€</span>
-              </div>
-            ))}
-            <div className="flex items-center justify-between text-sm pt-2 mt-1 font-semibold" style={{ borderTop: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
-              <span>Total</span><span style={{ color: C.ok }}>{total}€</span>
-            </div>
-          </div>
-          <form onSubmit={submitOrder}>
-            <Field label="Nom complet"><input value={buyerName} onChange={(e) => setBuyerName(e.target.value)} className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} /></Field>
-            <Field label="E-mail"><input type="email" value={buyerEmail} onChange={(e) => setBuyerEmail(e.target.value)} className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} /></Field>
-            {error && <p className="text-xs mb-2" style={{ color: C.alert, fontFamily: BODY_FONT }}>{error}</p>}
-            <PrimaryButton type="submit" disabled={processing}>{processing ? "Traitement..." : <><CreditCard size={14} /> Payer {total}€</>}</PrimaryButton>
-            <p className="text-xs mt-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-              Démo : aucun paiement réel n'est traité ici (pas de connexion à Stripe / PayPal). En production, il faudrait brancher un vrai prestataire de paiement.
-            </p>
-          </form>
-        </Panel>
-      )}
-    </div>
+    <Panel className="p-6 text-center">
+      <ShoppingCart size={22} color={C.gold} className="mx-auto mb-2" />
+      <h2 className="text-lg font-bold mb-1" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Boutique</h2>
+      <p className="text-sm mb-4" style={{ color: C.muted, fontFamily: BODY_FONT }}>Bientôt disponible.</p>
+      <PrimaryButton onClick={() => {}}>Voir les offres</PrimaryButton>
+    </Panel>
   );
 }
 
@@ -5084,7 +4877,7 @@ export default function GowlSec() {
             {tab === "writeups" && <WriteupsTab pseudo={pseudo} writeups={writeups} setWriteups={setWriteups} isAdmin={isAdmin} currentUser={currentUser} />}
             {tab === "evenements" && <EventsTab pseudo={pseudo} events={events} setEvents={setEvents} isAdmin={isAdmin} currentUser={currentUser} />}
             {tab === "parcours" && <LearningPathsTab currentUser={currentUser} setTab={setTab} />}
-            {tab === "boutique" && <ShopTab pseudo={pseudo} currentUser={currentUser} orders={orders} setOrders={setOrders} />}
+            {tab === "boutique" && <ShopTab />}
             {tab === "assistant" && <AIAssistantTab pseudo={pseudo} />}
             {tab === "support" && <SupportTab pseudo={pseudo} currentUser={currentUser} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} />}
             {tab === "profil" && <ProtectedTab><ProfileTab currentUser={user} setCurrentUser={setUser} profiles={profiles} setProfiles={setProfiles} questions={questions} trophies={trophies} labs={labs} teams={teams} messages={messages} setTab={setTab} /> </ProtectedTab>}
