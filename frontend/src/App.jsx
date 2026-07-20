@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Shield, Trophy, MessageSquare, Lock, Send, Plus, X,
-  ChevronDown, ChevronUp, Trash2, Unlock, RefreshCw, CheckCircle2,
+  ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Trash2, Unlock, RefreshCw, CheckCircle2,
   AlertTriangle, Flag, Award, Activity, Mail, LogOut, Newspaper,
   ExternalLink, Gauge, Bot, Sparkles, Pin, Ghost, Skull, Bug, Cat,
   Eye, EyeOff, Loader2, Lightbulb, FlaskConical, Wrench, BookOpen, Target,
@@ -25,6 +25,8 @@ import { forgotPassword, resetPassword, resendVerification, verifyEmail, login, 
 import ProtectedTab from "./components/ProtectedTab";
 import { useAuth } from "./context/AuthContext";
 import Register from "./pages/Register";
+import { io } from "socket.io-client";
+import owlLogoImg from "./assets/owl-logo.png";
 
 function GitHubIcon({ size = 16, style, color = "currentColor" }) {
   return (
@@ -33,6 +35,14 @@ function GitHubIcon({ size = 16, style, color = "currentColor" }) {
     </svg>
   );
 }
+
+const socket = io(
+  import.meta.env.VITE_SOCKET_URL || "http://localhost:8080",
+  {
+    withCredentials: true,
+    autoConnect: false,
+  }
+);
 
 const SEED_NEWS = [
   {
@@ -791,7 +801,7 @@ function MemberAvatarStack({ profiles = [], max = 6 }) {
             );
           })
         : shown.map((p, i) => (
-            <div key={p.id} className="rounded-full" style={{ border: `2px solid ${C.bg}`, zIndex: 10 - i }}>
+            <div key={p.username || p.id || i} className="rounded-full" style={{ border: `2px solid ${C.bg}`, zIndex: 10 - i }}>
               <Avatar profile={p} size={30} />
             </div>
           ))}
@@ -903,9 +913,9 @@ function NavMoreMenu({ tabs, tab, setTab, lang }) {
   if (tabs.length === 0) return null;
   return (
     <div className="relative">
-      <button ref={btnRef} onClick={() => setOpen((o) => !o)} className={`gowl-navtab flex items-center gap-1 px-3 py-[7px] text-[13px] font-semibold whitespace-nowrap rounded-lg${activeInMenu ? " active" : ""}`}
+      <button ref={btnRef} onClick={() => setOpen((o) => !o)} className={`gowl-navtab flex items-center gap-1 px-3.5 py-2 text-[13.5px] font-semibold whitespace-nowrap rounded-lg${activeInMenu ? " active" : ""}`}
         style={{ fontFamily: BODY_FONT }}>
-        Plus <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
+        Plus <ChevronDown size={14} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
       </button>
       {open && typeof document !== "undefined" && createPortal(
         <>
@@ -2444,7 +2454,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
                   <KeyRound size={14} style={{ color: C.warn }} />
                   <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>Salon privé</span>
                 </div>
-                <p className="text-sm mb-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>Ce salon est protégé par un mot de passe. Entrez-le pour rejoindre la discussion.</p>
+                <p className="text-base mb-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>Ce salon est protégé par un mot de passe. Entrez-le pour rejoindre la discussion.</p>
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input type="password" value={roomJoinPassword[current.key] || ""} onChange={(e) => setRoomJoinPassword((prev) => ({ ...prev, [current.key]: e.target.value }))} placeholder="Mot de passe du salon" className="flex-1 px-3 py-2 rounded-md text-sm" style={{ ...inputStyle, background: "rgba(5,10,16,0.75)", border: `1px solid ${C.line}` }} />
                   <button type="button" onClick={() => openRoom(current)} className="px-3 py-2 rounded-md text-sm" style={{ background: C.primary, color: "#fff", fontFamily: BODY_FONT }}>Rejoindre</button>
@@ -4247,8 +4257,14 @@ function EventsTab({ pseudo, events, setEvents, isAdmin, currentUser = null }) {
 /* ---------------------------------------------------------------------
    Parcours guidés — labs + ressources + défis regroupés en chemin structuré
 --------------------------------------------------------------------- */
+const LEARNING_PATH_ICONS = { reseaux: Wifi, web: Globe, team: Users, certif: Award };
+
 function LearningPathsTab({ currentUser, setTab }) {
   const [progress, setProgress] = useState({});
+  const [idx, setIdx] = useState(0);
+  const [initialized, setInitialized] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const dragRef = useRef({ startX: 0, dragging: false });
 
   useEffect(() => {
     if (!currentUser) return;
@@ -4267,37 +4283,146 @@ function LearningPathsTab({ currentUser, setTab }) {
     saveCollection(`gowlsec:paths_progress:${currentUser.id}`, next, false);
   }
 
+  const pathStats = LEARNING_PATHS.map((path) => {
+    const done = path.steps.filter((s) => progress[s.id]).length;
+    return { done, total: path.steps.length, pct: Math.round((done / path.steps.length) * 100) };
+  });
+  const overallDone = pathStats.reduce((acc, s) => acc + s.done, 0);
+  const overallTotal = pathStats.reduce((acc, s) => acc + s.total, 0);
+  const overallPct = overallTotal ? Math.round((overallDone / overallTotal) * 100) : 0;
+
+  // Place la pile sur le premier parcours non terminé, une seule fois au chargement
+  useEffect(() => {
+    if (initialized) return;
+    const firstUnfinished = pathStats.findIndex((s) => s.pct < 100);
+    setIdx(firstUnfinished === -1 ? LEARNING_PATHS.length - 1 : firstUnfinished);
+    setInitialized(true);
+  }, [progress, initialized]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const total = LEARNING_PATHS.length;
+  const goTo = (i) => setIdx(((i % total) + total) % total);
+  const goNext = () => { setDragX(0); goTo(idx + 1); };
+  const goPrev = () => { setDragX(0); goTo(idx - 1); };
+
+  function onPointerDown(e) {
+    dragRef.current = { startX: e.clientX, dragging: true };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  }
+  function onPointerMove(e) {
+    if (!dragRef.current.dragging) return;
+    setDragX(e.clientX - dragRef.current.startX);
+  }
+  function onPointerUp() {
+    if (!dragRef.current.dragging) return;
+    dragRef.current.dragging = false;
+    if (dragX > 70) goPrev();
+    else if (dragX < -70) goNext();
+    else setDragX(0);
+  }
+
   return (
     <div>
       <SectionHeader icon={<Compass size={19} />} eyebrow="Guided learning" title="Parcours guidés" subtitle="Labs, ressources et défis regroupés en chemins structurés pour progresser étape par étape." accent={C.ok} />
       {!currentUser && <GuestGate text="Connecte-toi pour suivre ta progression sur les parcours." accent={C.ok} />}
-      <div className="grid md:grid-cols-2 gap-4 mt-5">
-        {LEARNING_PATHS.map((path) => {
-          const done = path.steps.filter((s) => progress[s.id]).length;
-          const pct = Math.round((done / path.steps.length) * 100);
+
+      <div className="flex items-center justify-between gap-3 mt-4 mb-1 px-1">
+        <span className="text-xs font-semibold" style={{ color: C.muted, fontFamily: MONO_FONT }}>
+          Progression du chemin — {overallDone}/{overallTotal} étapes
+        </span>
+        <span className="text-xs font-bold" style={{ color: C.ok, fontFamily: MONO_FONT }}>{overallPct}%</span>
+      </div>
+      <div className="w-full h-1.5 rounded-full overflow-hidden mb-5" style={{ background: C.panel2 }}>
+        <div className="h-full rounded-full gowl-bar-fill" style={{ width: `${overallPct}%`, background: `linear-gradient(90deg, ${C.primary}, ${C.ok}, ${C.gold})`, transition: "width 0.6s cubic-bezier(.2,.8,.2,1)" }} />
+      </div>
+
+      <style>{`
+        .lp-stack-wrap { position: relative; min-height: 330px; max-width: 650px; margin: 0 auto; }
+        .lp-stack-card { position: absolute; inset: 0; transition: transform 0.45s cubic-bezier(.2,.8,.2,1), opacity 0.45s ease; will-change: transform, opacity; }
+        .lp-stack-card-front { cursor: grab; touch-action: pan-y; }
+        .lp-stack-card-front:active { cursor: grabbing; }
+        .lp-stack-card-front.lp-dragging { transition: opacity 0.45s ease; }
+        .lp-nav-btn { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease; }
+        .lp-nav-btn:hover { transform: translateY(-1px); border-color: ${C.primary}77 !important; }
+        .lp-nav-btn:active { transform: translateY(0) scale(0.95); }
+        .lp-dot { height: 8px; border-radius: 4px; transition: width 0.25s ease, background 0.25s ease; }
+        .lp-steps { display: grid; grid-template-columns: 1fr; gap: 7px; }
+        @media (min-width: 640px) { .lp-steps { grid-template-columns: 1fr 1fr; } }
+      `}</style>
+
+      <div className="lp-stack-wrap">
+        {LEARNING_PATHS.map((path, i) => {
+          const { done, total: stepsTotal, pct } = pathStats[i];
+          const pos = ((i - idx) % total + total) % total;
+          const Icon = LEARNING_PATH_ICONS[path.key] || MapPin;
+          const isFront = pos === 0;
+          const isDragging = dragRef.current.dragging;
+
+          let transform, opacity, zIndex = total - pos;
+          if (isFront) {
+            const rot = dragX / 22;
+            transform = `translateX(${dragX}px) rotate(${rot}deg)`;
+            opacity = 1;
+          } else if (pos === 1) {
+            transform = "translateY(16px) scale(0.94) rotate(-2.5deg)";
+            opacity = 0.85;
+          } else if (pos === 2) {
+            transform = "translateY(30px) scale(0.88) rotate(2.5deg)";
+            opacity = 0.55;
+          } else {
+            transform = "translateY(38px) scale(0.85)";
+            opacity = 0;
+          }
+
           return (
-            <Panel key={path.key} className="p-4" style={{ borderColor: `${path.accent}44` }}>
-              <div className="flex items-center justify-between mb-1.5">
-                <h3 className="font-bold text-sm" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{path.title}</h3>
-                <span className="text-xs font-bold" style={{ color: path.accent, fontFamily: MONO_FONT }}>{done}/{path.steps.length}</span>
-              </div>
-              <p className="text-xs mb-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>{path.desc}</p>
-              <div className="w-full h-1.5 rounded-full overflow-hidden mb-3" style={{ background: C.panel2 }}>
-                <div className="h-full rounded-full gowl-bar-fill" style={{ width: `${pct}%`, background: path.accent }} />
-              </div>
-              <div className="space-y-1.5">
-                {path.steps.map((s) => (
-                  <div key={s.id} className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md" style={{ background: C.panel2 }}>
-                    <button onClick={() => toggleStep(s.id)} disabled={!currentUser} className="w-5 h-5 rounded-md flex items-center justify-center shrink-0" style={{ background: progress[s.id] ? path.accent : "transparent", border: `1px solid ${progress[s.id] ? path.accent : C.line}` }}>
-                      {progress[s.id] && <CheckCircle2 size={12} color="#fff" />}
-                    </button>
-                    <button onClick={() => setTab(s.tab)} className="text-xs text-left flex-1" style={{ color: progress[s.id] ? C.muted : C.text, textDecoration: progress[s.id] ? "line-through" : "none", fontFamily: BODY_FONT }}>{s.label}</button>
+            <div
+              key={path.key}
+              className={`lp-stack-card${isFront ? " lp-stack-card-front" : ""}${isFront && isDragging ? " lp-dragging" : ""}`}
+              style={{ transform, opacity, zIndex, pointerEvents: isFront ? "auto" : "none" }}
+              onPointerDown={isFront ? onPointerDown : undefined}
+              onPointerMove={isFront ? onPointerMove : undefined}
+              onPointerUp={isFront ? onPointerUp : undefined}
+              onPointerLeave={isFront ? onPointerUp : undefined}
+            >
+              <Panel className="p-6 h-full" style={{ borderColor: `${path.accent}55`, boxShadow: isFront ? `0 0 0 1px ${path.accent}33, 0 16px 32px -20px ${path.accent}CC` : "none" }}>
+                <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ background: `${path.accent}1A`, color: path.accent }}><Icon size={22} /></span>
+                    <h3 className="font-bold text-xl truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{path.title}</h3>
                   </div>
-                ))}
-              </div>
-            </Panel>
+                  <span className="text-sm font-bold shrink-0" style={{ color: path.accent, fontFamily: MONO_FONT }}>{done}/{stepsTotal}</span>
+                </div>
+                <p className="text-base mb-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>{path.desc}</p>
+                <div className="w-full h-1.5 rounded-full overflow-hidden mb-3.5" style={{ background: C.panel2 }}>
+                  <div className="h-full rounded-full gowl-bar-fill" style={{ width: `${pct}%`, background: path.accent }} />
+                </div>
+                <div className="lp-steps">
+                  {path.steps.map((s) => (
+                    <div key={s.id} className="flex items-center gap-2.5 px-3 py-2 rounded-md" style={{ background: C.panel2 }}>
+                      <button onClick={() => toggleStep(s.id)} disabled={!currentUser || !isFront} className="w-5 h-5 rounded flex items-center justify-center shrink-0" style={{ background: progress[s.id] ? path.accent : "transparent", border: `1px solid ${progress[s.id] ? path.accent : C.line}` }}>
+                        {progress[s.id] && <CheckCircle2 size={12} color="#fff" />}
+                      </button>
+                      <button onClick={() => isFront && setTab(s.tab)} className="text-sm text-left flex-1 leading-tight" style={{ color: progress[s.id] ? C.muted : C.text, textDecoration: progress[s.id] ? "line-through" : "none", fontFamily: BODY_FONT }}>{s.label}</button>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </div>
           );
         })}
+      </div>
+
+      <div className="flex items-center justify-center gap-4 mt-3">
+        <button onClick={goPrev} className="lp-nav-btn" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }} aria-label="Parcours précédent">
+          <ChevronLeft size={22} />
+        </button>
+        <div className="flex items-center gap-1.5">
+          {LEARNING_PATHS.map((path, i) => (
+            <button key={path.key} onClick={() => { setDragX(0); goTo(i); }} className="lp-dot" style={{ background: i === idx ? path.accent : C.line, width: i === idx ? 26 : 10 }} aria-label={`Aller au parcours ${path.title}`} />
+          ))}
+        </div>
+        <button onClick={goNext} className="lp-nav-btn" style={{ background: C.panel, border: `1px solid ${C.line}`, color: C.text }} aria-label="Parcours suivant">
+          <ChevronRight size={22} />
+        </button>
       </div>
     </div>
   );
@@ -4313,7 +4438,7 @@ const TABS = [
   { key: "salons", label: "Hub", icon: Hash, primary: true },
   { key: "equipes", label: "Team", icon: Users },
   { key: "labs", label: "Labs", icon: FlaskConical, primary: true },
-  { key: "classement", label: "Classement", icon: TrendingUp, primary: true },
+  { key: "classement", label: "Classement", icon: TrendingUp },
   { key: "trophies", label: "Trophées", icon: Trophy },
   { key: "writeups", label: "Write-ups", icon: BookOpen },
   { key: "evenements", label: "Événements", icon: Calendar, primary: true },
@@ -4378,15 +4503,36 @@ function AuthActionPage({ accent = C.primary, icon, title, subtitle, children })
 }
 
 export default function GowlSec() {
-  const [tab, setTab] = useState("accueil");
   const { user, setUser, logout } = useAuth();
+  const [liveCount, setLiveCount] = useState(null);
+
+  useEffect(() => {
+    socket.auth = {
+      token: localStorage.getItem("gowlsec_token"),
+    };
+
+    socket.on("live-count", setLiveCount);
+    socket.connect();
+
+    return () => {
+      socket.off("live-count", setLiveCount);
+      socket.disconnect();
+    };
+  }, [user?.id]);
+
+  const [tab, setTab] = useState("accueil");
   const currentUser = user;
   const setCurrentUser = setUser;
-  const [guestPseudo] = useState("invite" + Math.floor(Math.random() * 900 + 100));
-  const [isAdmin, setIsAdmin] = useState(false);
 
+  const [guestPseudo] = useState(
+    "invite" + Math.floor(Math.random() * 900 + 100)
+  );
+
+  const [isAdmin, setIsAdmin] = useState(false);
   const [lang, setLang] = useState(null);
   const [langLoading, setLangLoading] = useState(true);
+
+  // Tout le reste de ton composant continue ici...
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationLoading, setVerificationLoading] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState(null); // "success" | "error" | null
@@ -4400,7 +4546,7 @@ export default function GowlSec() {
 
   const path = window.location.pathname;
   const emailToken = new URLSearchParams(window.location.search).get("token");
-  const resetToken = emailToken; // même paramètre "token" utilisé pour la réinitialisation du mot de passe
+  const resetToken = emailToken; 
 
   useEffect(() => {
     if (path !== "/verify-email" || !emailToken) return;
@@ -4511,7 +4657,6 @@ export default function GowlSec() {
   const [writeups, setWriteups] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [liveCount, setLiveCount] = useState(null);
   const [searchOpen, setSearchOpen] = useState(false);
 
   const pseudo = currentUser?.username || guestPseudo;
@@ -4746,23 +4891,13 @@ export default function GowlSec() {
       {searchOpen && (
         <GlobalSearchModal onClose={() => setSearchOpen(false)} setTab={setTab} questions={questions} teams={teams} labs={labs} news={news} trophies={trophies} />
       )}
-      <div aria-hidden className="gowl-bg-grid" />
       <div aria-hidden className="gowl-bg-glow" />
       <ShootingStarsBackground />
       <div aria-hidden className="gowl-scanlines" />
       <div aria-hidden className="gowl-bg-noise" />
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Source+Sans+3:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-        /* --- Fond cyber ambiant : grille + halos --- */
-        .gowl-bg-grid {
-          position: fixed; inset: 0; z-index: 0; pointer-events: none;
-          background-image:
-            linear-gradient(${C.line}2A 1px, transparent 1px),
-            linear-gradient(90deg, ${C.line}2A 1px, transparent 1px);
-          background-size: 42px 42px;
-          mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
-          -webkit-mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, #000 40%, transparent 100%);
-        }
+        /* --- Fond cyber ambiant : halos --- */
         .gowl-bg-glow {
           position: fixed; inset: 0; z-index: 0; pointer-events: none;
           background:
@@ -4878,35 +5013,52 @@ export default function GowlSec() {
         @media (prefers-reduced-motion: reduce) { .gowl-hacker-hand-left, .gowl-hacker-hand-right { animation: none; } }
 
         /* --- Barre de navigation --- */
-        .gowl-nav-track { background: ${C.bg}A0; border: 1px solid ${C.line}; border-radius: 12px; padding: 4px; }
+        .gowl-nav-track { background: ${C.bg}A0; border: 1px solid ${C.line}; border-radius: 14px; padding: 5px; scrollbar-width: none; -ms-overflow-style: none; }
+        .gowl-nav-track::-webkit-scrollbar { display: none; height: 0; width: 0; }
         .gowl-navtab { position: relative; color: ${C.muted}; transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease; }
         .gowl-navtab:hover { color: ${C.text}; background: ${C.panel2}; transform: translateY(-1px); }
-        .gowl-navtab.active { color: #fff; background: linear-gradient(155deg, ${C.primary}, ${C.primary}CC); box-shadow: 0 4px 14px -4px ${C.primary}99, inset 0 1px 0 #ffffff22; transform: translateY(0); }
+        .gowl-navtab.active { color: #fff; background: linear-gradient(155deg, ${C.primary}, ${C.primary}CC); box-shadow: 0 6px 18px -6px ${C.primary}AA, inset 0 1px 0 #ffffff22; transform: translateY(0); }
         .gowl-navtab.active:hover { color: #fff; transform: translateY(0); }
         .gowl-navtab-mobile { position: relative; transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
         .gowl-navtab-mobile.active { box-shadow: 0 4px 14px -5px ${C.primary}AA; }
+
+        /* --- Pied de page --- */
+        .gowl-footer-glow { height: 1px; background: linear-gradient(90deg, transparent, ${C.primary}88, ${C.gold}88, ${C.ok}88, transparent); opacity: 0.7; }
+        .gowl-footer-logo { transition: transform 0.25s ease, filter 0.25s ease; }
+        .gowl-footer-logo:hover { transform: translateY(-1px); filter: drop-shadow(0 0 10px ${C.primary}AA); }
+        .gowl-footer-link { position: relative; display: inline-flex; align-items: center; gap: 6px; width: fit-content; transition: color 0.2s ease, transform 0.2s ease; }
+        .gowl-footer-link::before { content: ""; width: 0; height: 1px; background: currentColor; transition: width 0.2s ease; }
+        .gowl-footer-link:hover { color: ${C.text} !important; transform: translateX(3px); }
+        .gowl-footer-link:hover::before { width: 8px; }
+        .gowl-footer-mail { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px; border-radius: 8px; border: 1px solid ${C.line}; background: ${C.bg}66; transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease; }
+        .gowl-footer-mail:hover { border-color: ${C.primary}88; background: ${C.primary}12; transform: translateY(-1px); }
+        .gowl-footer-social { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid ${C.line}; color: ${C.muted}; transition: all 0.2s ease; }
+        .gowl-footer-social:hover { color: ${C.text}; border-color: currentColor; background: ${C.panel2}; transform: translateY(-2px); }
+        .gowl-footer-totop { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid ${C.line}; color: ${C.muted}; transition: all 0.2s ease; }
+        .gowl-footer-totop:hover { color: ${C.text}; border-color: ${C.primary}88; background: ${C.primary}14; transform: translateY(-2px); }
       `}</style>
 
       <header className="sticky top-0 z-30" style={{ background: `${C.bg}F2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.line}`, boxShadow: "0 1px 0 rgba(0,0,0,0.4), 0 8px 24px -16px rgba(0,0,0,0.6)" }}>
         <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${C.primary}, ${C.gold}, ${C.ok})`, opacity: 0.7 }} />
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-[70px] flex items-center justify-between gap-4">
-          <div className="flex items-center gap-5 min-w-0">
-            <button onClick={() => setTab("accueil")} className="flex items-center gap-2.5 shrink-0 group">
+        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-[78px] flex items-center justify-between gap-4">
+          <div className="flex items-center gap-6 min-w-0">
+            <button onClick={() => setTab("accueil")} className="flex items-center gap-3 shrink-0 group">
+              <img src={owlLogoImg} alt="Logo GowlSec" className="w-11 h-11 object-contain shrink-0 transition-transform group-hover:scale-105" />
               <span className="flex flex-col leading-none">
-                <span className="font-extrabold text-lg tracking-tight" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>GowlSec</span>
+                <span className="font-extrabold text-xl tracking-tight" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>GowlSec</span>
                 <span className="text-[10px] uppercase tracking-widest" style={{ color: C.muted, fontFamily: MONO_FONT }}>{L("tagline")}</span>
               </span>
             </button>
-            <span className="hidden lg:block w-px h-7 shrink-0" style={{ background: C.line }} />
-            <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto gowl-nav-track">
+            <span className="hidden lg:block w-px h-8 shrink-0" style={{ background: C.line }} />
+            <nav className="hidden md:flex items-center gap-1 overflow-x-auto gowl-nav-track">
               {TABS.filter((t) => t.key !== "admin" && t.primary).map((t) => {
                 const active = tab === t.key;
                 const Icon = t.icon;
                 return (
-                  <button key={t.key} onClick={() => setTab(t.key)} className={`gowl-navtab flex items-center gap-1.5 px-3 py-[7px] text-[13px] font-semibold whitespace-nowrap rounded-lg${active ? " active" : ""}`}
+                  <button key={t.key} onClick={() => setTab(t.key)} className={`gowl-navtab flex items-center gap-1.5 px-3.5 py-2 text-[13.5px] font-semibold whitespace-nowrap rounded-lg${active ? " active" : ""}`}
                     style={{ fontFamily: BODY_FONT }}
                   >
-                    {Icon && <Icon size={13} />}
+                    {Icon && <Icon size={14} />}
                     {(I18N[lang || "fr"].tabs[t.key]) || t.label}
                   </button>
                 );
@@ -4931,14 +5083,14 @@ export default function GowlSec() {
             <LangSwitcher lang={lang || "fr"} onChoose={chooseLang} />
           </div>
         </div>
-        <nav className="md:hidden flex items-center gap-1 px-5 pb-2.5 overflow-x-auto">
+        <nav className="md:hidden flex items-center gap-1.5 px-5 pb-3 overflow-x-auto gowl-nav-track" style={{ background: "transparent", border: "none", padding: 0 }}>
           {TABS.map((t) => {
             const active = tab === t.key;
             const Icon = t.icon;
             return (
-              <button key={t.key} onClick={() => setTab(t.key)} className={`gowl-navtab-mobile flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap${active ? " active" : ""}`}
+              <button key={t.key} onClick={() => setTab(t.key)} className={`gowl-navtab-mobile flex items-center gap-1.5 px-3.5 py-2 text-[13px] font-semibold rounded-lg whitespace-nowrap${active ? " active" : ""}`}
                 style={{ color: active ? "#fff" : C.muted, background: active ? `linear-gradient(155deg, ${C.primary}, ${C.primary}CC)` : C.panel, border: `1px solid ${active ? C.primary : C.line}`, fontFamily: BODY_FONT }}>
-                {Icon && <Icon size={12} />}
+                {Icon && <Icon size={13} />}
                 {(I18N[lang || "fr"].tabs[t.key]) || t.label}
               </button>
             );
@@ -4986,20 +5138,25 @@ export default function GowlSec() {
       </main>
 
       {tab === "accueil" && (
-        <footer className="max-w-7xl mx-auto px-5 lg:px-8 py-8 mt-10" style={{ borderTop: `1px solid ${C.line}` }}>
-          <div className="rounded-2xl border p-5" style={{ background: `linear-gradient(135deg, ${C.panel} 0%, ${C.panel2} 100%)`, borderColor: C.line }}>
-            <div className="grid gap-5 md:grid-cols-[1.3fr_0.8fr_0.8fr]">
+        <footer className="max-w-7xl mx-auto px-5 lg:px-8 py-8 mt-10">
+          <div aria-hidden className="gowl-footer-glow rounded-full mb-8" />
+          <div className="rounded-2xl border p-6 sm:p-7 relative overflow-hidden" style={{ background: `linear-gradient(155deg, ${C.panel} 0%, ${C.panel2} 100%)`, borderColor: C.line }}>
+            <div aria-hidden style={{ position: "absolute", top: -60, right: -60, width: 200, height: 200, borderRadius: "50%", background: `${C.primary}14`, filter: "blur(50px)", pointerEvents: "none" }} />
+            <div className="grid gap-7 md:grid-cols-[1.3fr_0.8fr_0.8fr] relative">
               <div>
-                <div className="flex items-center gap-2 mb-2">
-                  <OwlLogo size={16} />
-                  <p className="text-sm font-semibold uppercase tracking-[0.24em]" style={{ color: C.text, fontFamily: MONO_FONT }}>GowlSec</p>
+                <div className="flex items-center gap-2.5 mb-3 gowl-footer-logo w-fit">
+                  <OwlLogo size={20} />
+                  <p className="text-base font-bold uppercase tracking-[0.24em]" style={{ color: C.text, fontFamily: MONO_FONT }}>GowlSec</p>
                 </div>
-                <p className="text-sm leading-6" style={{ color: C.muted, fontFamily: BODY_FONT }}>{L("footer")}</p>
+                <p className="text-sm leading-6 max-w-xs mb-4" style={{ color: C.muted, fontFamily: BODY_FONT }}>{L("footer")}</p>
+                <a href="mailto:V2V13@proton.me" className="gowl-footer-mail text-sm w-fit" style={{ color: C.text, fontFamily: MONO_FONT }}>
+                  <Mail size={14} style={{ color: C.primary }} /> V2V13@proton.me
+                </a>
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] mb-3" style={{ color: C.muted, fontFamily: MONO_FONT }}>Explorer</p>
-                <div className="flex flex-col items-start gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] mb-3.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>Explorer</p>
+                <div className="flex flex-col items-start gap-3">
                   {[
                     { label: "Actualités", tab: "actus" },
                     { label: "Questions", tab: "forum" },
@@ -5007,7 +5164,7 @@ export default function GowlSec() {
                     { label: "Labs", tab: "labs" },
                     { label: "Support", tab: "support" },
                   ].map((item) => (
-                    <button key={item.label} type="button" onClick={() => setTab(item.tab)} className="text-sm transition hover:opacity-80" style={{ color: C.text, fontFamily: MONO_FONT }}>
+                    <button key={item.label} type="button" onClick={() => setTab(item.tab)} className="gowl-footer-link text-sm" style={{ color: C.text, fontFamily: MONO_FONT }}>
                       {item.label}
                     </button>
                   ))}
@@ -5015,16 +5172,20 @@ export default function GowlSec() {
               </div>
 
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] mb-3" style={{ color: C.muted, fontFamily: MONO_FONT }}>Infos</p>
-                <div className="flex flex-col items-start gap-2 text-sm" style={{ color: C.muted, fontFamily: MONO_FONT }}>
-                  <span title="Bientôt disponible" style={{ opacity: 0.65, cursor: "default" }}>Conditions d'utilisation</span>
-                  <span title="Bientôt disponible" style={{ opacity: 0.65, cursor: "default" }}>Mentions légales</span>
-                  <span title="Bientôt disponible" style={{ opacity: 0.65, cursor: "default" }}>Politique de confidentialité</span>
-                  <a href="mailto:V2V13@proton.me" className="transition hover:opacity-80" style={{ color: C.text }}>
-                    V2V13@proton.me
-                  </a>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] mb-3.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>Infos</p>
+                <div className="flex flex-col items-start gap-3 text-sm" style={{ color: C.muted, fontFamily: MONO_FONT }}>
+                  <span title="Bientôt disponible" style={{ opacity: 0.55, cursor: "default" }}>Conditions d'utilisation</span>
+                  <span title="Bientôt disponible" style={{ opacity: 0.55, cursor: "default" }}>Mentions légales</span>
+                  <span title="Bientôt disponible" style={{ opacity: 0.55, cursor: "default" }}>Politique de confidentialité</span>
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4 mt-7 pt-5 relative" style={{ borderTop: `1px solid ${C.line}` }}>
+              <p className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>© {new Date().getFullYear()} GowlSec — fait avec 🦉 pour la communauté</p>
+              <button type="button" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} className="gowl-footer-totop" title="Retour en haut">
+                <ChevronUp size={16} />
+              </button>
             </div>
           </div>
         </footer>
@@ -5123,10 +5284,10 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
   };
 
   const featureCards = [
-    { icon: MessageSquare, title: "Hub", text: "Discute en direct par thème avec la communauté.", tab: "salons", color: gh.blue },
-    { icon: MessageCircle, title: "Question", text: "Pose une question et obtiens de l'aide de la communauté.", tab: "forum", color: gh.green },
-    { icon: Users, title: "Team", text: "Crée ou rejoins une team (16 max), publique ou privée.", tab: "equipes", color: gh.purple },
-    { icon: FlaskConical, title: "Labs", text: "Travaille ensemble sur des labs (8 max) HTB, THM, Root-Me...", tab: "labs", color: gh.orange },
+    { icon: MessageSquare, title: "Hub", text: "Discute en direct par thème avec la communauté.", tab: "salons", color: gh.blue, meta: liveCount ? `${liveCount} en ligne maintenant` : "Salons ouverts en direct", live: true },
+    { icon: MessageCircle, title: "Question", text: "Pose une question et obtiens de l'aide de la communauté.", tab: "forum", color: gh.green, meta: `${questions.length} question${questions.length > 1 ? "s" : ""} posée${questions.length > 1 ? "s" : ""}` },
+    { icon: Users, title: "Team", text: "Crée ou rejoins une team (16 max), publique ou privée.", tab: "equipes", color: gh.purple, meta: `${teams.length} team${teams.length > 1 ? "s" : ""} active${teams.length > 1 ? "s" : ""}` },
+    { icon: FlaskConical, title: "Labs", text: "Travaille ensemble sur des labs (8 max) HTB, THM, Root-Me...", tab: "labs", color: gh.orange, meta: `${labs.length} lab${labs.length > 1 ? "s" : ""} en cours` },
   ];
 
   const activity = [
@@ -5157,95 +5318,298 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
       .slice(0, 3);
   }, [trophies, questions, labs, profiles]);
 
-  const latestNews = news?.[0];
 
   const stats = [
     { label: "Membres", value: profiles.length, icon: Users, color: gh.blue },
-    { label: "En ligne maintenant", value: liveCount ?? "—", icon: Circle, color: gh.green, live: true },
     { label: "Trophées décrochés", value: trophies.length, icon: Trophy, color: gh.orange },
     { label: "Questions répondues", value: questions.filter((q) => (q.answers || []).length > 0).length, icon: MessageCircle, color: gh.purple },
   ];
 
   return (
-    <div className="pb-12" style={{ color: gh.text, fontFamily: BODY_FONT }}>
-      <section className="grid lg:grid-cols-[0.82fr_1.18fr] gap-8 lg:gap-12 items-center pt-8 pb-8 lg:pt-10 lg:pb-10">
-        <div className="max-w-xl">
-          {latestNews && (
-            <button onClick={() => setTab("actus")} className="group inline-flex items-center gap-2 mb-4 pl-2.5 pr-3 py-1.5 rounded-full text-xs transition-colors" style={{ background: `${gh.blue}14`, border: `1px solid ${gh.blue}40`, color: gh.blue, fontFamily: MONO_FONT }}>
-              <span className="gowl-live-dot" style={{ background: gh.blue }} />
-              <span className="font-semibold uppercase tracking-wide">Actu</span>
-              <span className="max-w-[220px] truncate" style={{ color: gh.text }}>{latestNews.title}</span>
-              <ChevronDown size={12} className="-rotate-90 transition-transform group-hover:translate-x-0.5" />
-            </button>
-          )}
-          <h1 className="text-[30px] sm:text-[38px] lg:text-[42px] leading-[1.1] font-extrabold tracking-[-0.03em] mb-4" style={{ color: gh.text, fontFamily: DISPLAY_FONT }}>
-            Communauté francophone<br />
+    <div className="ghx-home">
+      <style>{`
+        .ghx-home { color: ${gh.text}; font-family: ${BODY_FONT}; padding-bottom: 56px; }
+        .ghx-hero { display: grid; grid-template-columns: 1fr; gap: 36px; align-items: center; padding: 36px 0 40px; }
+        @media (min-width: 1024px) { .ghx-hero { grid-template-columns: 0.86fr 1.14fr; gap: 56px; padding: 44px 0 48px; } }
+        .ghx-kicker { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 14px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: ${gh.green}; font-family: ${MONO_FONT}; }
+        .ghx-newsbtn { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; margin-bottom: 18px; padding: 6px 12px 6px 10px; border-radius: 999px; font-size: 12px; cursor: pointer; background: ${gh.blue}14; border: 1px solid ${gh.blue}40; color: ${gh.blue}; font-family: ${MONO_FONT}; }
+        .ghx-newsbtn:hover .ghx-newsbtn-arrow { transform: translateX(2px); }
+        .ghx-newsbtn-arrow { transition: transform 0.15s ease; transform: rotate(-90deg); }
+        .ghx-newsbtn-title { color: ${gh.text}; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ghx-h1 { font-size: 28px; line-height: 1.14; font-weight: 800; letter-spacing: -0.025em; margin: 0 0 16px; font-family: ${DISPLAY_FONT}; }
+        @media (min-width: 640px) { .ghx-h1 { font-size: 36px; } }
+        @media (min-width: 1024px) { .ghx-h1 { font-size: 41px; } }
+        .ghx-sub { font-size: 14.5px; line-height: 1.6; margin: 0 0 22px; max-width: 540px; color: ${gh.muted}; }
+        @media (min-width: 640px) { .ghx-sub { font-size: 15.5px; line-height: 1.7; } }
+        .ghx-ctas { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+        .ghx-cta { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; padding: 10px 16px; border-radius: 6px; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+        .ghx-cta-primary { background: linear-gradient(180deg,#2188ff,#1264d8); color: #fff; border: 1px solid #3896ff; }
+        .ghx-cta-primary:hover { opacity: 0.92; }
+        .ghx-cta-secondary { background: transparent; color: ${gh.text}; border: 1px solid ${gh.border}; }
+        .ghx-cta-secondary:hover { border-color: #3a4c60; }
+        .ghx-proof { display: flex; align-items: center; gap: 10px; }
+        .ghx-proof-text { font-size: 12px; color: ${gh.muted}; }
+
+        /* Stats — rangée éditoriale à séparateurs, pas des cartes */
+        .ghx-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin: 8px 0 46px; }
+        .ghx-stat {
+          position: relative; overflow: hidden; padding: 20px 20px 18px; border-radius: 10px;
+          background: linear-gradient(155deg, ${gh.panel2}, ${gh.panel});
+          border: 1px solid ${gh.border};
+          transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+        }
+        .ghx-stat:hover { transform: translateY(-2px); border-color: currentColor; box-shadow: 0 10px 26px -14px currentColor; }
+        .ghx-stat::before, .ghx-stat::after,
+        .ghx-stat-corner-tl, .ghx-stat-corner-br { content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none; opacity: 0.9; }
+        .ghx-stat::before { top: 8px; left: 8px; border-top: 1.5px solid; border-left: 1.5px solid; }
+        .ghx-stat::after { bottom: 8px; right: 8px; border-bottom: 1.5px solid; border-right: 1.5px solid; }
+        .ghx-stat-scan { position: absolute; left: 0; right: 0; height: 40%; pointer-events: none; opacity: 0.5; background: linear-gradient(180deg, currentColor, transparent); mix-blend-mode: overlay; animation: ghx-scan 4.5s ease-in-out infinite; }
+        @keyframes ghx-scan { 0%, 100% { top: -40%; opacity: 0; } 15% { opacity: 0.5; } 50% { top: 100%; opacity: 0; } 100% { top: 100%; opacity: 0; } }
+        .ghx-stat-glow { position: absolute; top: -30px; right: -30px; width: 90px; height: 90px; border-radius: 50%; filter: blur(22px); opacity: 0.4; pointer-events: none; }
+        .ghx-stat-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 7px; margin-bottom: 12px; }
+        .ghx-stat-value { position: relative; font-family: ${DISPLAY_FONT}; font-size: 27px; font-weight: 800; line-height: 1; color: ${gh.text}; }
+        .ghx-stat-label { position: relative; margin-top: 7px; font-size: 11.5px; color: ${gh.muted}; font-family: ${MONO_FONT}; text-transform: uppercase; letter-spacing: 0.06em; }
+
+        /* Fonctionnalités — liste numérotée façon timeline, pas une grille de cartes */
+        .ghx-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; color: ${gh.muted}; font-family: ${MONO_FONT}; margin: 0 0 4px; }
+        .ghx-features { margin-bottom: 50px; position: relative; }
+        .ghx-features-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 6px; }
+        .ghx-features-title { font-family: ${DISPLAY_FONT}; font-size: 22px; font-weight: 800; margin: 0; color: ${gh.text}; }
+        .ghx-features-sub { font-size: 13px; color: ${gh.muted}; margin: 6px 0 18px; }
+
+        .ghx-feature {
+          all: unset; box-sizing: border-box; position: relative; overflow: hidden;
+          display: flex; align-items: flex-start; gap: 22px; width: 100%;
+          padding: 24px 16px; border-top: 1px solid ${gh.border}; cursor: pointer; border-radius: 10px;
+          transition: background 0.22s ease, padding-left 0.22s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+          opacity: 0; transform: translateY(14px);
+          animation: ghx-feature-in 0.55s cubic-bezier(.2,.7,.3,1) forwards;
+          animation-delay: calc(var(--i, 0) * 90ms + 80ms);
+          --mx: 50%; --my: 50%;
+        }
+        @keyframes ghx-feature-in { to { opacity: 1; transform: translateY(0); } }
+        .ghx-features > .ghx-feature:last-child { border-bottom: 1px solid ${gh.border}; }
+        .ghx-feature::before {
+          content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+          background: currentColor; transform: scaleY(0); transform-origin: top; opacity: 0.85;
+          transition: transform 0.28s ease; z-index: 1;
+        }
+        .ghx-feature::after {
+          content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0;
+          background: radial-gradient(240px circle at var(--mx) var(--my), color-mix(in srgb, var(--accent) 18%, transparent), transparent 72%);
+          transition: opacity 0.3s ease;
+        }
+        .ghx-feature:hover { background: ${gh.panel2}; padding-left: 22px; box-shadow: 0 14px 32px -22px currentColor; border-color: currentColor; }
+        .ghx-feature:hover::before { transform: scaleY(1); }
+        .ghx-feature:hover::after { opacity: 1; }
+
+        .ghx-feature-index {
+          flex-shrink: 0; width: 44px; padding-top: 2px; font-family: ${DISPLAY_FONT}; font-size: 26px; font-weight: 800;
+          color: ${gh.border}; transition: color 0.22s ease, text-shadow 0.22s ease; position: relative;
+        }
+        .ghx-feature:hover .ghx-feature-index { color: currentColor; text-shadow: 0 0 18px currentColor; }
+        .ghx-feature-index::after {
+          content: ""; position: absolute; left: 21px; top: 34px; width: 1px; height: 42px;
+          background: linear-gradient(180deg, var(--accent), transparent);
+          opacity: 0.3; animation: ghx-line-breathe 3.2s ease-in-out infinite;
+          animation-delay: calc(var(--i, 0) * 180ms);
+        }
+        @keyframes ghx-line-breathe { 0%, 100% { opacity: 0.18; } 50% { opacity: 0.5; } }
+        .ghx-features > .ghx-feature:last-child .ghx-feature-index::after { display: none; }
+
+        .ghx-feature-icon-wrap {
+          flex-shrink: 0; width: 42px; height: 42px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+          position: relative; transition: transform 0.3s cubic-bezier(.34,1.56,.64,1), box-shadow 0.25s ease;
+        }
+        .ghx-feature-icon-wrap::before {
+          content: ""; position: absolute; inset: -7px; border-radius: 14px; background: var(--accent);
+          opacity: 0.08; filter: blur(9px); z-index: -1;
+          animation: ghx-icon-breathe 3.4s ease-in-out infinite;
+          animation-delay: calc(var(--i, 0) * 300ms);
+        }
+        @keyframes ghx-icon-breathe { 0%, 100% { opacity: 0.06; transform: scale(0.86); } 50% { opacity: 0.22; transform: scale(1.08); } }
+        .ghx-feature:hover .ghx-feature-icon-wrap { transform: scale(1.1) rotate(-4deg); box-shadow: 0 0 0 5px color-mix(in srgb, currentColor 14%, transparent), 0 8px 18px -8px currentColor; }
+        .ghx-feature:hover .ghx-feature-icon-wrap::before { opacity: 0.4; animation-play-state: paused; }
+
+        .ghx-feature-body { flex: 1; min-width: 0; padding-top: 2px; }
+        .ghx-feature-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 5px; }
+        .ghx-feature-title { font-size: 16.5px; font-weight: 700; color: ${gh.text}; transition: color 0.2s ease; }
+        .ghx-feature:hover .ghx-feature-title { color: currentColor; }
+        .ghx-feature-meta { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; padding: 2px 8px; border-radius: 999px; font-family: ${MONO_FONT}; }
+        .ghx-feature-start {
+          display: inline-flex; align-items: center; gap: 4px; font-size: 10px; font-weight: 700;
+          text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); font-family: ${MONO_FONT};
+          animation: ghx-start-nudge 1.8s ease-in-out infinite;
+        }
+        @keyframes ghx-start-nudge { 0%, 100% { transform: translateX(0); opacity: 0.75; } 50% { transform: translateX(3px); opacity: 1; } }
+        .ghx-feature-text { display: block; font-size: 13.5px; line-height: 1.55; color: ${gh.muted}; max-width: 480px; }
+        .ghx-feature-arrow { flex-shrink: 0; margin-top: 10px; color: #5c6b7c; transition: transform 0.25s cubic-bezier(.34,1.56,.64,1), color 0.2s ease; }
+        .ghx-feature:hover .ghx-feature-arrow { transform: translateX(6px); color: currentColor; }
+        @media (prefers-reduced-motion: reduce) {
+          .ghx-feature, .ghx-feature-index::after, .ghx-feature-icon-wrap::before, .ghx-feature-start { animation: none; opacity: 1; transform: none; }
+        }
+
+        /* Activité + Top talents — colonnes séparées par une règle, pas des cartes remplies */
+        .ghx-columns { display: grid; grid-template-columns: 1fr; gap: 40px; }
+        @media (min-width: 1024px) { .ghx-columns { grid-template-columns: 1.5fr 1px 0.9fr; gap: 40px; } }
+        .ghx-col-divider { display: none; }
+        @media (min-width: 1024px) { .ghx-col-divider { display: block; background: ${gh.border}; } }
+        .ghx-col-title { font-size: 16px; font-weight: 700; margin: 0 0 14px; color: ${gh.text}; }
+        .ghx-empty { padding: 28px 0; font-size: 13.5px; color: ${gh.muted}; }
+        .ghx-activity-row { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 12px; width: 100%; padding: 14px 0; cursor: pointer; }
+        .ghx-activity-row.bordered { border-top: 1px solid ${gh.border}; }
+        .ghx-activity-main { min-width: 0; }
+        .ghx-activity-top { display: flex; align-items: center; gap: 8px; min-width: 0; }
+        .ghx-activity-tag { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-family: ${MONO_FONT}; }
+        .ghx-activity-title { font-size: 13.5px; color: ${gh.text}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ghx-activity-meta { display: block; font-size: 12px; margin-top: 4px; color: ${gh.muted}; }
+        .ghx-activity-comments { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: ${gh.muted}; white-space: nowrap; }
+
+        .ghx-talent-row { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 11px; width: 100%; padding: 12px 0; cursor: pointer; }
+        .ghx-talent-row.bordered { border-top: 1px solid ${gh.border}; }
+        .ghx-talent-rank { width: 18px; flex-shrink: 0; font-size: 13.5px; }
+        .ghx-talent-name { flex: 1; min-width: 0; font-size: 13.5px; font-weight: 600; color: ${gh.text}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .ghx-talent-pts { flex-shrink: 0; font-size: 12px; font-weight: 700; color: ${gh.orange}; font-family: ${MONO_FONT}; }
+        .ghx-see-all { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 7px; margin-top: 14px; font-size: 13px; color: ${gh.blue}; cursor: pointer; }
+        .ghx-see-all:hover { text-decoration: underline; }
+        .ghx-about { margin-top: 26px; padding-top: 22px; border-top: 1px solid ${gh.border}; }
+        .ghx-about-title { font-size: 14px; font-weight: 700; margin: 0 0 8px; color: ${gh.text}; }
+        .ghx-about-text { font-size: 13px; line-height: 1.55; color: ${gh.muted}; margin: 0; }
+        .ghx-about-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 4px; }
+        .ghx-about-tag { font-size: 10.5px; font-family: ${MONO_FONT}; padding: 3px 9px; border-radius: 6px; border: 1px solid ${gh.border}; color: ${gh.muted}; background: ${gh.panel2}; }
+
+        /* États vides — accueillants plutôt que plats */
+        .ghx-empty-state { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 22px 0 6px; }
+        .ghx-empty-icon { width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; position: relative; }
+        .ghx-empty-icon::before {
+          content: ""; position: absolute; inset: -6px; border-radius: 16px; background: currentColor;
+          opacity: 0.08; filter: blur(9px); animation: ghx-icon-breathe 3.4s ease-in-out infinite;
+        }
+        .ghx-empty-text { font-size: 13.5px; line-height: 1.55; color: ${gh.muted}; max-width: 340px; margin: 0; }
+        .ghx-empty-cta {
+          all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px;
+          font-size: 12.5px; font-weight: 600; color: currentColor; cursor: pointer;
+          padding: 7px 13px; border-radius: 7px; border: 1px solid currentColor; opacity: 0.9;
+          transition: opacity 0.2s ease, transform 0.2s ease, background 0.2s ease;
+        }
+        .ghx-empty-cta:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); transform: translateX(2px); }
+
+        /* Podium talents — le classement prend un peu de relief */
+        .ghx-talent-row { border-radius: 8px; transition: background 0.2s ease, padding-left 0.2s ease; }
+        .ghx-talent-row:hover { background: ${gh.panel2}; padding-left: 8px; }
+        .ghx-talent-rank { font-size: 15px; text-align: center; }
+        .ghx-talent-avatar-wrap { position: relative; flex-shrink: 0; display: flex; }
+        .ghx-talent-avatar-wrap.rank-0 { filter: drop-shadow(0 0 6px ${C.gold}88); }
+        .ghx-talent-avatar-wrap.rank-0::after {
+          content: ""; position: absolute; inset: -3px; border-radius: 50%; border: 1.5px solid ${C.gold};
+          opacity: 0.7; animation: ghx-icon-breathe 2.6s ease-in-out infinite;
+        }
+      `}</style>
+
+      <section className="ghx-hero">
+        <div>
+          <span className="ghx-kicker"><Users size={12} /> root☠️gowlsec:~$ access granted — bienvenue </span>
+          <button onClick={() => setTab("salons")} className="ghx-newsbtn">
+            <span className="gowl-live-dot" style={{ background: gh.green }} />
+            <span style={{ fontWeight: 600 }}>{liveCount ?? "—"} Opérateur{liveCount === 1 ? "" : "s"} en{liveCount === 1 ? "" : ""} ligne</span>
+            <ChevronDown size={12} className="ghx-newsbtn-arrow" />
+          </button>
+          <h1 className="ghx-h1">
+            La communauté francophone<br />
             <span style={{ color: gh.blue }}>pentest, CTF,</span> réseau et<br />
             cybersécurité.
           </h1>
-          <p className="text-sm sm:text-base leading-6 sm:leading-7 mb-6 max-w-[560px]" style={{ color: gh.muted }}>
-            Ici, on apprend, on échange et on progresse ensemble autour du pentest, des CTF, du réseau et de la cybersécurité — que tu sois débutant ou confirmé.
+          <p className="ghx-sub">
+            Pas une plateforme, pas un cours : un collectif de passionnés qui apprennent, échangent et progressent ensemble — que tu sois débutant ou confirmé.
           </p>
-          <div className="flex flex-wrap gap-2.5">
-            <button onClick={() => setTab("forum")} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition-opacity hover:opacity-90" style={{ background: "linear-gradient(180deg,#2188ff,#1264d8)", color: "#fff", border: "1px solid #3896ff" }}>
-              <Users size={15} /> Poser une question
-            </button>
-            <button onClick={() => setTab("salons")} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition-colors" style={{ background: "transparent", color: gh.text, border: `1px solid ${gh.border}` }}>
-              <MessageSquare size={15} /> Rejoindre le Hub
-            </button>
+          <div className="ghx-ctas">
+            <button onClick={() => setTab("forum")} className="ghx-cta ghx-cta-primary"><MessageCircle size={15} /> Poser une question</button>
+            <button onClick={() => setTab("salons")} className="ghx-cta ghx-cta-secondary"><Users size={15} /> Rejoindre la communauté</button>
+          </div>
+          <div className="ghx-proof">
+            <MemberAvatarStack profiles={profiles} max={5} />
+            <span className="ghx-proof-text">
+              {profiles.length > 0 ? <><strong style={{ color: gh.text }}>{profiles.length}</strong> membre{profiles.length > 1 ? "s" : ""} ont déjà rejoint la communauté</> : "Sois l'un des premiers membres de la communauté"}
+            </span>
           </div>
         </div>
 
         <DataScanScene onClick={() => setTab("labs")} />
       </section>
 
-      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-10">
-        {stats.map(({ label, value, icon: Icon, color, live }) => (
-          <div key={label} className="rounded-lg px-4 py-4 flex items-center gap-3" style={{ background: gh.panel, border: `1px solid ${gh.border}` }}>
-            <span className="w-9 h-9 rounded-md flex items-center justify-center shrink-0" style={{ background: `${color}18`, color }}>
-              {live ? <span className="gowl-live-dot" style={{ background: color }} /> : <Icon size={16} />}
-            </span>
-            <span className="min-w-0">
-              <span className="block text-lg font-extrabold leading-tight" style={{ color: gh.text, fontFamily: DISPLAY_FONT }}>{value}</span>
-              <span className="block text-[11px] truncate" style={{ color: gh.muted }}>{label}</span>
-            </span>
+      <div className="ghx-stats">
+        {stats.map(({ label, value, icon: Icon, color }) => (
+          <div key={label} className="ghx-stat" style={{ color }}>
+            <span className="ghx-stat-scan" />
+            <span className="ghx-stat-glow" style={{ background: color }} />
+            <span className="ghx-stat-icon" style={{ background: `${color}18` }}><Icon size={16} /></span>
+            <div className="ghx-stat-value" style={{ color: gh.text }}>{value}</div>
+            <div className="ghx-stat-label">{label}</div>
           </div>
         ))}
-      </section>
+      </div>
 
-      <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
-        {featureCards.map(({ icon: Icon, title, text, tab, color }) => (
-          <button key={title} onClick={() => setTab(tab)} className="group text-left rounded-lg p-6 min-h-[140px] flex items-start gap-3.5 transition-colors" style={{ background: gh.panel, border: `1px solid ${gh.border}` }}>
-            <span className="shrink-0 mt-0.5" style={{ color }}><Icon size={30} strokeWidth={1.7} /></span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-base font-bold mb-1.5" style={{ color: gh.text }}>{title}</span>
-              <span className="block text-[13px] leading-5" style={{ color: gh.muted }}>{text}</span>
+      <div className="ghx-features">
+        <div className="ghx-features-head">
+          <h2 className="ghx-features-title">Comment participer</h2>
+        </div>
+        <p className="ghx-features-sub">Quatre façons de contribuer, apprendre et progresser avec les autres membres — choisis ton point d'entrée.</p>
+        {featureCards.map(({ icon: Icon, title, text, tab, color, meta, live }, i) => (
+          <button
+            key={title}
+            onClick={() => setTab(tab)}
+            onMouseMove={(e) => {
+              const r = e.currentTarget.getBoundingClientRect();
+              e.currentTarget.style.setProperty("--mx", `${((e.clientX - r.left) / r.width) * 100}%`);
+              e.currentTarget.style.setProperty("--my", `${((e.clientY - r.top) / r.height) * 100}%`);
+            }}
+            className="ghx-feature"
+            style={{ color, "--accent": color, "--i": i }}
+          >
+            <span className="ghx-feature-index">{String(i + 1).padStart(2, "0")}</span>
+            <span className="ghx-feature-icon-wrap" style={{ background: `${color}18`, color }}><Icon size={21} strokeWidth={1.9} /></span>
+            <span className="ghx-feature-body">
+              <span className="ghx-feature-top">
+                <span className="ghx-feature-title">{title}</span>
+                {meta && (
+                  <span className="ghx-feature-meta" style={{ color, background: `${color}16`, border: `1px solid ${color}40` }}>
+                    {live && <span className="gowl-live-dot" style={{ background: color }} />}
+                    {meta}
+                  </span>
+                )}
+                {i === 0 && <span className="ghx-feature-start">Commence ici →</span>}
+              </span>
+              <span className="ghx-feature-text">{text}</span>
             </span>
-            <ChevronDown size={19} className="shrink-0 mt-auto -rotate-90" style={{ color: "#c7d1dc" }} />
+            <ChevronDown size={18} className="ghx-feature-arrow" style={{ transform: "rotate(-90deg)" }} />
           </button>
         ))}
-      </section>
+      </div>
 
-      <section className="grid lg:grid-cols-[1.45fr_.55fr] gap-5">
-        <div className="rounded-lg px-6 py-5" style={{ background: gh.panel, border: `1px solid ${gh.border}` }}>
-          <h2 className="text-lg font-bold mb-3" style={{ color: gh.text }}>Activité récente</h2>
+      <div className="ghx-columns">
+        <div>
+          <h2 className="ghx-col-title">Activité récente</h2>
           {activity.length === 0 ? (
-            <div className="py-8 text-sm" style={{ color: gh.muted }}>Les nouvelles activités de la communauté apparaîtront ici.</div>
+            <div className="ghx-empty-state" style={{ color: gh.blue }}>
+              <span className="ghx-empty-icon" style={{ background: `${gh.blue}18` }}><Activity size={19} /></span>
+              <p className="ghx-empty-text">Les nouvelles questions, labs et teams de la communauté apparaîtront ici en temps réel.</p>
+              <button onClick={() => setTab("forum")} className="ghx-empty-cta">Poser la première question <ChevronDown size={13} style={{ transform: "rotate(-90deg)" }} /></button>
+            </div>
           ) : (
             <div>
               {activity.map((item, index) => {
                 const Icon = item.icon;
                 return (
-                  <button key={item.id} onClick={() => setTab(item.tab)} className="w-full grid grid-cols-[28px_1fr_auto] items-center gap-3 py-3.5 text-left" style={{ borderTop: index ? `1px solid ${gh.border}` : "none" }}>
-                    <Icon size={19} style={{ color: item.color }} />
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-2 min-w-0">
-                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: item.color, border: `1px solid ${item.color}66`, background: `${item.color}12`, fontFamily: MONO_FONT }}>{item.kind}</span>
-                        <span className="truncate text-sm" style={{ color: gh.text }}>{item.title}</span>
+                  <button key={item.id} onClick={() => setTab(item.tab)} className={`ghx-activity-row${index ? " bordered" : ""}`}>
+                    <Icon size={18} style={{ color: item.color }} />
+                    <span className="ghx-activity-main">
+                      <span className="ghx-activity-top">
+                        <span className="ghx-activity-tag" style={{ color: item.color, border: `1px solid ${item.color}66`, background: `${item.color}12` }}>{item.kind}</span>
+                        <span className="ghx-activity-title">{item.title}</span>
                       </span>
-                      <span className="block text-xs mt-1" style={{ color: gh.muted }}>{timeAgo(item.time)} &nbsp;•&nbsp; {item.meta}</span>
+                      <span className="ghx-activity-meta">{timeAgo(item.time)} &nbsp;•&nbsp; {item.meta}</span>
                     </span>
-                    <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: gh.muted }}><MessageSquare size={13} /> {item.comments}</span>
+                    <span className="ghx-activity-comments"><MessageSquare size={13} /> {item.comments}</span>
                   </button>
                 );
               })}
@@ -5253,31 +5617,42 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
           )}
         </div>
 
-        <aside className="rounded-lg p-6" style={{ background: gh.panel, border: `1px solid ${gh.border}` }}>
-          <h2 className="text-lg font-bold mb-3" style={{ color: gh.text }}>Top talents</h2>
+        <div className="ghx-col-divider" />
+
+        <aside>
+          <h2 className="ghx-col-title">Top talents</h2>
           {topTalents.length === 0 ? (
-            <p className="text-sm leading-6" style={{ color: gh.muted }}>Le classement s'anime dès les premiers trophées, réponses au forum ou salons labs créés.</p>
+            <div className="ghx-empty-state" style={{ color: gh.orange }}>
+              <span className="ghx-empty-icon" style={{ background: `${gh.orange}18` }}><Trophy size={19} /></span>
+              <p className="ghx-empty-text">Le classement s'anime dès les premiers trophées, réponses au forum ou labs créés.</p>
+              <button onClick={() => setTab("classement")} className="ghx-empty-cta">Voir le barème de points <ChevronDown size={13} style={{ transform: "rotate(-90deg)" }} /></button>
+            </div>
           ) : (
-            <div className="mb-1">
+            <div>
               {topTalents.map((r, i) => (
-                <button key={r.author} onClick={() => setTab("classement")} className="w-full flex items-center gap-2.5 py-2.5 text-left" style={{ borderTop: i ? `1px solid ${gh.border}` : "none" }}>
-                  <span className="text-sm w-4 shrink-0">{RANK_MEDALS[i]}</span>
-                  {r.profile ? <Avatar profile={r.profile} size={28} /> : <span className="rounded-full shrink-0" style={{ width: 28, height: 28, background: gh.panel2, border: `1px solid ${gh.border}` }} />}
-                  <span className="min-w-0 flex-1 text-sm font-semibold truncate" style={{ color: gh.text }}>{r.author}</span>
-                  <span className="text-xs font-bold shrink-0" style={{ color: gh.orange, fontFamily: MONO_FONT }}>{r.total} pts</span>
+                <button key={r.author} onClick={() => setTab("classement")} className={`ghx-talent-row${i ? " bordered" : ""}`}>
+                  <span className="ghx-talent-rank">{RANK_MEDALS[i]}</span>
+                  <span className={`ghx-talent-avatar-wrap${i === 0 ? " rank-0" : ""}`}>
+                    {r.profile ? <Avatar profile={r.profile} size={26} /> : <span style={{ width: 26, height: 26, borderRadius: "50%", background: gh.panel2, border: `1px solid ${gh.border}`, flexShrink: 0 }} />}
+                  </span>
+                  <span className="ghx-talent-name">{r.author}</span>
+                  <span className="ghx-talent-pts">{r.total} pts</span>
                 </button>
               ))}
             </div>
           )}
-          <button onClick={() => setTab("classement")} className="inline-flex items-center gap-2 mt-4 text-sm" style={{ color: gh.blue }}>Voir le classement complet <ExternalLink size={13} /></button>
+          <button onClick={() => setTab("classement")} className="ghx-see-all">Voir le classement complet <ExternalLink size={13} /></button>
 
-          <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${gh.border}` }}>
-            <h2 className="text-[15px] font-bold mb-2" style={{ color: gh.text }}>À propos de GowlSec</h2>
-            <p className="text-[13px] leading-5" style={{ color: gh.muted }}>Communauté francophone dédiée au pentest, aux CTF, au réseau et à la cybersécurité : entraide entre pairs, apprentissage pratique et projets collaboratifs.</p>
-            <button onClick={() => setTab("parcours")} className="inline-flex items-center gap-2 mt-4 text-sm" style={{ color: gh.blue }}>Découvrir les parcours <ExternalLink size={13} /></button>
+          <div className="ghx-about">
+            <h2 className="ghx-about-title">À propos de GowlSec</h2>
+            <p className="ghx-about-text">Communauté francophone dédiée au pentest, aux CTF, au réseau et à la cybersécurité : entraide entre pairs, apprentissage pratique et projets collaboratifs.</p>
+            <div className="ghx-about-tags">
+              {["Pentest", "CTF", "Réseau", "Entraide"].map((tag) => <span key={tag} className="ghx-about-tag">{tag}</span>)}
+            </div>
+            <button onClick={() => setTab("parcours")} className="ghx-see-all">Découvrir les parcours <ExternalLink size={13} /></button>
           </div>
         </aside>
-      </section>
+      </div>
     </div>
   );
 }
@@ -5326,42 +5701,46 @@ function DataScanScene({ onClick }) {
   const maxOutLines = Math.max(...TERMINAL_COMMANDS.map((c) => c.out.length));
 
   return (
-    <button onClick={onClick} className="w-full rounded-lg overflow-hidden text-left relative group" style={{ minHeight: 260, background: "linear-gradient(165deg,#0c1522,#07101a)", border: "1px solid #263646", boxShadow: "0 24px 60px -20px rgba(35,136,255,.25), 0 8px 24px rgba(0,0,0,.35)" }}>
-      <div aria-hidden className="absolute -inset-8 pointer-events-none" style={{ background: "radial-gradient(340px 220px at 80% 0%, rgba(35,136,255,.16), transparent 65%), radial-gradient(260px 200px at 10% 100%, rgba(45,216,117,.10), transparent 70%)" }} />
-      <div className="h-10 px-4 flex items-center justify-between relative" style={{ background: "#0b1520", borderBottom: "1px solid #263646" }}>
-        <span className="flex items-center gap-2.5 text-xs" style={{ color: "#d6dee8" }}>
-          <span className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#ff5f57" }} />
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#febc2e" }} />
-            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#2dd875" }} />
+    <button onClick={onClick} className="ghx-terminal" style={{ width: "100%", textAlign: "left", position: "relative", overflow: "hidden", borderRadius: 8, minHeight: 260, background: "linear-gradient(165deg,#0c1522,#07101a)", border: "1px solid #263646", boxShadow: "0 24px 60px -20px rgba(35,136,255,.25), 0 8px 24px rgba(0,0,0,.35)" }}>
+      <style>{`
+        .ghx-terminal-body { padding: 16px; font-size: 12px; }
+        @media (min-width: 640px) { .ghx-terminal-body { padding: 20px; font-size: 13px; } }
+      `}</style>
+      <div aria-hidden style={{ position: "absolute", inset: "-32px", pointerEvents: "none", background: "radial-gradient(340px 220px at 80% 0%, rgba(35,136,255,.16), transparent 65%), radial-gradient(260px 200px at 10% 100%, rgba(45,216,117,.10), transparent 70%)" }} />
+      <div style={{ height: 40, padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "space-between", position: "relative", background: "#0b1520", borderBottom: "1px solid #263646" }}>
+        <span style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 12, color: "#d6dee8" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#ff5f57" }} />
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#febc2e" }} />
+            <span style={{ width: 10, height: 10, borderRadius: "50%", background: "#2dd875" }} />
           </span>
-          <span className="tracking-wide" style={{ fontFamily: MONO_FONT }}>TERMINAL</span>
+          <span style={{ letterSpacing: "0.03em", fontFamily: MONO_FONT }}>TERMINAL</span>
         </span>
-        <span className="flex items-center gap-1.5" style={{ color: "#4a5a6c" }}>
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#2dd875" }} />
+        <span style={{ display: "flex", alignItems: "center", color: "#4a5a6c" }}>
+          <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#2dd875" }} />
         </span>
       </div>
       {/* Zone fixe : rien ici ne change de taille, seul le contenu (opacité) évolue */}
-      <div className="p-4 sm:p-5 text-[12px] sm:text-[13px] leading-6 relative" style={{ color: "#eef4fb", fontFamily: MONO_FONT }}>
-        <p><span style={{ color: "#2dd875" }}>gowlsec@community</span>:<span style={{ color: "#66a9ff" }}>~</span>$ boot</p>
-        <p className="mt-1.5" style={{ color: "#a4afbd" }}>Initialisation de GowlSec...</p>
-        <div className="mt-1.5 grid grid-cols-[1fr_auto] gap-x-4">
+      <div className="ghx-terminal-body" style={{ position: "relative", lineHeight: 1.7, color: "#eef4fb", fontFamily: MONO_FONT }}>
+        <p style={{ margin: 0 }}><span style={{ color: "#2dd875" }}>gowlsec@community</span>:<span style={{ color: "#66a9ff" }}>~</span>$ boot</p>
+        <p style={{ margin: "6px 0 0", color: "#a4afbd" }}>Initialisation de GowlSec...</p>
+        <div style={{ margin: "6px 0 0", display: "grid", gridTemplateColumns: "1fr auto", columnGap: 16 }}>
           <span>Chargement des services</span><span style={{ color: "#55e778" }}>[ OK ]</span>
           <span>Connexion à la communauté</span><span style={{ color: "#55e778" }}>[ OK ]</span>
           <span>Vérification des salons</span><span style={{ color: "#55e778" }}>[ OK ]</span>
           <span>Aucun incident détecté</span><span style={{ color: "#55e778" }}>[ OK ]</span>
         </div>
-        <p className="mt-2.5" style={{ color: "#3b98ff" }}>La communauté est prête.</p>
+        <p style={{ margin: "10px 0 0", color: "#3b98ff" }}>La communauté est prête.</p>
 
-        <div className="mt-2.5" style={{ minHeight: 22 }}>
-          <p>
+        <div style={{ margin: "10px 0 0", minHeight: 22 }}>
+          <p style={{ margin: 0 }}>
             <span style={{ color: "#2dd875" }}>gowlsec@community</span>:<span style={{ color: "#66a9ff" }}>~</span>$ {typedCmd}
             {typedCmd.length < entry.cmd.length && <span className="gowl-cursor-blink">█</span>}
           </p>
         </div>
         <div style={{ minHeight: maxOutLines * 21 }}>
           {entry.out.map((line, idx) => (
-            <p key={idx} className="mt-1" style={{ color: "#a4afbd", opacity: idx < outVisible ? 1 : 0, transition: "opacity 0.2s ease" }}>{line}</p>
+            <p key={idx} style={{ margin: "4px 0 0", color: "#a4afbd", opacity: idx < outVisible ? 1 : 0, transition: "opacity 0.2s ease" }}>{line}</p>
           ))}
         </div>
       </div>
