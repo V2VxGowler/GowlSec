@@ -32,7 +32,7 @@ const registerSchema = z.object({
 
             return allowedDomains.includes(domain);
         }, {
-            message: "Seuls les emails Gmail, Outlook, Proton, iCloud ou Yahoo sont acceptés."
+            message: "Email Invalide !"
         }),
 
     password: z.string().min(8)
@@ -104,11 +104,18 @@ verificationTokenExpires.setHours(
 
     } catch (error) {
 
+    if (error instanceof z.ZodError) {
         return res.status(400).json({
             success: false,
-            message: error.message
+            message: "Email invalide."
         });
     }
+
+    return res.status(500).json({
+        success: false,
+        message: "Erreur serveur."
+    });
+}
 }
  export async function login(req, res) {
   try {
