@@ -13,12 +13,12 @@ export async function forgotPassword(req, res) {
             });
         }
 
-        // Recherche de l'utilisateur
+        
         const user = await prisma.user.findUnique({
             where: { email }
         });
 
-        // Réponse identique que l'utilisateur existe ou non (sécurité)
+        
         if (!user) {
             return res.json({
                 success: true,
@@ -26,7 +26,7 @@ export async function forgotPassword(req, res) {
             });
         }
 
-        // Génération du token de réinitialisation
+        
         const resetToken = crypto
             .randomBytes(32)
             .toString("hex");
@@ -34,7 +34,6 @@ export async function forgotPassword(req, res) {
         const resetTokenExpires = new Date();
         resetTokenExpires.setHours(resetTokenExpires.getHours() + 1);
 
-        // Sauvegarde du token
         await prisma.user.update({
             where: { id: user.id },
             data: {
@@ -43,7 +42,7 @@ export async function forgotPassword(req, res) {
             }
         });
 
-        // Envoi de l'email via Resend
+        
         await sendPasswordResetEmail(user.email, resetToken);
 
         return res.json({
