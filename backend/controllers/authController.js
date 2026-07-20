@@ -169,20 +169,20 @@ if (!user.emailVerified) {
 }
 
 
-// seulement ici tu génères les tokens
+
 const accessToken = generateAccessToken(user);
 
-// Refresh Token
+
 const refreshTokenValue = generateRefreshToken();
 
-// Hash avant stockage
+
 const hashedRefreshToken = hashRefreshToken(refreshTokenValue);
 
-// Expiration dans 7 jours
+
 const expiresAt = new Date();
 expiresAt.setDate(expiresAt.getDate() + 7);
 
-// Sauvegarde en base
+
 await prisma.refreshToken.create({
     data: {
         tokenHash: hashedRefreshToken,
