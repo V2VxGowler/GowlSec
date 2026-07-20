@@ -94,14 +94,12 @@ const io = new Server(httpServer, {
   },
 });
 
-// userId → ensemble de ses connexions/onglets
 const onlineUsers = new Map();
 
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
 
-  // Les visiteurs restent connectés au compteur,
-  // mais ne sont pas comptabilisés.
+ 
   if (!token) {
     socket.data.userId = null;
     return next();
@@ -150,7 +148,6 @@ io.on("connection", (socket) => {
 
       userSockets.delete(socket.id);
 
-      // Le membre est retiré seulement après fermeture du dernier onglet
       if (userSockets.size === 0) {
         onlineUsers.delete(userId);
         console.log(`Membre hors ligne : ${userId}`);
