@@ -8,14 +8,24 @@ datasource db {
 }
 
 model User {
-  id            Int            @id @default(autoincrement())
-  username      String         @unique
-  email         String         @unique
-  password      String
-  role          String         @default("user")
-  createdAt     DateTime       @default(now())
+  id                         Int       @id @default(autoincrement())
+  username                   String    @unique
+  email                      String    @unique
+  password                   String
+  role                       String    @default("user")
 
-  refreshTokens RefreshToken[]
+  emailVerified              Boolean   @default(false)
+
+  verificationToken          String?
+  verificationTokenExpires   DateTime?
+  lastVerificationEmailSent DateTime?
+
+  resetPasswordToken         String?
+  resetPasswordTokenExpires  DateTime?
+
+  createdAt                  DateTime  @default(now())
+
+  refreshTokens              RefreshToken[]
 }
 
 model RefreshToken {

@@ -2,52 +2,63 @@ import express from "express";
 import {
     register,
     login,
-    refreshToken,
-    logout
+    logout,
+    refreshToken
 } from "../controllers/authController.js";
 
-import { authMiddleware } from "../middleware/authMiddleware.js";
-import { loginLimiter } from "../middleware/rateLimiter.js";
-import { validate } from "../middleware/validate.js";
-import { registerSchema, loginSchema } from "../schemas/authSchema.js";
+import { verifyEmail } from "../controllers/emailVerificationController.js";
+import { resendVerification } from "../controllers/resendVerificationController.js";
+import { forgotPassword } from "../controllers/forgotPasswordController.js";
+import { resetPassword } from "../controllers/resetPasswordController.js";
+
 
 const router = express.Router();
 
-// Test
-router.get("/", (req, res) => {
-    res.json({
-        success: true,
-        message: "API Auth opérationnelle"
-    });
-});
 
-// Inscription
 router.post(
     "/register",
-    validate(registerSchema),
     register
 );
 
-// Connexion
+
 router.post(
     "/login",
-    loginLimiter,
-    validate(loginSchema),
     login
 );
 
-// Refresh du token
-router.post("/refresh", refreshToken);
 
-// Déconnexion
-router.post("/logout", logout);
+router.post(
+    "/logout",
+    logout
+);
 
-// Profil utilisateur connecté
-router.get("/me", authMiddleware, (req, res) => {
-    res.json({
-        success: true,
-        user: req.user
-    });
-});
+
+router.post(
+    "/refresh",
+    refreshToken
+);
+
+
+// Vérification email
+router.get(
+    "/verify-email",
+    verifyEmail
+);
+
+router.post(
+    "/resend-verification",
+    resendVerification
+);
+
+router.post(
+    "/forgot-password",
+    forgotPassword
+);
+
+router.post(
+    "/reset-password",
+    resetPassword
+);
+
 
 export default router;

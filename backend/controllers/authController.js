@@ -8,6 +8,9 @@ import {
     hashRefreshToken
 } from "../utils/jwt.js";
 
+import crypto from "crypto";
+import { sendVerificationEmail } from "../services/emailService.js";
+
 const registerSchema = z.object({
     username: z.string().min(3).max(30),
     email: z.string().email(),
@@ -36,17 +39,40 @@ export async function register(req, res) {
 
         const hashedPassword = await bcrypt.hash(data.password, 12);
 
-        const user = await prisma.user.create({
-            data: {
-                username: data.username,
-                email: data.email,
-                password: hashedPassword
-            }
-        });
+        // Création du token de vérification email
+        const verificationToken = crypto
+            .randomBytes(32)
+            .toString("hex");
 
-        res.status(201).json({
+        const verificationTokenExpires = new Date();
+
+verificationTokenExpires.setHours(
+    verificationTokenExpires.getHours() + 24
+);
+
+
+        const user = await prisma.user.create({
+    data: {
+        username: data.username,
+        email: data.email,
+        password: hashedPassword,
+
+        verificationToken,
+        verificationTokenExpires,
+        emailVerified: false
+    }
+});
+
+        // Envoi de l'email Resend
+        await sendVerificationEmail(
+            user.email,
+            verificationToken
+        );
+
+
+        return res.status(201).json({
             success: true,
-            message: "Compte créé",
+            message: "Compte créé. Vérifie ton email.",
             user: {
                 id: user.id,
                 username: user.username,
@@ -54,14 +80,15 @@ export async function register(req, res) {
             }
         });
 
+
     } catch (error) {
+
         return res.status(400).json({
             success: false,
             message: error.message
         });
     }
 }
-
  export async function login(req, res) {
   try {
     const { email, password } = req.body;
@@ -72,6 +99,7 @@ export async function register(req, res) {
         message: "Email et mot de passe requis."
       });
     }
+    
 
     const user = await prisma.user.findUnique({
     where: {
@@ -102,6 +130,13 @@ if (!passwordValid) {
     return res.status(401).json({
         success: false,
         message: "Email ou mot de passe incorrect."
+    });
+}
+
+if (!user.emailVerified) {
+    return res.status(403).json({
+        success: false,
+        message: "Veuillez vérifier votre email avant de vous connecter."
     });
 }
 
