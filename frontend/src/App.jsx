@@ -4982,14 +4982,17 @@ export default function GowlSec() {
         .gowl-scanlines { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
           background: repeating-linear-gradient(0deg, transparent 0 3px, #ffffff05 3px 4px);
           animation: gowl-scanline-move 9s linear infinite; }
-        @keyframes gowl-owl-bob-kf { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-6px) rotate(2deg); } }
-        .gowl-owl-bob { animation: gowl-owl-bob-kf 2.6s ease-in-out infinite; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45)); }
-        @keyframes gowl-owl-wing-left-kf { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(46deg); } }
-        @keyframes gowl-owl-wing-right-kf { 0%, 100% { transform: rotate(6deg); } 50% { transform: rotate(-46deg); } }
-        .gowl-owl-wing-left { transform-origin: 88% 55%; animation: gowl-owl-wing-left-kf 0.32s ease-in-out infinite; }
-        .gowl-owl-wing-right { transform-origin: 12% 55%; animation: gowl-owl-wing-right-kf 0.32s ease-in-out infinite; }
-        @keyframes gowl-owl-fly-kf { 0% { transform: translate(0, 0); } 25% { transform: translate(140px, -18px); } 50% { transform: translate(70px, 26px); } 75% { transform: translate(-90px, -10px); } 100% { transform: translate(0, 0); } }
-        .gowl-owl-fly-wrap { position: absolute; left: 50%; top: 38%; margin-left: -27px; margin-top: -27px; animation: gowl-owl-fly-kf 11s ease-in-out infinite; }
+        @keyframes gowl-hacker-bob-kf { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+        .gowl-hacker-bob { animation: gowl-hacker-bob-kf 2.4s ease-in-out infinite; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.5)); }
+        @keyframes gowl-hacker-hand-left-kf { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(2.8px); } 50% { transform: translateY(0); } 75% { transform: translateY(-1.4px); } }
+        @keyframes gowl-hacker-hand-right-kf { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(-1.4px); } 50% { transform: translateY(0); } 75% { transform: translateY(2.8px); } }
+        .gowl-hacker-hand-left { transform-origin: center; animation: gowl-hacker-hand-left-kf 0.42s steps(2, end) infinite; }
+        .gowl-hacker-hand-right { transform-origin: center; animation: gowl-hacker-hand-right-kf 0.42s steps(2, end) infinite; animation-delay: 0.14s; }
+        @keyframes gowl-hacker-code-kf { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+        .gowl-hacker-codeline { animation: gowl-hacker-code-kf 1.4s ease-in-out infinite; }
+        @keyframes gowl-hacker-eye-kf { 0%, 92%, 100% { opacity: 1; } 96% { opacity: 0.15; } }
+        .gowl-hacker-eye { animation: gowl-hacker-eye-kf 4.6s ease-in-out infinite; }
+        .gowl-hacker-wrap { position: absolute; right: 8px; bottom: 6px; }
         @keyframes gowl-glitch-1 { 0%, 92%, 100% { transform: translate(0,0); opacity: 0; } 93% { transform: translate(-2px,1px); opacity: 0.7; } 95% { transform: translate(2px,-1px); opacity: 0.5; } 97% { transform: translate(-1px,0); opacity: 0.3; } }
         .gowl-glitch { position: relative; }
         .gowl-glitch::before, .gowl-glitch::after { content: attr(data-text); position: absolute; inset: 0; opacity: 0; pointer-events: none; }
@@ -5249,29 +5252,49 @@ export default function GowlSec() {
 }
 
 /* ---------------------------------------------------------------------
-   Sprite hibou — vole en boucle à l'intérieur d'un cadre borné (ex : le
-   terminal de démonstration de l'accueil), jamais hors de son cadre
+   Sprite hackeur — encapuchonné, pianote en boucle sur son clavier dans
+   le coin du terminal de démonstration de l'accueil
 --------------------------------------------------------------------- */
-function OwlFlySprite({ size = 40 }) {
+function HackerTypingSprite({ size = 50 }) {
   return (
-    <div className="gowl-owl-fly-wrap pointer-events-none">
-      <div className="gowl-owl-bob">
+    <div className="gowl-hacker-wrap pointer-events-none">
+      <div className="gowl-hacker-bob">
         <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" overflow="visible">
-          <ellipse cx="50" cy="58" rx="26" ry="24" fill={C.panel2} stroke={C.gold} strokeWidth="2.5" />
-          <path d="M20 30 12 12 30 22Z" fill={C.gold} opacity="0.9" />
-          <path d="M80 30 88 12 70 22Z" fill={C.gold} opacity="0.9" />
-          <path className="gowl-owl-wing-left" d="M26 50 C8 44 -4 50 1 62 C6 72 20 71 29 62 Z" fill={C.primary} opacity="0.92" />
-          <path className="gowl-owl-wing-right" d="M74 50 C92 44 104 50 99 62 C94 72 80 71 71 62 Z" fill={C.primary} opacity="0.92" />
-          <circle cx="38" cy="54" r="10" fill="#fff" />
-          <circle cx="62" cy="54" r="10" fill="#fff" />
-          <circle cx="38" cy="54" r="4.4" fill="#0A0C10" />
-          <circle cx="62" cy="54" r="4.4" fill="#0A0C10" />
-          <polygon points="50,60 44,70 56,70" fill={C.ok} />
+          {/* lueur de l'écran sur le sol */}
+          <ellipse cx="50" cy="94" rx="30" ry="5" fill={C.ok} opacity="0.14" />
+
+          {/* silhouette capuche + torse */}
+          <path d="M27 82 C22 56 31 33 50 33 C69 33 78 56 73 82 Z" fill="#12151B" stroke={C.primary} strokeWidth="2" />
+          <path d="M50 33 C58 33 65 38 69 46 C60 42 40 42 31 46 C35 38 42 33 50 33 Z" fill="#171B22" opacity="0.9" />
+
+          {/* visage dans l'ombre de la capuche */}
+          <ellipse cx="50" cy="48" rx="12.5" ry="13.5" fill="#0A0C10" />
+          <ellipse className="gowl-hacker-eye" cx="45" cy="49" rx="1.7" ry="2.1" fill={C.ok} />
+          <ellipse className="gowl-hacker-eye" cx="55" cy="49" rx="1.7" ry="2.1" fill={C.ok} />
+
+          {/* écran du laptop avec lignes de code qui pulsent */}
+          <rect x="23" y="68" width="54" height="21" rx="3" fill="#080A0E" stroke={C.line} strokeWidth="1.4" />
+          <rect className="gowl-hacker-codeline" x="29" y="73" width="24" height="2.6" rx="1.3" fill={C.ok} style={{ animationDelay: "0s" }} />
+          <rect className="gowl-hacker-codeline" x="29" y="78.5" width="32" height="2.6" rx="1.3" fill={C.primary} style={{ animationDelay: "0.35s" }} />
+          <rect className="gowl-hacker-codeline" x="29" y="84" width="17" height="2.6" rx="1.3" fill={C.gold} style={{ animationDelay: "0.7s" }} />
+
+          {/* clavier */}
+          <rect x="20" y="89" width="60" height="8.5" rx="2.6" fill="#171B22" stroke={C.line} strokeWidth="1.2" />
+          <rect x="26" y="91.3" width="4" height="2" rx="0.6" fill={C.line} />
+          <rect x="33" y="91.3" width="4" height="2" rx="0.6" fill={C.line} />
+          <rect x="40" y="91.3" width="20" height="2" rx="0.6" fill={C.line} />
+          <rect x="63" y="91.3" width="4" height="2" rx="0.6" fill={C.line} />
+          <rect x="70" y="91.3" width="4" height="2" rx="0.6" fill={C.line} />
+
+          {/* mains qui pianotent, décalées pour un effet de frappe rapide */}
+          <ellipse className="gowl-hacker-hand-left" cx="38" cy="90.5" rx="5.4" ry="4.2" fill={C.primary} />
+          <ellipse className="gowl-hacker-hand-right" cx="62" cy="90.5" rx="5.4" ry="4.2" fill={C.primary} />
         </svg>
       </div>
     </div>
   );
 }
+
 
 /* ---------------------------------------------------------------------
    Mascotte corbeau — "fouille" la base de données (visuel central accueil)
@@ -5373,7 +5396,7 @@ function DataScanScene({ onClick, label = "Terminal de démonstration — usage 
           })}
         </div>
       </div>
-      <OwlFlySprite size={34} />
+      <HackerTypingSprite size={50} />
       <div className="absolute left-1/2 bottom-4 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full pointer-events-none" style={{ background: `${C.bg}CC`, border: `1px solid ${C.ok}33` }}>
         <span className="text-xs" style={{ color: C.ok, fontFamily: MONO_FONT }}>{label}</span>
         <span className="text-xs" style={{ color: C.ok, fontFamily: MONO_FONT, animation: "gowl-pulse-dot 1.1s steps(3) infinite" }}>...</span>
