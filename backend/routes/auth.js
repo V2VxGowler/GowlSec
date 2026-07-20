@@ -1,4 +1,5 @@
 import express from "express";
+
 import {
     register,
     login,
@@ -10,6 +11,8 @@ import { verifyEmail } from "../controllers/emailVerificationController.js";
 import { resendVerification } from "../controllers/resendVerificationController.js";
 import { forgotPassword } from "../controllers/forgotPasswordController.js";
 import { resetPassword } from "../controllers/resetPasswordController.js";
+
+import { loginLimiter } from "../middleware/rateLimiter.js";
 
 
 const router = express.Router();
@@ -23,6 +26,7 @@ router.post(
 
 router.post(
     "/login",
+    loginLimiter,
     login
 );
 
