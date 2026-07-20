@@ -21,6 +21,7 @@ function XIcon({ size = 16, style, color = "currentColor" }) {
     </svg>
   );
 }
+import { forgotPassword, resetPassword, resendVerification } from "./api/auth";
 import ProtectedTab from "./components/ProtectedTab";
 import { useAuth } from "./context/AuthContext";
 import Register from "./pages/Register";
@@ -1161,6 +1162,7 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   const [portalTarget, setPortalTarget] = useState(null);
   const [toast, setToast] = useState(null);
   const [showPw, setShowPw] = useState({ password: false, newPassword: false, newPasswordConfirm: false });
+  const resetToken = new URLSearchParams(window.location.search).get("token");
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -1246,14 +1248,81 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   }
 }
 
-  function submitForgotStart(e) {
+  async function submitForgotStart(e) {
     e.preventDefault();
-    setForgotStep("reset");
+
+    try {
+      setBusy(true);
+
+      await forgotPassword(forgotEmail);
+
+      notify("success", "Email de réinitialisation envoyé.");
+
+      setForgotStep("emailSent");
+
+    } catch (error) {
+
+      notify("error", error.message);
+
+    } finally {
+
+      setBusy(false);
+
+    }
   }
 
-  function submitForgotReset(e) {
+  async function submitForgotReset(e) {
     e.preventDefault();
-    setForgotStep("done");
+
+    if (newPassword !== newPasswordConfirm) {
+
+      notify("error", "Les mots de passe ne correspondent pas.");
+
+      return;
+    }
+
+    try {
+
+  if (!resetToken) {
+    notify(
+      "error",
+      "Lien de réinitialisation invalide ou expiré."
+    );
+    return;
+  }
+
+      await resetPassword({
+        token: resetToken,
+        password: newPassword
+      });
+
+      setForgotStep("done");
+
+    } catch (error) {
+
+      notify("error", error.message);
+
+    }
+  }
+
+  async function handleResendVerification() {
+    try {
+
+      const email = localStorage.getItem("verification_email");
+
+      if (!email) {
+        throw new Error("Aucun email trouvé.");
+      }
+
+      await resendVerification(email);
+
+      notify("success", "E-mail de vérification renvoyé.");
+
+    } catch (error) {
+
+      notify("error", error.message);
+
+    }
   }
 
   if (currentUser) {
@@ -1392,6 +1461,16 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
                       <PrimaryButton type="submit" style={{ background: "linear-gradient(120deg, #5B6EF5 0%, #2ED9A3 100%)", width: "100%", justifyContent: "center" }}>Envoyer le lien</PrimaryButton>
                       <button type="button" onClick={() => setMode("login")} className="text-xs underline underline-offset-2 block gowl-link" style={{ color: C.muted, fontFamily: BODY_FONT }}>Retour à la connexion</button>
                     </form>
+                  ) : forgotStep === "emailSent" ? (
+                    <div className="space-y-3 gowl-fade-in">
+                      <div className="rounded-xl border p-3 flex items-start gap-2" style={{ borderColor: `${C.ok}44`, background: `${C.ok}12` }}>
+                        <CheckCircle2 size={16} color={C.ok} />
+                        <p className="text-sm" style={{ color: C.text, fontFamily: BODY_FONT }}>
+                          Un lien de réinitialisation a été envoyé. Vérifie ta boîte mail.
+                        </p>
+                      </div>
+                      <button type="button" onClick={() => setMode("login")} className="text-xs underline underline-offset-2 block gowl-link" style={{ color: C.muted, fontFamily: BODY_FONT }}>Retour à la connexion</button>
+                    </div>
                   ) : (
                     <form onSubmit={submitForgotReset} className="space-y-2.5 gowl-fade-in">
                       <PasswordField
@@ -1413,7 +1492,7 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
                     <Register />
                     <button
                       type="button"
-                      onClick={() => notify("success", "E-mail de vérification renvoyé.")}
+                      onClick={handleResendVerification}
                       className="text-xs underline underline-offset-2 block gowl-link"
                       style={{ color: C.muted, fontFamily: BODY_FONT }}
                     >

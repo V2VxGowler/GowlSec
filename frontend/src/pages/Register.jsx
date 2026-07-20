@@ -19,23 +19,48 @@ export default function Register() {
     setShowPassword(false);
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
-    setLoading(true);
+ const handleSubmit = async (e) => {
+  e.preventDefault();
 
-    try {
-      const result = await register({ username, email, password });
+  setError("");
+  setSuccess("");
+  setLoading(true);
 
-      setSuccess(result?.message || "Compte créé avec succès.");
-      resetFields();
-    } catch (err) {
-      setError(err?.message || "Une erreur est survenue lors de l'inscription.");
-    } finally {
-      setLoading(false);
-    }
-  };
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+
+    const result = await register({
+      username: username.trim(),
+      email: cleanEmail,
+      password
+    });
+
+    // Sauvegarde uniquement si inscription réussie
+    localStorage.setItem(
+      "verification_email",
+      cleanEmail
+    );
+
+    setSuccess(
+      result?.message || "Compte créé avec succès."
+    );
+
+    resetFields();
+
+  } catch (err) {
+
+    setError(
+      err?.message || "Une erreur est survenue lors de l'inscription."
+    );
+
+  } finally {
+
+    setLoading(false);
+
+  }
+};
+
+  
 
   return (
     <form onSubmit={handleSubmit} className="space-y-2.5 gowl-fade-in">

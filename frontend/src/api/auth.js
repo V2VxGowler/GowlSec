@@ -55,3 +55,64 @@ export function logout() {
   localStorage.removeItem("gowlsec_token");
   localStorage.removeItem("gowlsec_user");
 }
+
+export async function forgotPassword(email) {
+  const response = await fetch(`${API_URL}/api/auth/forgot-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Erreur lors de la demande.");
+  }
+
+  return data;
+}
+
+
+export async function resetPassword({ token, password }) {
+  const response = await fetch(`${API_URL}/api/auth/reset-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      token,
+      password,
+    }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Impossible de changer le mot de passe.");
+  }
+
+  return data;
+}
+
+
+export async function resendVerification(email) {
+  const response = await fetch(`${API_URL}/api/auth/resend-verification`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      email,
+    }),
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Erreur.");
+  }
+
+  return data;
+}
