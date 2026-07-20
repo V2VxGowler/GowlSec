@@ -54,7 +54,7 @@ const SEED_NEWS = [
 ];
 
 const C = {
-  bg: "#0A0C10",
+  bg: "#000000",
   panel: "#12151B",
   panel2: "#171B22",
   line: "#242A34",
@@ -73,11 +73,11 @@ const BODY_FONT = "'Source Sans 3', sans-serif";
 const MONO_FONT = "'IBM Plex Mono', monospace";
 
 /* ---------------------------------------------------------------------
-   Fond animé — réseau de nœuds qui dérivent et se relient, dans l'esprit
-   "carte réseau / graphe d'infra" de la communauté. Canvas plein écran,
-   fixé derrière tout le contenu, non interactif, respecte prefers-reduced-motion.
+   Fond animé — ciel étoilé avec étoiles filantes occasionnelles.
+   Canvas plein écran, fixé derrière tout le contenu, non interactif,
+   respecte prefers-reduced-motion.
 --------------------------------------------------------------------- */
-function NetworkBackground() {
+function ShootingStarsBackground() {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -91,12 +91,13 @@ function NetworkBackground() {
       window.matchMedia &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-    const palette = [C.primary, C.ok, C.gold];
     let width = 0;
     let height = 0;
     let dpr = Math.min(window.devicePixelRatio || 1, 2);
-    let nodes = [];
+    let stars = [];
+    let meteors = [];
     let raf = null;
+    let t = 0;
 
     function resize() {
       width = canvas.offsetWidth;
@@ -105,57 +106,83 @@ function NetworkBackground() {
       canvas.width = Math.max(1, Math.round(width * dpr));
       canvas.height = Math.max(1, Math.round(height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const count = Math.max(22, Math.min(64, Math.round((width * height) / 28000)));
-      nodes = Array.from({ length: count }, () => ({
+      const count = Math.max(60, Math.min(160, Math.round((width * height) / 9000)));
+      stars = Array.from({ length: count }, () => ({
         x: Math.random() * width,
         y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.16,
-        vy: (Math.random() - 0.5) * 0.16,
-        r: Math.random() * 1.3 + 0.6,
-        c: palette[Math.floor(Math.random() * palette.length)],
+        r: Math.random() * 1.1 + 0.3,
+        baseAlpha: Math.random() * 0.5 + 0.25,
+        speed: Math.random() * 1.6 + 0.6,
+        phase: Math.random() * Math.PI * 2,
       }));
     }
 
-    function draw(animate) {
+    function spawnMeteor() {
+      const fromTop = Math.random() < 0.6;
+      const x = fromTop ? Math.random() * width : -40;
+      const y = fromTop ? -40 : Math.random() * height * 0.5;
+      const angle = (Math.PI / 4) + (Math.random() - 0.5) * 0.35; // ~45° en diagonale
+      const speed = Math.random() * 5 + 7;
+      meteors.push({
+        x, y,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        len: Math.random() * 70 + 90,
+        life: 0,
+        maxLife: 70 + Math.random() * 30,
+        c: Math.random() < 0.5 ? C.primary : C.gold,
+      });
+    }
+
+    function draw(animate, dt) {
       ctx.clearRect(0, 0, width, height);
-      if (animate) {
-        for (const n of nodes) {
-          n.x += n.vx;
-          n.y += n.vy;
-          if (n.x < -24) n.x = width + 24;
-          if (n.x > width + 24) n.x = -24;
-          if (n.y < -24) n.y = height + 24;
-          if (n.y > height + 24) n.y = -24;
-        }
-      }
-      const linkDist = Math.min(150, Math.max(90, width / 7));
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const a = nodes[i], b = nodes[j];
-          const dx = a.x - b.x, dy = a.y - b.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < linkDist) {
-            const op = Math.round((1 - dist / linkDist) * 40)
-              .toString(16)
-              .padStart(2, "0");
-            ctx.strokeStyle = `${C.primary}${op}`;
-            ctx.lineWidth = 1;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-      }
-      for (const n of nodes) {
+
+      // étoiles scintillantes
+      for (const s of stars) {
+        const tw = animate ? (Math.sin(t * s.speed * 0.02 + s.phase) * 0.35 + 0.65) : 1;
         ctx.beginPath();
-        ctx.arc(n.x, n.y, n.r, 0, Math.PI * 2);
-        ctx.fillStyle = `${n.c}66`;
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fillStyle = `#ffffff${Math.round(s.baseAlpha * tw * 255).toString(16).padStart(2, "0")}`;
         ctx.fill();
+      }
+
+      // étoiles filantes
+      for (let i = meteors.length - 1; i >= 0; i--) {
+        const m = meteors[i];
+        if (animate) {
+          m.x += m.vx;
+          m.y += m.vy;
+          m.life += 1;
+        }
+        const progress = m.life / m.maxLife;
+        const fade = progress < 0.15 ? progress / 0.15 : 1 - Math.max(0, (progress - 0.6) / 0.4);
+        const tailX = m.x - m.vx * (m.len / Math.hypot(m.vx, m.vy));
+        const tailY = m.y - m.vy * (m.len / Math.hypot(m.vx, m.vy));
+        const grad = ctx.createLinearGradient(m.x, m.y, tailX, tailY);
+        grad.addColorStop(0, `${m.c}${Math.round(Math.max(0, Math.min(1, fade)) * 255).toString(16).padStart(2, "0")}`);
+        grad.addColorStop(1, `${m.c}00`);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = 1.6;
+        ctx.lineCap = "round";
+        ctx.beginPath();
+        ctx.moveTo(m.x, m.y);
+        ctx.lineTo(tailX, tailY);
+        ctx.stroke();
+        // tête lumineuse
+        ctx.beginPath();
+        ctx.arc(m.x, m.y, 1.4, 0, Math.PI * 2);
+        ctx.fillStyle = `#ffffff${Math.round(Math.max(0, Math.min(1, fade)) * 255).toString(16).padStart(2, "0")}`;
+        ctx.fill();
+
+        if (m.life > m.maxLife || m.x > width + 80 || m.y > height + 80) {
+          meteors.splice(i, 1);
+        }
       }
     }
 
     function loop() {
+      t += 1;
+      if (meteors.length < 3 && Math.random() < 0.012) spawnMeteor();
       draw(true);
       raf = requestAnimationFrame(loop);
     }
@@ -785,18 +812,29 @@ function TeamLogo({ team, size = 40 }) {
 /* ---------------------------------------------------------------------
    Logo — écusson hibou (cybersécurité)
 --------------------------------------------------------------------- */
-function OwlLogo({ size = 26 }) {
+function OwlLogo({ size = 26, glow = false }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M32 4 58 14v16c0 18-11.5 28.5-26 30C17.5 58.5 6 48 6 30V14L32 4Z" fill={C.panel2} stroke={C.primary} strokeWidth="2" />
-      <path d="M20 15 14 7 25 13Z" fill={C.primary} opacity="0.85" />
-      <path d="M44 15 50 7 39 13Z" fill={C.primary} opacity="0.85" />
-      <circle cx="23" cy="30" r="9" fill={C.primary} />
-      <circle cx="41" cy="30" r="9" fill={C.ok} />
-      <circle cx="23" cy="30" r="3.4" fill={C.bg} />
-      <circle cx="41" cy="30" r="3.4" fill={C.bg} />
-      <polygon points="32,38 27,46 37,46" fill={C.gold} />
-    </svg>
+    <span className="relative inline-flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
+      {glow && (
+        <span aria-hidden className="absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${C.primary}55, transparent 70%)`, filter: "blur(4px)", transform: "scale(1.6)" }} />
+      )}
+      <svg viewBox="0 0 64 64" width={size} height={size} className="relative" xmlns="http://www.w3.org/2000/svg" aria-label="Logo GowlSec">
+        <defs>
+          <linearGradient id="gowlShield" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={C.primary} />
+            <stop offset="1" stopColor={C.ok} />
+          </linearGradient>
+        </defs>
+        <path d="M32 3 L56 12 V29 C56 45 46 55 32 61 C18 55 8 45 8 29 V12 Z" fill="#0A0C10" stroke="url(#gowlShield)" strokeWidth="2.5" />
+        <path d="M32 12 C24 12 18 19 18 27 C18 34 22 39 27 41 L27 45 C27 47 29 49 32 49 C35 49 37 47 37 45 L37 41 C42 39 46 34 46 27 C46 19 40 12 32 12 Z" fill="#10151D" stroke={C.gold} strokeWidth="1.6" />
+        <circle cx="25.5" cy="26" r="5.4" fill="#fff" />
+        <circle cx="38.5" cy="26" r="5.4" fill="#fff" />
+        <circle cx="25.5" cy="26" r="2.4" fill="#0A0C10" />
+        <circle cx="38.5" cy="26" r="2.4" fill="#0A0C10" />
+        <polygon points="32,31 29,36 35,36" fill={C.gold} />
+        <path d="M20 15 C22 10 26 8 32 8 C38 8 42 10 44 15 C39 12 35 11 32 11 C29 11 25 12 20 15 Z" fill={C.primary} />
+      </svg>
+    </span>
   );
 }
 
@@ -865,12 +903,8 @@ function NavMoreMenu({ tabs, tab, setTab, lang }) {
   if (tabs.length === 0) return null;
   return (
     <div className="relative">
-      <button ref={btnRef} onClick={() => setOpen((o) => !o)} className="relative flex items-center gap-1 px-3 py-[7px] text-[13px] font-semibold whitespace-nowrap rounded-lg transition-all duration-200"
-        style={{
-          color: activeInMenu ? "#fff" : C.muted,
-          background: activeInMenu ? `linear-gradient(155deg, ${C.primary}, ${C.primary}CC)` : "transparent",
-          fontFamily: BODY_FONT,
-        }}>
+      <button ref={btnRef} onClick={() => setOpen((o) => !o)} className={`gowl-navtab flex items-center gap-1 px-3 py-[7px] text-[13px] font-semibold whitespace-nowrap rounded-lg${activeInMenu ? " active" : ""}`}
+        style={{ fontFamily: BODY_FONT }}>
         Plus <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
       </button>
       {open && typeof document !== "undefined" && createPortal(
@@ -2230,6 +2264,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
 
   async function createRoom(e) {
     e.preventDefault();
+    if (!currentUser) return;
     const name = newRoomName.trim();
     if (!name) return;
     if (newRoomType === "private" && !newRoomPassword.trim()) return;
@@ -2342,6 +2377,9 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
             <p className="text-xs leading-relaxed" style={{ color: C.muted, fontFamily: BODY_FONT }}>{t(lang, "hubHeroSub")}</p>
           </div>
           <div className="p-5">
+            {!currentUser ? (
+              <GuestGate text="Connecte-toi pour créer un salon." accent={C.ok} />
+            ) : (
             <form onSubmit={createRoom} className="rounded-lg border p-3 mb-3" style={{ background: "rgba(255,255,255,0.03)", borderColor: C.line }}>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="flex-1">
@@ -2361,6 +2399,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
                 </div>
               )}
             </form>
+            )}
           </div>
         </div>
       </Panel>
@@ -3377,229 +3416,13 @@ function TrophyTab({ pseudo, trophies, setTrophies, isAdmin, currentUser = null 
 /* ---------------------------------------------------------------------
    Support — tickets utilisateur
 --------------------------------------------------------------------- */
-function SupportTab({ pseudo, currentUser, tickets, setTickets, supportThreads, setSupportThreads }) {
-  const [title, setTitle] = useState("");
-  const [category, setCategory] = useState("question");
-  const [message, setMessage] = useState("");
-  const [contactEmail, setContactEmail] = useState(currentUser?.email || "");
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
-  const [selectedTicketId, setSelectedTicketId] = useState(null);
-  const [replyText, setReplyText] = useState("");
-  const [replyError, setReplyError] = useState("");
-  const [openFaq, setOpenFaq] = useState(null);
-
-  useEffect(() => {
-    if (!selectedTicketId && tickets[0]) setSelectedTicketId(tickets[0].id);
-    else if (selectedTicketId && !tickets.find((ticket) => ticket.id === selectedTicketId) && tickets[0]) {
-      setSelectedTicketId(tickets[0].id);
-    }
-  }, [tickets, selectedTicketId]);
-
-  const selectedTicket = tickets.find((ticket) => ticket.id === selectedTicketId) || tickets[0] || null;
-  const selectedThread = supportThreads.find((thread) => thread.ticketId === selectedTicket?.id) || null;
-
-  async function submitTicket(e) {
-    e.preventDefault();
-    setError("");
-    const cleanTitle = title.trim();
-    const cleanMessage = message.trim();
-    const cleanEmail = contactEmail.trim().toLowerCase();
-    if (!cleanTitle || !cleanMessage) return setError("Ajoute un objet et un message pour envoyer ton ticket.");
-    if (cleanEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail)) return setError("Adresse e-mail invalide.");
-
-    const now = new Date().toISOString();
-    const ticket = {
-      id: uid(),
-      author: currentUser?.username || pseudo,
-      email: cleanEmail || currentUser?.email || "",
-      userId: currentUser?.id || null,
-      category,
-      title: cleanTitle,
-      message: cleanMessage,
-      status: "open",
-      createdAt: now,
-      updatedAt: now,
-    };
-    const thread = {
-      id: uid(),
-      ticketId: ticket.id,
-      participantId: currentUser?.id || null,
-      participantName: ticket.author,
-      participantEmail: ticket.email,
-      status: "open",
-      messages: [{ id: uid(), sender: "user", author: ticket.author, text: cleanMessage, createdAt: now }],
-      updatedAt: now,
-    };
-    const nextTickets = [ticket, ...tickets];
-    const nextThreads = [thread, ...supportThreads.filter((item) => item.ticketId !== ticket.id)];
-    setTickets(nextTickets);
-    setSupportThreads(nextThreads);
-    await Promise.all([
-      saveCollection("gowlsec:tickets", nextTickets),
-      saveCollection("gowlsec:support_threads", nextThreads),
-    ]);
-    setTitle("");
-    setMessage("");
-    setCategory("question");
-    setContactEmail(currentUser?.email || "");
-    setStatus("Ticket envoyé avec succès. Merci pour ta demande.");
-    setSelectedTicketId(ticket.id);
-  }
-
-  async function submitReply(e) {
-    e.preventDefault();
-    if (!selectedTicket || !replyText.trim()) return setReplyError("Écris un message pour continuer la conversation.");
-    const now = new Date().toISOString();
-    const nextThreads = supportThreads.map((thread) => {
-      if (thread.ticketId !== selectedTicket.id) return thread;
-      const nextMessages = [...thread.messages, { id: uid(), sender: "user", author: currentUser?.username || pseudo, text: replyText.trim(), createdAt: now }];
-      return { ...thread, messages: nextMessages, status: thread.status === "resolved" ? "resolved" : "in_progress", updatedAt: now };
-    });
-    setSupportThreads(nextThreads);
-    await saveCollection("gowlsec:support_threads", nextThreads);
-    setReplyText("");
-    setReplyError("");
-    setStatus("Message envoyé au support.");
-  }
-
+function SupportTab() {
   return (
-    <div className="space-y-6">
-      <Panel className="p-5 overflow-hidden relative" style={{ background: "linear-gradient(135deg, rgba(91,110,245,0.2) 0%, rgba(18,21,27,0.98) 50%, rgba(255,77,94,0.12) 100%)", border: `1px solid ${C.primary}33` }}>
-        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full text-[10px] uppercase tracking-[0.3em] mb-3" style={{ background: `${C.primary}22`, color: C.primary, border: `1px solid ${C.primary}33` }}>
-              <Mail size={12} /> Support GowlSec
-            </div>
-            <h2 className="text-xl font-bold mb-2" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Ouvre un ticket de demande</h2>
-            <p className="text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>Choisis une catégorie, décris ton besoin et l'équipe te recontactera dès que possible.</p>
-          </div>
-          <div className="rounded-xl px-3 py-2 text-sm" style={{ background: `${C.panel2}CC`, border: `1px solid ${C.line}` }}>
-            <span style={{ color: C.muted, fontFamily: MONO_FONT }}>Demandes reçues</span>
-            <div className="text-lg font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{tickets.length}</div>
-          </div>
-        </div>
-      </Panel>
-
-      <div className="grid lg:grid-cols-[1.1fr_0.9fr] gap-6">
-        <div className="space-y-4">
-          <Panel className="p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <Lightbulb size={15} style={{ color: C.gold }} />
-              <h3 className="text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Questions fréquentes</h3>
-            </div>
-            <div className="space-y-1.5">
-              {SUPPORT_FAQ.map((f, i) => {
-                const isOpen = openFaq === i;
-                return (
-                  <div key={i} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.line}` }}>
-                    <button type="button" onClick={() => setOpenFaq(isOpen ? null : i)} className="w-full flex items-center justify-between gap-2 px-3 py-2 text-left" style={{ background: C.panel2 }}>
-                      <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{f.q}</span>
-                      {isOpen ? <ChevronUp size={13} style={{ color: C.muted, flexShrink: 0 }} /> : <ChevronDown size={13} style={{ color: C.muted, flexShrink: 0 }} />}
-                    </button>
-                    {isOpen && <p className="text-xs px-3 py-2.5" style={{ color: C.muted, fontFamily: BODY_FONT, background: C.panel }}>{f.a}</p>}
-                  </div>
-                );
-              })}
-            </div>
-            <p className="text-[11px] mt-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>Pas trouvé de réponse ? Ouvre un ticket ci-dessous, l'équipe te répond directement dans ta conversation privée.</p>
-          </Panel>
-
-          <Panel className="p-4">
-            <h3 className="text-sm font-bold mb-3" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Nouveau ticket</h3>
-            <form onSubmit={submitTicket}>
-              <Field label="Catégorie">
-                <div className="flex flex-wrap gap-2">
-                  {SUPPORT_CATEGORIES.map((c) => {
-                    const active = category === c.key;
-                    const Icon = c.icon;
-                    return (
-                      <button type="button" key={c.key} onClick={() => setCategory(c.key)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-                        style={{ background: active ? `${c.color}22` : C.panel2, border: `1px solid ${active ? c.color : C.line}`, color: active ? c.color : C.muted, fontFamily: BODY_FONT }}>
-                        <Icon size={13} /> {c.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              </Field>
-              <Field label="Objet de la demande">
-                <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Ex: commande boutique, problème de connexion..." className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-              </Field>
-              <Field label="Votre e-mail (optionnel)">
-                <input type="email" value={contactEmail} onChange={(e) => setContactEmail(e.target.value)} placeholder="votre@email.com" className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-              </Field>
-              <Field label="Détail de la demande">
-                <textarea value={message} onChange={(e) => setMessage(e.target.value)} rows={5} placeholder="Explique clairement ton besoin, le contexte et ce que tu attends." className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-              </Field>
-              {error && <p className="text-xs mb-3" style={{ color: C.alert, fontFamily: BODY_FONT }}>{error}</p>}
-              {status && <p className="text-xs mb-3" style={{ color: C.ok, fontFamily: BODY_FONT }}>{status}</p>}
-              <PrimaryButton type="submit"><Send size={14} /> Envoyer le ticket</PrimaryButton>
-            </form>
-          </Panel>
-        </div>
-
-        <Panel className="p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <MessageCircle size={15} style={{ color: C.primary }} />
-            <h3 className="text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Conversation privée</h3>
-          </div>
-          {tickets.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-4 text-center" style={{ borderColor: C.line, color: C.muted }}>
-              <p className="text-sm">Aucun ticket pour le moment.</p>
-            </div>
-          ) : (
-            <div className="grid gap-4">
-              <div className="space-y-2 max-h-[240px] overflow-y-auto pr-1">
-                {tickets.map((ticket) => {
-                  const cat = SUPPORT_CATEGORIES.find((c) => c.key === ticket.category) || SUPPORT_CATEGORIES[0];
-                  const st = SUPPORT_STATUS[ticket.status] || SUPPORT_STATUS.open;
-                  const active = selectedTicket?.id === ticket.id;
-                  const CatIcon = cat.icon;
-                  return (
-                    <button key={ticket.id} type="button" onClick={() => setSelectedTicketId(ticket.id)} className="w-full rounded-lg p-3 text-left" style={{ background: active ? `${C.primary}22` : C.panel2, border: `1px solid ${active ? C.primary : C.line}` }}>
-                      <div className="flex items-center justify-between gap-3 mb-2">
-                        <span className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em]" style={{ color: cat.color, fontFamily: MONO_FONT }}><CatIcon size={11} /> {cat.label}</span>
-                        <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(ticket.createdAt)}</span>
-                      </div>
-                      <h4 className="text-sm font-semibold mb-1.5" style={{ color: C.text, fontFamily: BODY_FONT }}>{ticket.title}</h4>
-                      <div className="flex items-center justify-between text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>
-                        <span>{ticket.author}</span>
-                        <span className="px-2 py-0.5 rounded-full font-semibold" style={{ background: `${st.color}1A`, color: st.color }}>{st.label}</span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {selectedTicket && (
-                <div className="rounded-lg p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                  <div className="mb-3">
-                    <h4 className="text-sm font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{selectedTicket.title}</h4>
-                    <p className="text-xs mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{selectedTicket.message}</p>
-                  </div>
-                  <div className="space-y-2 mb-3 max-h-[220px] overflow-y-auto pr-1">
-                    {(selectedThread?.messages || []).map((message) => (
-                      <div key={message.id} className={`rounded-md px-3 py-2 ${message.sender === "admin" ? "ml-4" : "mr-4"}`} style={{ background: message.sender === "admin" ? `${C.primary}22` : `${C.ok}14`, border: `1px solid ${message.sender === "admin" ? C.primary : C.ok}33` }}>
-                        <div className="flex items-center justify-between gap-2 mb-1">
-                          <span className="text-[11px] font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{message.author}</span>
-                          <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(message.createdAt)}</span>
-                        </div>
-                        <p className="text-xs" style={{ color: C.text, fontFamily: BODY_FONT }}>{message.text}</p>
-                      </div>
-                    ))}
-                  </div>
-                  <form onSubmit={submitReply}>
-                    <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={3} placeholder="Répondre au support..." className="w-full px-3 py-2 rounded-md text-sm mb-2" style={inputStyle} />
-                    {replyError && <p className="text-xs mb-2" style={{ color: C.alert, fontFamily: BODY_FONT }}>{replyError}</p>}
-                    <PrimaryButton type="submit"><Send size={14} /> Envoyer</PrimaryButton>
-                  </form>
-                </div>
-              )}
-            </div>
-          )}
-        </Panel>
-      </div>
-    </div>
+    <Panel className="p-6 text-center">
+      <MessageCircle size={22} color={C.primary} className="mx-auto mb-2" />
+      <h2 className="text-lg font-bold mb-1" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Support</h2>
+      <p className="text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>Bientôt disponible.</p>
+    </Panel>
   );
 }
 
@@ -4925,7 +4748,7 @@ export default function GowlSec() {
       )}
       <div aria-hidden className="gowl-bg-grid" />
       <div aria-hidden className="gowl-bg-glow" />
-      <NetworkBackground />
+      <ShootingStarsBackground />
       <div aria-hidden className="gowl-scanlines" />
       <div aria-hidden className="gowl-bg-noise" />
       <style>{`
@@ -4943,10 +4766,13 @@ export default function GowlSec() {
         .gowl-bg-glow {
           position: fixed; inset: 0; z-index: 0; pointer-events: none;
           background:
-            radial-gradient(600px 340px at 12% -6%, ${C.primary}1C, transparent 60%),
-            radial-gradient(560px 320px at 92% 8%, ${C.ok}16, transparent 60%),
-            radial-gradient(700px 420px at 50% 100%, ${C.gold}0F, transparent 70%);
+            radial-gradient(680px 380px at 12% -6%, ${C.primary}26, transparent 60%),
+            radial-gradient(620px 360px at 92% 6%, ${C.ok}1E, transparent 60%),
+            radial-gradient(780px 460px at 50% 105%, ${C.gold}14, transparent 70%),
+            radial-gradient(500px 300px at 50% 40%, ${C.primary}0A, transparent 65%);
+          animation: gowl-glow-drift 16s ease-in-out infinite alternate;
         }
+        @keyframes gowl-glow-drift { 0% { opacity: 0.85; transform: translateY(0); } 100% { opacity: 1; transform: translateY(-10px); } }
         .gowl-bg-network { position: fixed; inset: 0; z-index: 0; width: 100%; height: 100%; pointer-events: none; opacity: 0.85; }
         header, main, footer { position: relative; z-index: 1; }
         /* --- Éléments HUD cyber réutilisables --- */
@@ -4982,17 +4808,6 @@ export default function GowlSec() {
         .gowl-scanlines { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
           background: repeating-linear-gradient(0deg, transparent 0 3px, #ffffff05 3px 4px);
           animation: gowl-scanline-move 9s linear infinite; }
-        @keyframes gowl-hacker-bob-kf { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-        .gowl-hacker-bob { animation: gowl-hacker-bob-kf 2.4s ease-in-out infinite; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.5)); }
-        @keyframes gowl-hacker-hand-left-kf { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(2.8px); } 50% { transform: translateY(0); } 75% { transform: translateY(-1.4px); } }
-        @keyframes gowl-hacker-hand-right-kf { 0%, 100% { transform: translateY(0); } 25% { transform: translateY(-1.4px); } 50% { transform: translateY(0); } 75% { transform: translateY(2.8px); } }
-        .gowl-hacker-hand-left { transform-origin: center; animation: gowl-hacker-hand-left-kf 0.42s steps(2, end) infinite; }
-        .gowl-hacker-hand-right { transform-origin: center; animation: gowl-hacker-hand-right-kf 0.42s steps(2, end) infinite; animation-delay: 0.14s; }
-        @keyframes gowl-hacker-code-kf { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
-        .gowl-hacker-codeline { animation: gowl-hacker-code-kf 1.4s ease-in-out infinite; }
-        @keyframes gowl-hacker-eye-kf { 0%, 92%, 100% { opacity: 1; } 96% { opacity: 0.15; } }
-        .gowl-hacker-eye { animation: gowl-hacker-eye-kf 4.6s ease-in-out infinite; }
-        .gowl-hacker-wrap { position: absolute; right: 8px; bottom: 6px; }
         @keyframes gowl-glitch-1 { 0%, 92%, 100% { transform: translate(0,0); opacity: 0; } 93% { transform: translate(-2px,1px); opacity: 0.7; } 95% { transform: translate(2px,-1px); opacity: 0.5; } 97% { transform: translate(-1px,0); opacity: 0.3; } }
         .gowl-glitch { position: relative; }
         .gowl-glitch::before, .gowl-glitch::after { content: attr(data-text); position: absolute; inset: 0; opacity: 0; pointer-events: none; }
@@ -5055,6 +4870,21 @@ export default function GowlSec() {
         .gowl-shield-glow { animation: gowl-shield-glow 2.4s ease-in-out infinite; }
         @keyframes gowl-cursor-blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.15; } }
         .gowl-cursor-blink { animation: gowl-cursor-blink 1s steps(2) infinite; }
+
+        @keyframes gowl-keyboard-left { 0%,100% { transform: translate(0,0); } 45% { transform: translate(4px,3px); } }
+        @keyframes gowl-keyboard-right { 0%,100% { transform: translate(0,0); } 55% { transform: translate(-4px,3px); } }
+        .gowl-hacker-hand-left { transform-origin: center; animation: gowl-keyboard-left .72s ease-in-out infinite; }
+        .gowl-hacker-hand-right { transform-origin: center; animation: gowl-keyboard-right .64s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .gowl-hacker-hand-left, .gowl-hacker-hand-right { animation: none; } }
+
+        /* --- Barre de navigation --- */
+        .gowl-nav-track { background: ${C.bg}A0; border: 1px solid ${C.line}; border-radius: 12px; padding: 4px; }
+        .gowl-navtab { position: relative; color: ${C.muted}; transition: color 0.2s ease, background 0.2s ease, transform 0.15s ease; }
+        .gowl-navtab:hover { color: ${C.text}; background: ${C.panel2}; transform: translateY(-1px); }
+        .gowl-navtab.active { color: #fff; background: linear-gradient(155deg, ${C.primary}, ${C.primary}CC); box-shadow: 0 4px 14px -4px ${C.primary}99, inset 0 1px 0 #ffffff22; transform: translateY(0); }
+        .gowl-navtab.active:hover { color: #fff; transform: translateY(0); }
+        .gowl-navtab-mobile { position: relative; transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
+        .gowl-navtab-mobile.active { box-shadow: 0 4px 14px -5px ${C.primary}AA; }
       `}</style>
 
       <header className="sticky top-0 z-30" style={{ background: `${C.bg}F2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.line}`, boxShadow: "0 1px 0 rgba(0,0,0,0.4), 0 8px 24px -16px rgba(0,0,0,0.6)" }}>
@@ -5062,29 +4892,19 @@ export default function GowlSec() {
         <div className="max-w-7xl mx-auto px-5 lg:px-8 h-[70px] flex items-center justify-between gap-4">
           <div className="flex items-center gap-5 min-w-0">
             <button onClick={() => setTab("accueil")} className="flex items-center gap-2.5 shrink-0 group">
-              <span className="relative flex items-center justify-center w-10 h-10 rounded-xl transition-transform group-hover:scale-105" style={{ background: `linear-gradient(155deg, ${C.panel2}, ${C.bg})`, border: `1px solid ${C.line}`, boxShadow: `0 0 0 1px ${C.primary}22 inset` }}>
-                <OwlLogo size={20} />
-              </span>
               <span className="flex flex-col leading-none">
                 <span className="font-extrabold text-lg tracking-tight" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>GowlSec</span>
                 <span className="text-[10px] uppercase tracking-widest" style={{ color: C.muted, fontFamily: MONO_FONT }}>{L("tagline")}</span>
               </span>
             </button>
             <span className="hidden lg:block w-px h-7 shrink-0" style={{ background: C.line }} />
-            <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto py-1">
+            <nav className="hidden md:flex items-center gap-0.5 overflow-x-auto gowl-nav-track">
               {TABS.filter((t) => t.key !== "admin" && t.primary).map((t) => {
                 const active = tab === t.key;
                 const Icon = t.icon;
                 return (
-                  <button key={t.key} onClick={() => setTab(t.key)} className="relative flex items-center gap-1.5 px-3 py-[7px] text-[13px] font-semibold whitespace-nowrap rounded-lg transition-all duration-200"
-                    style={{
-                      color: active ? "#fff" : C.muted,
-                      background: active ? `linear-gradient(155deg, ${C.primary}, ${C.primary}CC)` : "transparent",
-                      boxShadow: active ? `0 4px 14px -4px ${C.primary}88` : "none",
-                      fontFamily: BODY_FONT,
-                    }}
-                    onMouseEnter={(e) => { if (!active) e.currentTarget.style.background = C.panel2; }}
-                    onMouseLeave={(e) => { if (!active) e.currentTarget.style.background = "transparent"; }}
+                  <button key={t.key} onClick={() => setTab(t.key)} className={`gowl-navtab flex items-center gap-1.5 px-3 py-[7px] text-[13px] font-semibold whitespace-nowrap rounded-lg${active ? " active" : ""}`}
+                    style={{ fontFamily: BODY_FONT }}
                   >
                     {Icon && <Icon size={13} />}
                     {(I18N[lang || "fr"].tabs[t.key]) || t.label}
@@ -5114,9 +4934,13 @@ export default function GowlSec() {
         <nav className="md:hidden flex items-center gap-1 px-5 pb-2.5 overflow-x-auto">
           {TABS.map((t) => {
             const active = tab === t.key;
+            const Icon = t.icon;
             return (
-              <button key={t.key} onClick={() => setTab(t.key)} className="px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-colors"
-                style={{ color: active ? "#fff" : C.muted, background: active ? C.primary : C.panel, border: `1px solid ${active ? C.primary : C.line}`, fontFamily: BODY_FONT }}>{(I18N[lang || "fr"].tabs[t.key]) || t.label}</button>
+              <button key={t.key} onClick={() => setTab(t.key)} className={`gowl-navtab-mobile flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap${active ? " active" : ""}`}
+                style={{ color: active ? "#fff" : C.muted, background: active ? `linear-gradient(155deg, ${C.primary}, ${C.primary}CC)` : C.panel, border: `1px solid ${active ? C.primary : C.line}`, fontFamily: BODY_FONT }}>
+                {Icon && <Icon size={12} />}
+                {(I18N[lang || "fr"].tabs[t.key]) || t.label}
+              </button>
             );
           })}
         </nav>
@@ -5130,59 +4954,17 @@ export default function GowlSec() {
         ) : (
           <>
             {tab === "accueil" && (
-              <div className="space-y-10">
-                {/* Ticker live — donne le pouls de la communauté en un coup d'œil */}
-                <div className="overflow-hidden rounded-lg" style={{ border: `1px solid ${C.line}`, background: C.panel }}>
-                  <div className="flex items-center">
-                    <div className="flex items-center gap-1.5 px-3 py-2 shrink-0" style={{ background: `${C.alert}14`, borderRight: `1px solid ${C.line}` }}>
-                      <Radio size={12} style={{ color: C.alert }} />
-                      <span className="text-xs font-bold tracking-wide" style={{ color: C.alert, fontFamily: MONO_FONT }}>{L("live2")}</span>
-                    </div>
-                    <div className="overflow-hidden flex-1">
-                      <div className="flex gowl-ticker-track" style={{ width: "max-content" }}>
-                        {[...tickerItems, ...tickerItems].map((t, i) => (
-                          <span key={i} className="flex items-center gap-2 px-4 py-2 text-xs shrink-0" style={{ color: C.text, fontFamily: BODY_FONT }}>
-                            <Zap size={11} style={{ color: C.gold }} /> {t}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Hero */}
-                <div className="relative overflow-hidden rounded-2xl px-1 py-2" style={{ isolation: "isolate" }}>
-                  <div aria-hidden className="absolute rounded-full pointer-events-none" style={{ width: 420, height: 420, top: -160, left: -120, background: `radial-gradient(circle, ${C.primary}30, transparent 70%)`, filter: "blur(10px)", animation: "gowl-blob-drift 14s ease-in-out infinite", zIndex: -1 }} />
-                  <div aria-hidden className="absolute rounded-full pointer-events-none" style={{ width: 340, height: 340, top: -80, right: -100, background: `radial-gradient(circle, ${C.gold}22, transparent 70%)`, filter: "blur(10px)", animation: "gowl-blob-drift 18s ease-in-out infinite reverse", zIndex: -1 }} />
-
-                  <div className="max-w-2xl mx-auto text-center py-8 gowl-fade-up">
-                    <div className="flex items-center justify-center gap-2 mb-4 flex-wrap">
-                      <LivePulseBadge count={liveCount} />
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs" style={{ border: `1px solid ${C.line}`, color: C.muted, fontFamily: MONO_FONT }}>
-                        <Gauge size={12} style={{ color: C.ok }} /> {L("watching")}
-                      </span>
-                    </div>
-                    <h1 className="text-4xl md:text-5xl font-extrabold leading-tight mb-4" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
-                      {L("heroTitle1")}<span style={{ background: `linear-gradient(90deg, ${C.primary}, ${C.gold})`, WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>{L("heroTitle2")}</span>
-                    </h1>
-                    <p className="text-base leading-relaxed mb-6" style={{ color: C.muted }}>
-                      {L("heroSub")}
-                    </p>
-                    <div className="flex items-center justify-center gap-3 mb-6 flex-wrap">
-                      <MemberAvatarStack profiles={profiles} />
-                      <span className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-                        {profiles.length > 0 ? <><b style={{ color: C.text }}>{profiles.length}</b> {L("membersJoined")}</> : L("joinFirst")} · {L("peerHelp")}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap justify-center gap-3">
-                      <PrimaryButton onClick={() => setTab("forum")} style={{ boxShadow: `0 0 0 0 ${C.primary}55` }}><span className="gowl-cta-glow rounded-md inline-flex items-center gap-2"><Zap size={14} /> {L("ctaAsk")}</span></PrimaryButton>
-                      <GhostButton onClick={() => setTab("salons")}><Hash size={13} /> {L("ctaHub")}</GhostButton>
-                    </div>
-                  </div>
-                </div>
-
-                <DataScanScene onClick={() => setTab("salons")} label={L("scanLabel")} />
-              </div>
+              <ProfessionalHome
+                L={L}
+                setTab={setTab}
+                profiles={profiles}
+                liveCount={liveCount}
+                news={news}
+                questions={questions}
+                trophies={trophies}
+                teams={teams}
+                labs={labs}
+              />
             )}
             {tab === "actus" && <NewsTab news={news} setNews={setNews} isAdmin={isAdmin} profiles={profiles} notifications={notifications} setNotifications={setNotifications} full />}
             {tab === "forum" && <ForumTab pseudo={pseudo} questions={questions} setQuestions={setQuestions} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} />}
@@ -5251,50 +5033,6 @@ export default function GowlSec() {
   );
 }
 
-/* ---------------------------------------------------------------------
-   Sprite hackeur — encapuchonné, pianote en boucle sur son clavier dans
-   le coin du terminal de démonstration de l'accueil
---------------------------------------------------------------------- */
-function HackerTypingSprite({ size = 50 }) {
-  return (
-    <div className="gowl-hacker-wrap pointer-events-none">
-      <div className="gowl-hacker-bob">
-        <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" overflow="visible">
-          {/* lueur de l'écran sur le sol */}
-          <ellipse cx="50" cy="94" rx="30" ry="5" fill={C.ok} opacity="0.14" />
-
-          {/* silhouette capuche + torse */}
-          <path d="M27 82 C22 56 31 33 50 33 C69 33 78 56 73 82 Z" fill="#12151B" stroke={C.primary} strokeWidth="2" />
-          <path d="M50 33 C58 33 65 38 69 46 C60 42 40 42 31 46 C35 38 42 33 50 33 Z" fill="#171B22" opacity="0.9" />
-
-          {/* visage dans l'ombre de la capuche */}
-          <ellipse cx="50" cy="48" rx="12.5" ry="13.5" fill="#0A0C10" />
-          <ellipse className="gowl-hacker-eye" cx="45" cy="49" rx="1.7" ry="2.1" fill={C.ok} />
-          <ellipse className="gowl-hacker-eye" cx="55" cy="49" rx="1.7" ry="2.1" fill={C.ok} />
-
-          {/* écran du laptop avec lignes de code qui pulsent */}
-          <rect x="23" y="68" width="54" height="21" rx="3" fill="#080A0E" stroke={C.line} strokeWidth="1.4" />
-          <rect className="gowl-hacker-codeline" x="29" y="73" width="24" height="2.6" rx="1.3" fill={C.ok} style={{ animationDelay: "0s" }} />
-          <rect className="gowl-hacker-codeline" x="29" y="78.5" width="32" height="2.6" rx="1.3" fill={C.primary} style={{ animationDelay: "0.35s" }} />
-          <rect className="gowl-hacker-codeline" x="29" y="84" width="17" height="2.6" rx="1.3" fill={C.gold} style={{ animationDelay: "0.7s" }} />
-
-          {/* clavier */}
-          <rect x="20" y="89" width="60" height="8.5" rx="2.6" fill="#171B22" stroke={C.line} strokeWidth="1.2" />
-          <rect x="26" y="91.3" width="4" height="2" rx="0.6" fill={C.line} />
-          <rect x="33" y="91.3" width="4" height="2" rx="0.6" fill={C.line} />
-          <rect x="40" y="91.3" width="20" height="2" rx="0.6" fill={C.line} />
-          <rect x="63" y="91.3" width="4" height="2" rx="0.6" fill={C.line} />
-          <rect x="70" y="91.3" width="4" height="2" rx="0.6" fill={C.line} />
-
-          {/* mains qui pianotent, décalées pour un effet de frappe rapide */}
-          <ellipse className="gowl-hacker-hand-left" cx="38" cy="90.5" rx="5.4" ry="4.2" fill={C.primary} />
-          <ellipse className="gowl-hacker-hand-right" cx="62" cy="90.5" rx="5.4" ry="4.2" fill={C.primary} />
-        </svg>
-      </div>
-    </div>
-  );
-}
-
 
 /* ---------------------------------------------------------------------
    Mascotte corbeau — "fouille" la base de données (visuel central accueil)
@@ -5319,92 +5057,317 @@ function CrowSearchMascot() {
   );
 }
 
-const TERMINAL_SESSIONS = [
+const TERMINAL_COMMANDS = [
   { cmd: "nmap -sV 10.10.14.22", out: ["22/tcp  open  ssh", "80/tcp  open  http", "Scan terminé en 4.2s"] },
-  { cmd: "gobuster dir -u http://target.htb -w wordlist.txt", out: ["/admin      (Status: 301)", "/uploads    (Status: 200)", "127 chemins trouvés"] },
-  { cmd: "sqlmap -u \"http://target.htb/item?id=1\" --batch", out: ["Paramètre 'id' injectable", "Backend : MySQL 8.0", "1 vulnérabilité confirmée"] },
   { cmd: "hydra -l admin -P rockyou.txt ssh://target.htb", out: ["1 cible testée", "1 identifiant valide trouvé", "→ voir le write-up associé"] },
+  { cmd: "sqlmap -u \"http://target.htb/item?id=1\" --batch", out: ["Paramètre 'id' injectable", "Backend : MySQL 8.0", "1 vulnérabilité confirmée"] },
+  { cmd: "msfconsole -q -x \"use exploit/multi/handler\"", out: ["Module chargé", "Listener démarré sur le port 4444", "Session Meterpreter ouverte"] },
+  { cmd: "curl -s api/scan/42 | jq '.status'", out: ["{", "  \"status\": \"clean\"", "}"] },
 ];
 
-function DataScanScene({ onClick, label = "Terminal de démonstration — usage pédagogique" }) {
-  const [session, setSession] = useState({ idx: 0, typed: "", linesShown: 0 });
 
-  useEffect(() => {
-    let cancelled = false;
-    const timeouts = [];
+function HackerWorkstation() {
+  return (
+    <div className="relative min-h-[280px] overflow-hidden rounded-2xl" style={{ background: "linear-gradient(160deg,#0B0E14,#111722)", border: `1px solid ${C.line}` }}>
+      <div className="absolute inset-x-0 top-0 h-px" style={{ background: `linear-gradient(90deg,transparent,${C.primary}88,transparent)` }} />
+      <div className="absolute top-4 left-5 flex items-center gap-2 text-[10px] uppercase tracking-[0.22em]" style={{ color: C.muted, fontFamily: MONO_FONT }}>
+        <span className="w-1.5 h-1.5 rounded-full" style={{ background: C.ok }} /> analyst workstation
+      </div>
+      <svg viewBox="0 0 520 320" className="absolute inset-0 w-full h-full" aria-hidden="true">
+        <defs>
+          <linearGradient id="screenGlow" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#5B6EF5" stopOpacity=".28" />
+            <stop offset="1" stopColor="#2ED9A3" stopOpacity=".08" />
+          </linearGradient>
+          <radialGradient id="hoodShade">
+            <stop offset="0" stopColor="#242B3B" />
+            <stop offset="1" stopColor="#0B0E14" />
+          </radialGradient>
+        </defs>
+        <ellipse cx="310" cy="286" rx="190" ry="18" fill="#05070A" opacity=".8" />
+        <rect x="205" y="68" width="230" height="145" rx="9" fill="#070A0F" stroke="#30394A" strokeWidth="2" />
+        <rect x="218" y="81" width="204" height="118" rx="4" fill="url(#screenGlow)" stroke="#5B6EF5" strokeOpacity=".45" />
+        {[0,1,2,3,4].map((i) => <rect key={i} x="234" y={98+i*18} width={i%2 ? 126 : 158} height="4" rx="2" fill={i===2 ? "#2ED9A3" : "#8A93A3"} opacity={i===2 ? ".8" : ".38"} />)}
+        <path d="M280 213h80l18 42H262z" fill="#111722" stroke="#30394A" />
+        <path d="M110 245c14-70 37-116 86-137 48 19 76 68 83 137z" fill="url(#hoodShade)" stroke="#252D3B" strokeWidth="2" />
+        <path d="M151 128c8-35 25-56 46-61 25 8 43 33 48 67-24-18-69-20-94-6z" fill="#0A0D13" stroke="#30394A" />
+        <ellipse cx="198" cy="143" rx="34" ry="42" fill="#121722" />
+        <path d="M177 149c14 9 29 10 43 0" stroke="#5B6EF5" strokeOpacity=".45" fill="none" />
+        <circle cx="186" cy="137" r="3" fill="#5B6EF5" />
+        <circle cx="211" cy="137" r="3" fill="#5B6EF5" />
+        <g className="gowl-hacker-hand-left">
+          <path d="M154 224c26-12 54-7 81 13l-17 15c-24-11-44-12-65-4z" fill="#171D28" stroke="#30394A" />
+        </g>
+        <g className="gowl-hacker-hand-right">
+          <path d="M236 235c31-16 62-16 91-1l-10 18c-29-7-54-5-78 4z" fill="#171D28" stroke="#30394A" />
+        </g>
+        <rect x="160" y="246" width="190" height="24" rx="5" fill="#0A0D12" stroke="#30394A" />
+        {Array.from({length:12}).map((_,i)=><rect key={i} x={171+i*14} y="253" width="9" height="4" rx="1" fill="#5B6EF5" opacity={i%3===0?".75":".3"} />)}
+      </svg>
+    </div>
+  );
+}
 
-    function typeCmd(idx, charIdx) {
-      if (cancelled) return;
-      const entry = TERMINAL_SESSIONS[idx];
-      setSession({ idx, typed: entry.cmd.slice(0, charIdx), linesShown: 0 });
-      if (charIdx < entry.cmd.length) {
-        timeouts.push(setTimeout(() => typeCmd(idx, charIdx + 1), 26));
-      } else {
-        timeouts.push(setTimeout(() => revealLines(idx, 0), 380));
-      }
-    }
+function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, trophies, teams, labs }) {
+  const gh = {
+    bg: "#07101a",
+    panel: "#0b1520",
+    panel2: "#0d1824",
+    border: "#263646",
+    text: "#f0f6fc",
+    muted: "#a4afbd",
+    blue: "#2388ff",
+    green: "#2dd875",
+    purple: "#a970ff",
+    orange: "#ff9f1c",
+  };
 
-    function revealLines(idx, lineIdx) {
-      if (cancelled) return;
-      const entry = TERMINAL_SESSIONS[idx];
-      setSession({ idx, typed: entry.cmd, linesShown: lineIdx });
-      if (lineIdx < entry.out.length) {
-        timeouts.push(setTimeout(() => revealLines(idx, lineIdx + 1), 420));
-      } else {
-        timeouts.push(setTimeout(() => {
-          const next = (idx + 1) % TERMINAL_SESSIONS.length;
-          typeCmd(next, 0);
-        }, 2600));
-      }
-    }
+  const featureCards = [
+    { icon: MessageSquare, title: "Hub", text: "Discute en direct par thème avec la communauté.", tab: "salons", color: gh.blue },
+    { icon: MessageCircle, title: "Question", text: "Pose une question et obtiens de l'aide de la communauté.", tab: "forum", color: gh.green },
+    { icon: Users, title: "Team", text: "Crée ou rejoins une team (16 max), publique ou privée.", tab: "equipes", color: gh.purple },
+    { icon: FlaskConical, title: "Labs", text: "Travaille ensemble sur des labs (8 max) HTB, THM, Root-Me...", tab: "labs", color: gh.orange },
+  ];
 
-    typeCmd(0, 0);
-    return () => {
-      cancelled = true;
-      timeouts.forEach(clearTimeout);
-    };
-  }, []);
+  const activity = [
+    ...questions.slice(-2).reverse().map((q) => ({
+      id: `q-${q.id}`, kind: "QUESTION", title: q.title, meta: q.category || "Réseau", time: q.createdAt, comments: q.answers?.length || 0, icon: MessageSquare, color: gh.blue, tab: "forum"
+    })),
+    ...labs.slice(-1).reverse().map((l) => ({
+      id: `l-${l.id}`, kind: "LAB", title: l.title, meta: l.platform || "Lab", time: l.createdAt, comments: l.messages?.length || 0, icon: FlaskConical, color: gh.orange, tab: "labs"
+    })),
+    ...teams.slice(-1).reverse().map((team) => ({
+      id: `t-${team.id}`, kind: "TEAM", title: team.name, meta: "Team", time: team.createdAt, comments: team.members?.length || 0, icon: Users, color: gh.green, tab: "equipes"
+    })),
+  ].slice(0, 4);
 
-  const entry = TERMINAL_SESSIONS[session.idx];
+  /* Top talents — même barème de points que le classement complet, condensé au podium */
+  const topTalents = useMemo(() => {
+    const scores = {};
+    const add = (author, points) => { if (author) scores[author] = (scores[author] || 0) + points; };
+    trophies.forEach((t) => add(t.author, TROPHY_POINTS[t.difficulty] || 10));
+    questions.forEach((q) => {
+      add(q.author, 2);
+      (q.answers || []).forEach((a) => add(a.author, 3));
+    });
+    labs.forEach((l) => add(l.owner, 5));
+    return Object.entries(scores)
+      .map(([author, total]) => ({ author, total, profile: profiles.find((p) => p.username === author) }))
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 3);
+  }, [trophies, questions, labs, profiles]);
+
+  const latestNews = news?.[0];
+
+  const stats = [
+    { label: "Membres", value: profiles.length, icon: Users, color: gh.blue },
+    { label: "En ligne maintenant", value: liveCount ?? "—", icon: Circle, color: gh.green, live: true },
+    { label: "Trophées décrochés", value: trophies.length, icon: Trophy, color: gh.orange },
+    { label: "Questions répondues", value: questions.filter((q) => (q.answers || []).length > 0).length, icon: MessageCircle, color: gh.purple },
+  ];
 
   return (
-    <button onClick={onClick} className="relative w-full overflow-hidden rounded-xl text-left" style={{ height: 300, background: C.panel, border: `1px solid ${C.line}` }}>
-      <div className="absolute inset-0 flex flex-col">
-        <div className="flex items-center gap-1.5 px-3 py-2 shrink-0" style={{ background: C.panel2, borderBottom: `1px solid ${C.line}` }}>
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.alert }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.warn }} />
-          <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.ok }} />
-          <span className="ml-2 text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>gowlsec@ctf-lab:~</span>
+    <div className="pb-12" style={{ color: gh.text, fontFamily: BODY_FONT }}>
+      <section className="grid lg:grid-cols-[0.82fr_1.18fr] gap-8 lg:gap-12 items-center pt-8 pb-8 lg:pt-10 lg:pb-10">
+        <div className="max-w-xl">
+          {latestNews && (
+            <button onClick={() => setTab("actus")} className="group inline-flex items-center gap-2 mb-4 pl-2.5 pr-3 py-1.5 rounded-full text-xs transition-colors" style={{ background: `${gh.blue}14`, border: `1px solid ${gh.blue}40`, color: gh.blue, fontFamily: MONO_FONT }}>
+              <span className="gowl-live-dot" style={{ background: gh.blue }} />
+              <span className="font-semibold uppercase tracking-wide">Actu</span>
+              <span className="max-w-[220px] truncate" style={{ color: gh.text }}>{latestNews.title}</span>
+              <ChevronDown size={12} className="-rotate-90 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          )}
+          <h1 className="text-[30px] sm:text-[38px] lg:text-[42px] leading-[1.1] font-extrabold tracking-[-0.03em] mb-4" style={{ color: gh.text, fontFamily: DISPLAY_FONT }}>
+            Communauté francophone<br />
+            <span style={{ color: gh.blue }}>pentest, CTF,</span> réseau et<br />
+            cybersécurité.
+          </h1>
+          <p className="text-sm sm:text-base leading-6 sm:leading-7 mb-6 max-w-[560px]" style={{ color: gh.muted }}>
+            Ici, on apprend, on échange et on progresse ensemble autour du pentest, des CTF, du réseau et de la cybersécurité — que tu sois débutant ou confirmé.
+          </p>
+          <div className="flex flex-wrap gap-2.5">
+            <button onClick={() => setTab("forum")} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition-opacity hover:opacity-90" style={{ background: "linear-gradient(180deg,#2188ff,#1264d8)", color: "#fff", border: "1px solid #3896ff" }}>
+              <Users size={15} /> Poser une question
+            </button>
+            <button onClick={() => setTab("salons")} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-md text-sm font-semibold transition-colors" style={{ background: "transparent", color: gh.text, border: `1px solid ${gh.border}` }}>
+              <MessageSquare size={15} /> Rejoindre le Hub
+            </button>
+          </div>
         </div>
-        <div className="flex-1 p-3.5 overflow-hidden" style={{ background: "#080A0E" }}>
-          {TERMINAL_SESSIONS.map((s, i) => {
-            if (i > session.idx) return null;
-            const isCurrent = i === session.idx;
-            const typed = isCurrent ? session.typed : s.cmd;
-            const linesShown = isCurrent ? session.linesShown : s.out.length;
-            return (
-              <div key={i} className="mb-2">
-                <div className="text-xs" style={{ color: C.ok, fontFamily: MONO_FONT }}>
-                  <span style={{ color: C.gold }}>$</span> {typed}
-                  {isCurrent && typed.length < s.cmd.length && <span className="gowl-cursor-blink">▍</span>}
-                </div>
-                {s.out.slice(0, linesShown).map((line, li) => (
-                  <div key={li} className="text-xs pl-3" style={{ color: C.muted, fontFamily: MONO_FONT }}>{line}</div>
-                ))}
-              </div>
-            );
-          })}
+
+        <DataScanScene onClick={() => setTab("labs")} />
+      </section>
+
+      <section className="grid grid-cols-2 lg:grid-cols-4 gap-3.5 mb-10">
+        {stats.map(({ label, value, icon: Icon, color, live }) => (
+          <div key={label} className="rounded-lg px-4 py-4 flex items-center gap-3" style={{ background: gh.panel, border: `1px solid ${gh.border}` }}>
+            <span className="w-9 h-9 rounded-md flex items-center justify-center shrink-0" style={{ background: `${color}18`, color }}>
+              {live ? <span className="gowl-live-dot" style={{ background: color }} /> : <Icon size={16} />}
+            </span>
+            <span className="min-w-0">
+              <span className="block text-lg font-extrabold leading-tight" style={{ color: gh.text, fontFamily: DISPLAY_FONT }}>{value}</span>
+              <span className="block text-[11px] truncate" style={{ color: gh.muted }}>{label}</span>
+            </span>
+          </div>
+        ))}
+      </section>
+
+      <section className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+        {featureCards.map(({ icon: Icon, title, text, tab, color }) => (
+          <button key={title} onClick={() => setTab(tab)} className="group text-left rounded-lg p-6 min-h-[140px] flex items-start gap-3.5 transition-colors" style={{ background: gh.panel, border: `1px solid ${gh.border}` }}>
+            <span className="shrink-0 mt-0.5" style={{ color }}><Icon size={30} strokeWidth={1.7} /></span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-base font-bold mb-1.5" style={{ color: gh.text }}>{title}</span>
+              <span className="block text-[13px] leading-5" style={{ color: gh.muted }}>{text}</span>
+            </span>
+            <ChevronDown size={19} className="shrink-0 mt-auto -rotate-90" style={{ color: "#c7d1dc" }} />
+          </button>
+        ))}
+      </section>
+
+      <section className="grid lg:grid-cols-[1.45fr_.55fr] gap-5">
+        <div className="rounded-lg px-6 py-5" style={{ background: gh.panel, border: `1px solid ${gh.border}` }}>
+          <h2 className="text-lg font-bold mb-3" style={{ color: gh.text }}>Activité récente</h2>
+          {activity.length === 0 ? (
+            <div className="py-8 text-sm" style={{ color: gh.muted }}>Les nouvelles activités de la communauté apparaîtront ici.</div>
+          ) : (
+            <div>
+              {activity.map((item, index) => {
+                const Icon = item.icon;
+                return (
+                  <button key={item.id} onClick={() => setTab(item.tab)} className="w-full grid grid-cols-[28px_1fr_auto] items-center gap-3 py-3.5 text-left" style={{ borderTop: index ? `1px solid ${gh.border}` : "none" }}>
+                    <Icon size={19} style={{ color: item.color }} />
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span className="text-[10px] px-1.5 py-0.5 rounded" style={{ color: item.color, border: `1px solid ${item.color}66`, background: `${item.color}12`, fontFamily: MONO_FONT }}>{item.kind}</span>
+                        <span className="truncate text-sm" style={{ color: gh.text }}>{item.title}</span>
+                      </span>
+                      <span className="block text-xs mt-1" style={{ color: gh.muted }}>{timeAgo(item.time)} &nbsp;•&nbsp; {item.meta}</span>
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: gh.muted }}><MessageSquare size={13} /> {item.comments}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
+
+        <aside className="rounded-lg p-6" style={{ background: gh.panel, border: `1px solid ${gh.border}` }}>
+          <h2 className="text-lg font-bold mb-3" style={{ color: gh.text }}>Top talents</h2>
+          {topTalents.length === 0 ? (
+            <p className="text-sm leading-6" style={{ color: gh.muted }}>Le classement s'anime dès les premiers trophées, réponses au forum ou salons labs créés.</p>
+          ) : (
+            <div className="mb-1">
+              {topTalents.map((r, i) => (
+                <button key={r.author} onClick={() => setTab("classement")} className="w-full flex items-center gap-2.5 py-2.5 text-left" style={{ borderTop: i ? `1px solid ${gh.border}` : "none" }}>
+                  <span className="text-sm w-4 shrink-0">{RANK_MEDALS[i]}</span>
+                  {r.profile ? <Avatar profile={r.profile} size={28} /> : <span className="rounded-full shrink-0" style={{ width: 28, height: 28, background: gh.panel2, border: `1px solid ${gh.border}` }} />}
+                  <span className="min-w-0 flex-1 text-sm font-semibold truncate" style={{ color: gh.text }}>{r.author}</span>
+                  <span className="text-xs font-bold shrink-0" style={{ color: gh.orange, fontFamily: MONO_FONT }}>{r.total} pts</span>
+                </button>
+              ))}
+            </div>
+          )}
+          <button onClick={() => setTab("classement")} className="inline-flex items-center gap-2 mt-4 text-sm" style={{ color: gh.blue }}>Voir le classement complet <ExternalLink size={13} /></button>
+
+          <div className="mt-6 pt-5" style={{ borderTop: `1px solid ${gh.border}` }}>
+            <h2 className="text-[15px] font-bold mb-2" style={{ color: gh.text }}>À propos de GowlSec</h2>
+            <p className="text-[13px] leading-5" style={{ color: gh.muted }}>Communauté francophone dédiée au pentest, aux CTF, au réseau et à la cybersécurité : entraide entre pairs, apprentissage pratique et projets collaboratifs.</p>
+            <button onClick={() => setTab("parcours")} className="inline-flex items-center gap-2 mt-4 text-sm" style={{ color: gh.blue }}>Découvrir les parcours <ExternalLink size={13} /></button>
+          </div>
+        </aside>
+      </section>
+    </div>
+  );
+}
+
+function DataScanScene({ onClick }) {
+  const [cmdIndex, setCmdIndex] = useState(0);
+  const [typedCmd, setTypedCmd] = useState("");
+  const [outVisible, setOutVisible] = useState(0);
+
+  useEffect(() => {
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const timers = [];
+    const entry = TERMINAL_COMMANDS[cmdIndex];
+
+    if (reduceMotion) {
+      setTypedCmd(entry.cmd);
+      setOutVisible(entry.out.length);
+      timers.push(setTimeout(() => setCmdIndex((i) => (i + 1) % TERMINAL_COMMANDS.length), 4000));
+      return () => timers.forEach(clearTimeout);
+    }
+
+    setTypedCmd("");
+    setOutVisible(0);
+    let i = 0;
+    function typeChar() {
+      i += 1;
+      setTypedCmd(entry.cmd.slice(0, i));
+      if (i < entry.cmd.length) {
+        timers.push(setTimeout(typeChar, 26 + Math.random() * 34));
+      } else {
+        entry.out.forEach((_, idx) => {
+          timers.push(setTimeout(() => setOutVisible(idx + 1), 380 + idx * 220));
+        });
+        const totalDelay = 380 + entry.out.length * 220 + 2400;
+        timers.push(setTimeout(() => setCmdIndex((idx) => (idx + 1) % TERMINAL_COMMANDS.length), totalDelay));
+      }
+    }
+    timers.push(setTimeout(typeChar, 500));
+    return () => timers.forEach(clearTimeout);
+  }, [cmdIndex]);
+
+  const entry = TERMINAL_COMMANDS[cmdIndex];
+  const maxOutLines = Math.max(...TERMINAL_COMMANDS.map((c) => c.out.length));
+
+  return (
+    <button onClick={onClick} className="w-full rounded-lg overflow-hidden text-left relative group" style={{ minHeight: 260, background: "linear-gradient(165deg,#0c1522,#07101a)", border: "1px solid #263646", boxShadow: "0 24px 60px -20px rgba(35,136,255,.25), 0 8px 24px rgba(0,0,0,.35)" }}>
+      <div aria-hidden className="absolute -inset-8 pointer-events-none" style={{ background: "radial-gradient(340px 220px at 80% 0%, rgba(35,136,255,.16), transparent 65%), radial-gradient(260px 200px at 10% 100%, rgba(45,216,117,.10), transparent 70%)" }} />
+      <div className="h-10 px-4 flex items-center justify-between relative" style={{ background: "#0b1520", borderBottom: "1px solid #263646" }}>
+        <span className="flex items-center gap-2.5 text-xs" style={{ color: "#d6dee8" }}>
+          <span className="flex items-center gap-1.5">
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#ff5f57" }} />
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#febc2e" }} />
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#2dd875" }} />
+          </span>
+          <span className="tracking-wide" style={{ fontFamily: MONO_FONT }}>TERMINAL</span>
+        </span>
+        <span className="flex items-center gap-1.5" style={{ color: "#4a5a6c" }}>
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#2dd875" }} />
+        </span>
       </div>
-      <HackerTypingSprite size={50} />
-      <div className="absolute left-1/2 bottom-4 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full pointer-events-none" style={{ background: `${C.bg}CC`, border: `1px solid ${C.ok}33` }}>
-        <span className="text-xs" style={{ color: C.ok, fontFamily: MONO_FONT }}>{label}</span>
-        <span className="text-xs" style={{ color: C.ok, fontFamily: MONO_FONT, animation: "gowl-pulse-dot 1.1s steps(3) infinite" }}>...</span>
+      {/* Zone fixe : rien ici ne change de taille, seul le contenu (opacité) évolue */}
+      <div className="p-4 sm:p-5 text-[12px] sm:text-[13px] leading-6 relative" style={{ color: "#eef4fb", fontFamily: MONO_FONT }}>
+        <p><span style={{ color: "#2dd875" }}>gowlsec@community</span>:<span style={{ color: "#66a9ff" }}>~</span>$ boot</p>
+        <p className="mt-1.5" style={{ color: "#a4afbd" }}>Initialisation de GowlSec...</p>
+        <div className="mt-1.5 grid grid-cols-[1fr_auto] gap-x-4">
+          <span>Chargement des services</span><span style={{ color: "#55e778" }}>[ OK ]</span>
+          <span>Connexion à la communauté</span><span style={{ color: "#55e778" }}>[ OK ]</span>
+          <span>Vérification des salons</span><span style={{ color: "#55e778" }}>[ OK ]</span>
+          <span>Aucun incident détecté</span><span style={{ color: "#55e778" }}>[ OK ]</span>
+        </div>
+        <p className="mt-2.5" style={{ color: "#3b98ff" }}>La communauté est prête.</p>
+
+        <div className="mt-2.5" style={{ minHeight: 22 }}>
+          <p>
+            <span style={{ color: "#2dd875" }}>gowlsec@community</span>:<span style={{ color: "#66a9ff" }}>~</span>$ {typedCmd}
+            {typedCmd.length < entry.cmd.length && <span className="gowl-cursor-blink">█</span>}
+          </p>
+        </div>
+        <div style={{ minHeight: maxOutLines * 21 }}>
+          {entry.out.map((line, idx) => (
+            <p key={idx} className="mt-1" style={{ color: "#a4afbd", opacity: idx < outVisible ? 1 : 0, transition: "opacity 0.2s ease" }}>{line}</p>
+          ))}
+        </div>
       </div>
     </button>
   );
 }
-
 
 
 function SectionHeader({ icon, eyebrow, title, subtitle, accent = C.primary }) {
