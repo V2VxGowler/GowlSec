@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 
 
-/* lucide-react 1.0 a retiré les icônes de marques (Twitter, GitHub, etc.) — icône maison de remplacement */
 function XIcon({ size = 16, style, color = "currentColor" }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={style}>
