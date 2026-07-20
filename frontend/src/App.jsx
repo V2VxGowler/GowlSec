@@ -4501,6 +4501,59 @@ const TABS = [
   { key: "admin", label: "Admin", icon: Shield },
 ];
 
+/* ---------------------------------------------------------------------
+   Page d'action e-mail — écran plein cadre réutilisé pour la vérification
+   d'adresse et la réinitialisation de mot de passe : logo, halo animé
+   selon le statut (neutre / succès / erreur), carte centrée.
+--------------------------------------------------------------------- */
+function AuthActionPage({ accent = C.primary, icon, title, subtitle, children }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden" style={{ background: C.bg, fontFamily: BODY_FONT }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Source+Sans+3:wght@400;500;600&display=swap');
+        @keyframes gowl-action-pulse { 0%, 100% { box-shadow: 0 0 0 0 ${accent}33; } 50% { box-shadow: 0 0 0 10px ${accent}00; } }
+        @keyframes gowl-action-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .gowl-action-card { animation: gowl-action-in 0.45s ease both; }
+        .gowl-action-icon { animation: gowl-action-pulse 2.2s ease-in-out infinite; }
+      `}</style>
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: `linear-gradient(${C.line}26 1px, transparent 1px), linear-gradient(90deg, ${C.line}26 1px, transparent 1px)`,
+          backgroundSize: "42px 42px",
+          maskImage: "radial-gradient(ellipse 75% 55% at 50% 25%, #000 40%, transparent 100%)",
+          WebkitMaskImage: "radial-gradient(ellipse 75% 55% at 50% 25%, #000 40%, transparent 100%)",
+        }}
+      />
+      <div
+        aria-hidden
+        className="absolute rounded-full pointer-events-none"
+        style={{ width: 460, height: 460, top: "-16%", left: "50%", marginLeft: -230, background: `radial-gradient(circle, ${accent}22, transparent 70%)`, filter: "blur(14px)" }}
+      />
+      <Panel
+        className="gowl-action-card relative w-full max-w-md p-7 sm:p-8 text-center"
+        style={{ border: `1px solid ${accent}38`, boxShadow: `0 24px 64px -26px ${accent}66, inset 0 1px 0 0 #ffffff0A` }}
+      >
+        <div className="flex justify-center mb-4">
+          <OwlLogo size={44} />
+        </div>
+        <div className="flex justify-center mb-4">
+          <span
+            className="gowl-action-icon w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{ background: `${accent}18`, border: `1px solid ${accent}44`, color: accent }}
+          >
+            {icon}
+          </span>
+        </div>
+        <h1 className="text-xl font-extrabold mb-1.5" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</h1>
+        {subtitle && <p className="text-sm mb-5" style={{ color: C.muted }}>{subtitle}</p>}
+        {children}
+      </Panel>
+    </div>
+  );
+}
+
 export default function GowlSec() {
   const [tab, setTab] = useState("accueil");
   const { user, setUser, logout } = useAuth();
@@ -4513,9 +4566,18 @@ export default function GowlSec() {
   const [langLoading, setLangLoading] = useState(true);
   const [verificationMessage, setVerificationMessage] = useState("");
   const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState(null); // "success" | "error" | null
+
+  const [resetNewPassword, setResetNewPassword] = useState("");
+  const [resetConfirmPassword, setResetConfirmPassword] = useState("");
+  const [resetMessage, setResetMessage] = useState("");
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetStatus, setResetStatus] = useState(null); // "success" | "error" | null
+  const [resetShowPw, setResetShowPw] = useState({ newPassword: false, confirmPassword: false });
 
   const path = window.location.pathname;
   const emailToken = new URLSearchParams(window.location.search).get("token");
+  const resetToken = emailToken; // même paramètre "token" utilisé pour la réinitialisation du mot de passe
 
   useEffect(() => {
     if (path !== "/verify-email" || !emailToken) return;
@@ -4529,10 +4591,12 @@ export default function GowlSec() {
         setVerificationMessage(
           result.message || "Email vérifié avec succès."
         );
+        setVerificationStatus("success");
       } catch (error) {
         setVerificationMessage(
           error.message || "Lien de vérification invalide."
         );
+        setVerificationStatus("error");
       } finally {
         setVerificationLoading(false);
       }
@@ -4540,6 +4604,50 @@ export default function GowlSec() {
 
     confirmEmail();
   }, [path, emailToken]);
+
+  async function handleResetPassword(event) {
+    event.preventDefault();
+    setResetMessage("");
+    setResetStatus(null);
+
+    if (!resetToken) {
+      setResetMessage("Lien de réinitialisation invalide ou incomplet.");
+      setResetStatus("error");
+      return;
+    }
+
+    const pwError = passwordErrorMessage(resetNewPassword);
+    if (pwError) {
+      setResetMessage(pwError);
+      setResetStatus("error");
+      return;
+    }
+
+    if (resetNewPassword !== resetConfirmPassword) {
+      setResetMessage("Les mots de passe ne correspondent pas.");
+      setResetStatus("error");
+      return;
+    }
+
+    try {
+      setResetLoading(true);
+
+      const result = await resetPassword({
+        token: resetToken,
+        password: resetNewPassword,
+      });
+
+      setResetMessage(result?.message || "Mot de passe modifié avec succès.");
+      setResetStatus("success");
+      setResetNewPassword("");
+      setResetConfirmPassword("");
+    } catch (error) {
+      setResetMessage(error.message || "Impossible de modifier le mot de passe.");
+      setResetStatus("error");
+    } finally {
+      setResetLoading(false);
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -4711,42 +4819,101 @@ export default function GowlSec() {
   }, [activityFeed, news]);
 
   if (path === "/verify-email") {
+    const accent = verificationLoading ? C.primary : verificationStatus === "success" ? C.ok : C.alert;
+    const icon = verificationLoading
+      ? <Loader2 size={24} className="animate-spin" />
+      : verificationStatus === "success"
+        ? <CheckCircle2 size={24} />
+        : <AlertTriangle size={24} />;
+
     return (
-      <div
-        className="min-h-screen flex items-center justify-center p-4"
-        style={{ background: C.bg, color: C.text }}
+      <AuthActionPage
+        accent={accent}
+        icon={icon}
+        title="Vérification de l'e-mail"
+        subtitle={verificationLoading ? "Un instant, on confirme ton adresse…" : undefined}
       >
-        <Panel className="p-8 max-w-md w-full text-center">
-          <div className="flex justify-center">
-            <OwlLogo size={50} />
-          </div>
+        {!verificationLoading && (
+          <p className="text-sm mb-6 leading-relaxed" style={{ color: C.muted }}>
+            {verificationMessage || "Token de vérification manquant."}
+          </p>
+        )}
+        <a
+          href="/"
+          className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-90"
+          style={{ background: accent, color: "#fff", fontFamily: BODY_FONT }}
+        >
+          Retour à l'accueil
+        </a>
+      </AuthActionPage>
+    );
+  }
 
-          <h1
-            className="text-xl font-bold mt-4 mb-3"
-            style={{ fontFamily: DISPLAY_FONT }}
-          >
-            Vérification de l’email
-          </h1>
+  if (path === "/reset-password") {
+    const accent = resetStatus === "success" ? C.ok : resetStatus === "error" ? C.alert : C.primary;
+    const icon = resetStatus === "success" ? <CheckCircle2 size={24} /> : <KeyRound size={24} />;
 
-          {verificationLoading ? (
-            <div className="flex justify-center">
-              <Loader2 size={24} className="animate-spin" />
-            </div>
-          ) : (
-            <p style={{ color: C.muted }}>
-              {verificationMessage || "Token de vérification manquant."}
-            </p>
-          )}
+    return (
+      <AuthActionPage
+        accent={accent}
+        icon={icon}
+        title="Réinitialiser le mot de passe"
+        subtitle={resetToken && resetStatus !== "success" ? "Choisis un nouveau mot de passe sécurisé." : undefined}
+      >
+        {!resetToken ? (
+          <p className="text-sm mb-6" style={{ color: C.muted }}>
+            Lien de réinitialisation invalide ou incomplet.
+          </p>
+        ) : resetStatus === "success" ? (
+          <p className="text-sm mb-6" style={{ color: C.muted }}>{resetMessage}</p>
+        ) : (
+          <form onSubmit={handleResetPassword} className="text-left">
+            <PasswordField
+              label="Nouveau mot de passe"
+              value={resetNewPassword}
+              onChange={(e) => setResetNewPassword(e.target.value)}
+              show={resetShowPw.newPassword}
+              onToggleShow={() => setResetShowPw((s) => ({ ...s, newPassword: !s.newPassword }))}
+              placeholder="••••••••"
+              validate
+              autoComplete="new-password"
+            />
+            <PasswordField
+              label="Confirmer le mot de passe"
+              value={resetConfirmPassword}
+              onChange={(e) => setResetConfirmPassword(e.target.value)}
+              show={resetShowPw.confirmPassword}
+              onToggleShow={() => setResetShowPw((s) => ({ ...s, confirmPassword: !s.confirmPassword }))}
+              placeholder="••••••••"
+              autoComplete="new-password"
+            />
 
-          <a
-            href="/"
-            className="inline-block mt-5 px-4 py-2 rounded-md"
-            style={{ background: C.primary, color: "#fff" }}
-          >
-            Retour à l’accueil
-          </a>
-        </Panel>
-      </div>
+            {resetMessage && resetStatus === "error" && (
+              <p className="flex items-center gap-1.5 text-xs mb-4 -mt-1.5" style={{ color: C.alert }}>
+                <AlertTriangle size={12} className="shrink-0" /> {resetMessage}
+              </p>
+            )}
+
+            <PrimaryButton type="submit" disabled={resetLoading} style={{ width: "100%", justifyContent: "center" }}>
+              {resetLoading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" /> Modification…
+                </>
+              ) : (
+                "Modifier le mot de passe"
+              )}
+            </PrimaryButton>
+          </form>
+        )}
+
+        <a
+          href="/"
+          className="inline-flex items-center justify-center gap-2 w-full px-4 py-2.5 rounded-xl text-sm font-semibold mt-3 transition-opacity hover:opacity-90"
+          style={{ border: `1px solid ${C.line}`, color: C.muted, fontFamily: BODY_FONT }}
+        >
+          Retour à l'accueil
+        </a>
+      </AuthActionPage>
     );
   }
 
