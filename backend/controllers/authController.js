@@ -13,7 +13,28 @@ import { sendVerificationEmail } from "../services/emailService.js";
 
 const registerSchema = z.object({
     username: z.string().min(3).max(30),
-    email: z.string().email(),
+
+    email: z.string()
+        .email()
+        .refine((email) => {
+            const domain = email.split("@")[1].toLowerCase();
+
+            const allowedDomains = [
+                "gmail.com",
+                "outlook.com",
+                "hotmail.com",
+                "live.com",
+                "proton.me",
+                "protonmail.com",
+                "icloud.com",
+                "yahoo.com"
+            ];
+
+            return allowedDomains.includes(domain);
+        }, {
+            message: "Seuls les emails Gmail, Outlook, Proton, iCloud ou Yahoo sont acceptés."
+        }),
+
     password: z.string().min(8)
 });
 
