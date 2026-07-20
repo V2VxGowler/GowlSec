@@ -6,7 +6,7 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// ── Templates HTML partagés ──────────────────────────────────────────────
+// ── Palette de couleurs GowlSec — Crâne Cyber Violet ─────────────────────
 
 const brandColors = {
   bg: "#050408",
@@ -22,11 +22,11 @@ const brandColors = {
   success: "#22c55e",
   warning: "#f59e0b",
   danger: "#ef4444",
-  skullPurple: "#a855f7",
-  skullDark: "#0f0a1a",
 };
 
 const logoUrl = "https://gowlsec.org/logo.png";
+
+// ── Template HTML de base ────────────────────────────────────────────────
 
 function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, footerNote, token }) {
   return `
@@ -63,7 +63,6 @@ function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, foo
       .card { padding: 28px 20px !important; }
       .heading { font-size: 20px !important; }
     }
-    /* Dark mode support */
     @media (prefers-color-scheme: dark) {
       .email-wrapper { background-color: ${brandColors.bg} !important; }
       .card { background-color: ${brandColors.card} !important; border-color: ${brandColors.cardBorder} !important; }
@@ -72,12 +71,10 @@ function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, foo
 </head>
 <body class="email-wrapper" style="margin:0;padding:0;background-color:${brandColors.bg};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;">
 
-  <!-- Wrapper table pour compatibilité Outlook -->
   <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
     <tr>
       <td align="center" style="padding:48px 20px;">
 
-        <!-- Container principal -->
         <table role="presentation" class="container" border="0" cellpadding="0" cellspacing="0" width="600" style="border-collapse:collapse;max-width:600px;width:100%;">
 
           <!-- Logo -->
@@ -103,7 +100,7 @@ function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, foo
                 <tr>
                   <td style="padding:48px 40px;">
 
-                    <!-- Accent line top -->
+                    <!-- Ligne d'accent -->
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
                       <tr>
                         <td style="padding-bottom:28px;">
@@ -161,7 +158,7 @@ function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, foo
                     </table>
                     ` : ''}
 
-                    <!-- Token fallback -->
+                    <!-- Lien fallback -->
                     ${token ? `
                     <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;">
                       <tr>
@@ -256,7 +253,7 @@ function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, foo
   `.trim();
 }
 
-// ── Email de vérification ────────────────────────────────────────────────
+// ── Email de vérification d'adresse email ────────────────────────────────
 
 export async function sendVerificationEmail(email, token) {
   if (!isValidEmail(email)) {
