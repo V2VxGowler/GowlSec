@@ -6,7 +6,6 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-// ── Palette de couleurs GowlSec — Crâne Cyber Violet ─────────────────────
 
 const brandColors = {
   bg: "#050408",
@@ -26,7 +25,6 @@ const brandColors = {
 
 const logoUrl = "https://gowlsec.org/logo.png";
 
-// ── Template HTML de base ────────────────────────────────────────────────
 
 function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, footerNote, token }) {
   return `
@@ -253,7 +251,6 @@ function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, foo
   `.trim();
 }
 
-// ── Email de vérification d'adresse email ────────────────────────────────
 
 export async function sendVerificationEmail(email, token) {
   if (!isValidEmail(email)) {
@@ -294,7 +291,6 @@ export async function sendVerificationEmail(email, token) {
   return data;
 }
 
-// ── Email de réinitialisation de mot de passe ────────────────────────────
 
 export async function sendPasswordResetEmail(email, token) {
   if (!isValidEmail(email)) {
