@@ -39,8 +39,17 @@ export async function login({ email, password }) {
 }
 
 export function saveSession(data) {
-  localStorage.setItem("gowlsec_token", data.accessToken);
-  localStorage.setItem("gowlsec_user", JSON.stringify(data.user));
+  if (data?.accessToken) {
+    localStorage.setItem("gowlsec_token", data.accessToken);
+  } else {
+    localStorage.removeItem("gowlsec_token");
+  }
+
+  if (data?.user) {
+    localStorage.setItem("gowlsec_user", JSON.stringify(data.user));
+  } else {
+    localStorage.removeItem("gowlsec_user");
+  }
 }
 
 export function getSession() {
@@ -49,7 +58,7 @@ export function getSession() {
 
   return {
     token,
-    user: user ? JSON.parse(user) : null,
+    user: safeParseJSON(user),
   };
 }
 
@@ -133,4 +142,23 @@ export async function verifyEmail(token) {
   }
 
   return data;
+}
+
+function safeParseJSON(value) {
+  if (
+    value === undefined ||
+    value === null ||
+    value === "" ||
+    value === "undefined" ||
+    value === "null"
+  ) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    console.error("JSON invalide reçu :", value);
+    return null;
+  }
 }
