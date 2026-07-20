@@ -260,8 +260,24 @@ const LAB_PLATFORMS = [
 const TEAM_MAX_MEMBERS = 16;
 const LAB_MAX_MEMBERS = 8;
 
+const ROOM_ICONS = [
+  { key: "web", icon: Globe, label: "Web", color: "#3AA0FF" },
+  { key: "hash", icon: Hash, label: "Discussion", color: "#5B6EF5" },
+  { key: "ctf", icon: Flag, label: "CTF", color: "#FFD166" },
+  { key: "security", icon: Shield, label: "Sécurité", color: "#FF4D5E" },
+  { key: "bug", icon: Bug, label: "Bug / Reverse", color: "#2ED9A3" },
+  { key: "network", icon: Wifi, label: "Réseau", color: "#818CF8" },
+  { key: "system", icon: Cpu, label: "Système", color: "#FF9F43" },
+  { key: "radio", icon: Radio, label: "Live", color: "#FF6FB0" },
+  { key: "flame", icon: Flame, label: "Détente", color: "#FB923C" },
+  { key: "ghost", icon: Ghost, label: "Anonymat", color: "#A78BFA" },
+];
+function getRoomIcon(key) {
+  return ROOM_ICONS.find((i) => i.key === key) || ROOM_ICONS[1];
+}
+
 const DEFAULT_ROOMS = [
-  { key: "general", label: "Général", desc: "Discussion libre de la communauté", isPublic: true },
+  { key: "general", label: "Général", desc: "Discussion libre de la communauté", isPublic: true, icon: "web" },
 ];
 
 const AVATAR_OPTIONS = [
@@ -947,7 +963,7 @@ function LanguageGate({ onChoose }) {
       <div className="w-full max-w-md rounded-2xl p-6 gowl-fade-up relative overflow-hidden" style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 24px 60px -20px rgba(0,0,0,0.6)" }}>
         <div aria-hidden className="absolute rounded-full pointer-events-none" style={{ width: 260, height: 260, top: -110, right: -90, background: `radial-gradient(circle, ${C.primary}30, transparent 70%)`, filter: "blur(10px)" }} />
         <div className="flex items-center gap-2.5 mb-5 relative">
-          <OwlLogo size={28} />
+          <img src={owlLogoImg} alt="Logo GowlSec" className="w-7 h-7 object-contain" />
           <span className="font-extrabold text-lg" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>GowlSec</span>
         </div>
         <h2 className="text-lg font-bold mb-1.5 relative" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Choose your language · Choisis ta langue</h2>
@@ -2045,13 +2061,22 @@ function NewsTab({ news, setNews, isAdmin, profiles = [], notifications = [], se
 /* ---------------------------------------------------------------------
    Forum — question / accompagnement
 --------------------------------------------------------------------- */
-function ForumTab({ pseudo, questions, setQuestions, isAdmin, lang = "fr", currentUser = null }) {
+function ForumTab({ pseudo, questions, setQuestions, isAdmin, lang = "fr", currentUser = null, profiles = [] }) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [type, setType] = useState(QUESTION_TYPES[3].key);
   const [openId, setOpenId] = useState(null);
   const [replyDraft, setReplyDraft] = useState({});
+  const [filter, setFilter] = useState("all");
+
+  const findProfile = (username) => profiles.find((p) => p.username === username);
+
+  const filteredQuestions = questions.filter((q) => {
+    if (filter === "unresolved") return !q.resolved;
+    if (filter === "resolved") return q.resolved;
+    return true;
+  });
 
   async function submitQuestion(e) {
     e.preventDefault();
@@ -2130,53 +2155,91 @@ function ForumTab({ pseudo, questions, setQuestions, isAdmin, lang = "fr", curre
               </CreationHero>
             </ModalOverlay>
           )}
+          {questions.length > 0 && (
+            <div className="flex items-center gap-2 mb-4 flex-wrap">
+              {[
+                { key: "all", label: "Toutes", count: questions.length },
+                { key: "unresolved", label: "Non résolues", count: questions.filter((q) => !q.resolved).length },
+                { key: "resolved", label: "Résolues", count: questions.filter((q) => q.resolved).length },
+              ].map((f) => (
+                <button key={f.key} onClick={() => setFilter(f.key)} className="gowl-qfilter" data-active={filter === f.key}
+                  style={{ "--gowl-accent": f.key === "resolved" ? C.ok : f.key === "unresolved" ? C.warn : C.primary }}>
+                  {f.label} <span className="gowl-qfilter-count">{f.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="space-y-3">
             {questions.length === 0 && <EmptyState icon={<MessageSquare size={20} />} accent={C.primary} text="Aucune question pour l'instant. Sois le premier à demander de l'aide à la communauté." cta="Poser une question" onCta={() => setShowForm(true)} />}
-            {questions.map((q) => {
+            {questions.length > 0 && filteredQuestions.length === 0 && (
+              <EmptyState icon={<CheckCircle2 size={20} />} accent={C.ok} text="Aucune question ne correspond à ce filtre pour l'instant." />
+            )}
+            {filteredQuestions.map((q) => {
               const qt = QUESTION_TYPES.find((t) => t.key === q.type) || QUESTION_TYPES[3];
               const open = openId === q.id;
+              const authorProfile = findProfile(q.author);
               return (
-                <Panel key={q.id} className="p-4 gowl-hud-card gowl-glass" style={{ "--gowl-accent": qt.color, borderLeft: `3px solid ${qt.color}88` }}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 cursor-pointer" onClick={() => toggleQuestion(q.id)}>
-                      <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                        <Chip label={qt.label} color={qt.color} />
-                        <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>{q.author} · {timeAgo(q.createdAt)}</span>
+                <Panel key={q.id} className="p-0 gowl-hud-card gowl-glass gowl-qcard overflow-hidden" style={{ "--gowl-accent": qt.color, borderLeft: `3px solid ${qt.color}88` }}>
+                  {q.resolved && (
+                    <span className="gowl-qcard-resolved"><CheckCircle2 size={11} /> Résolue</span>
+                  )}
+                  <div className="p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleQuestion(q.id)}>
+                        <div className="flex items-center gap-2 mb-2.5 flex-wrap">
+                          <Avatar profile={authorProfile} size={22} />
+                          <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{q.author}</span>
+                          <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>· {timeAgo(q.createdAt)}</span>
+                          <Chip label={qt.label} color={qt.color} />
+                        </div>
+                        <h3 className="gowl-qtitle mb-1">{q.title}</h3>
+                        {!open && <p className="text-sm line-clamp-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{q.body}</p>}
                       </div>
-                      <h3 className="font-semibold text-sm mb-1" style={{ color: C.text, fontFamily: BODY_FONT }}>{q.title}</h3>
-                      {!open && <p className="text-sm line-clamp-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{q.body}</p>}
+                      <button onClick={() => toggleQuestion(q.id)} className="gowl-qtoggle shrink-0" style={{ color: C.muted }}>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-xs flex items-center gap-1" style={{ color: C.muted, fontFamily: MONO_FONT }}><Eye size={12} /> {q.views || 0}</span>
-                      <span className="text-xs flex items-center gap-1" style={{ color: C.muted, fontFamily: MONO_FONT }}><MessageSquare size={12} /> {q.answers.length}</span>
+                    <div className="flex items-center gap-2 mt-3 flex-wrap">
+                      <span className="gowl-qstat"><Eye size={12} /> {q.views || 0}</span>
+                      <span className="gowl-qstat"><MessageSquare size={12} /> {q.answers.length} réponse{q.answers.length > 1 ? "s" : ""}</span>
+                      <div className="flex-1" />
                       {q.author === pseudo && (
-                        <button onClick={(e) => { e.stopPropagation(); toggleResolved(q.id); }} className="text-xs px-2 py-1 rounded-full" style={{ background: q.resolved ? `${C.ok}22` : "transparent", border: `1px solid ${q.resolved ? C.ok : C.line}`, color: q.resolved ? C.ok : C.muted, fontFamily: MONO_FONT }}>
+                        <button onClick={(e) => { e.stopPropagation(); toggleResolved(q.id); }} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: q.resolved ? `${C.ok}22` : "transparent", border: `1px solid ${q.resolved ? C.ok : C.line}`, color: q.resolved ? C.ok : C.muted, fontFamily: MONO_FONT }}>
                           {q.resolved ? "Résolue" : "Marquer résolue"}
                         </button>
                       )}
                       {(isAdmin || q.author === pseudo) && (
                         <GhostButton danger onClick={(e) => { e.stopPropagation(); removeQuestion(q.id); }}><Trash2 size={12} /></GhostButton>
                       )}
-                      <button onClick={() => toggleQuestion(q.id)} style={{ color: C.muted }}>{open ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
                     </div>
                   </div>
                   {open && (
-                    <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
-                      <p className="text-sm mb-3 whitespace-pre-wrap" style={{ color: C.text, fontFamily: BODY_FONT }}>{q.body}</p>
-                      <div className="space-y-2 mb-3">
-                        {q.answers.map((a) => (
-                          <div key={a.id} className="pl-3" style={{ borderLeft: `2px solid ${C.primary}55` }}>
-                            <div className="text-xs mb-0.5" style={{ color: C.primary, fontFamily: MONO_FONT }}>{a.author} <span style={{ color: C.muted }}>· {timeAgo(a.createdAt)}</span></div>
-                            <p className="text-sm" style={{ color: C.text, fontFamily: BODY_FONT }}>{a.body}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="flex gap-2">
+                    <div className="gowl-qthread px-4 pb-4 pt-3">
+                      <p className="text-sm mb-4 whitespace-pre-wrap leading-relaxed" style={{ color: C.text, fontFamily: BODY_FONT }}>{q.body}</p>
+                      {q.answers.length > 0 && (
+                        <div className="space-y-3 mb-4">
+                          {q.answers.map((a) => {
+                            const answerProfile = findProfile(a.author);
+                            return (
+                              <div key={a.id} className="gowl-qanswer">
+                                <Avatar profile={answerProfile} size={26} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                                    <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{a.author}</span>
+                                    <span className="text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(a.createdAt)}</span>
+                                  </div>
+                                  <p className="text-sm leading-relaxed" style={{ color: C.text, fontFamily: BODY_FONT }}>{a.body}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                      <div className="gowl-qcomposer">
+                        <Avatar profile={findProfile(pseudo)} size={26} />
                         <input value={replyDraft[q.id] || ""} onChange={(e) => setReplyDraft((d) => ({ ...d, [q.id]: e.target.value }))}
                           onKeyDown={(e) => e.key === "Enter" && addAnswer(q.id)}
                           onFocus={() => { if (!currentUser) window.dispatchEvent(new CustomEvent("open-auth-login")); }}
-                          placeholder={currentUser ? "Répondre..." : "Connecte-toi pour répondre..."} className="flex-1 px-3 py-1.5 rounded-md text-sm" style={inputStyle} />
-                        <GhostButton onClick={() => addAnswer(q.id)}><Send size={12} /> Répondre</GhostButton>
+                          placeholder={currentUser ? "Écris une réponse utile et détaillée..." : "Connecte-toi pour répondre..."} className="flex-1 px-3 py-1.5 rounded-md text-sm" style={{ ...inputStyle, background: "transparent", border: "none", boxShadow: "none" }} />
+                        <PrimaryButton onClick={() => addAnswer(q.id)}><Send size={13} /> Répondre</PrimaryButton>
                       </div>
                     </div>
                   )}
@@ -2208,6 +2271,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
   const [rooms, setRooms] = useState(DEFAULT_ROOMS);
   const [newRoomName, setNewRoomName] = useState("");
   const [newRoomType, setNewRoomType] = useState("public");
+  const [newRoomIcon, setNewRoomIcon] = useState("hash");
   const [newRoomPassword, setNewRoomPassword] = useState("");
   const [banUsername, setBanUsername] = useState("");
   const [banFeedback, setBanFeedback] = useState("");
@@ -2233,6 +2297,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
         owner: room.owner || "system",
         passwordHash: room.passwordHash || null,
         bannedUsers: Array.isArray(room.bannedUsers) ? room.bannedUsers : [],
+        icon: room.icon || (room.key === "general" ? "web" : "hash"),
       }));
       setRooms(normalized);
       setRoomAccess((prev) => ({ ...prev, general: true, ...Object.fromEntries(normalized.filter((r) => r.isPublic !== false).map((r) => [r.key, true])) }));
@@ -2285,7 +2350,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
       counter += 1;
     }
     const passwordHash = newRoomType === "private" ? await hashText(newRoomPassword.trim()) : null;
-    const nextRooms = [...rooms, { key: slug, label: name.trim(), desc: newRoomType === "public" ? "Salon public" : "Salon privé", isPublic: newRoomType === "public", owner: pseudo, bannedUsers: [], passwordHash }];
+    const nextRooms = [...rooms, { key: slug, label: name.trim(), desc: newRoomType === "public" ? "Salon public" : "Salon privé", isPublic: newRoomType === "public", owner: pseudo, bannedUsers: [], passwordHash, icon: newRoomIcon }];
     setRooms(nextRooms);
     saveCollection("gowlsec:rooms", nextRooms);
     setRoom(slug);
@@ -2293,6 +2358,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
     setNewRoomName("");
     setNewRoomPassword("");
     setNewRoomType("public");
+    setNewRoomIcon("hash");
   }
 
   async function openRoom(targetRoom) {
@@ -2390,6 +2456,20 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
               <GuestGate text="Connecte-toi pour créer un salon." accent={C.ok} />
             ) : (
             <form onSubmit={createRoom} className="rounded-lg border p-3 mb-3" style={{ background: "rgba(255,255,255,0.03)", borderColor: C.line }}>
+              <div className="mb-3">
+                <label className="block text-[11px] uppercase tracking-wide mb-1.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>Logo du salon</label>
+                <div className="gowl-roomicon-grid">
+                  {ROOM_ICONS.map((ic) => {
+                    const IconEl = ic.icon;
+                    const active = newRoomIcon === ic.key;
+                    return (
+                      <button type="button" key={ic.key} onClick={() => setNewRoomIcon(ic.key)} title={ic.label} className="gowl-roomicon-btn" data-active={active} style={{ "--gowl-accent": ic.color }}>
+                        <IconEl size={17} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
               <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
                 <div className="flex-1">
                   <label className="block text-[11px] uppercase tracking-wide mb-1" style={{ color: C.muted, fontFamily: MONO_FONT }}>Nom du salon</label>
@@ -2412,24 +2492,41 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
           </div>
         </div>
       </Panel>
-      <div className="grid md:grid-cols-[220px_1fr] gap-4">
-        <Panel className="p-2 h-fit md:sticky md:top-20" style={{ borderColor: C.line, background: "rgba(255,255,255,0.02)" }}>
+      <div className="grid md:grid-cols-[240px_1fr] gap-4">
+        <Panel className="p-2.5 h-fit md:sticky md:top-20" style={{ borderColor: C.line, background: "rgba(255,255,255,0.02)" }}>
+          <div className="px-2 pt-1 pb-2.5 flex items-center justify-between">
+            <span className="text-[10.5px] font-bold uppercase tracking-widest" style={{ color: C.muted, fontFamily: MONO_FONT }}>Salons · {rooms.length}</span>
+          </div>
           <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
             {rooms.map((r) => {
               const active = r.key === room;
+              const roomMsgCount = messages.filter((m) => (m.room || "general") === r.key).length;
+              const ri = getRoomIcon(r.icon);
+              const RIcon = ri.icon;
               return (
-                <button key={r.key} onClick={() => openRoom(r)} className="flex items-center gap-2 px-3 py-2 rounded-md text-sm text-left whitespace-nowrap transition-all"
-                  style={{ background: active ? "rgba(255,255,255,0.08)" : "transparent", color: active ? C.text : C.muted, fontFamily: BODY_FONT, fontWeight: active ? 700 : 500 }}>
-                  {r.isPublic === false ? <KeyRound size={13} /> : <Globe size={13} />} {r.label}
+                <button key={r.key} onClick={() => openRoom(r)} className="gowl-hub-roomitem" data-active={active}>
+                  <span className="gowl-hub-roomitem-icon" style={{ color: ri.color }}><RIcon size={13} /></span>
+                  <span className="gowl-hub-roomitem-label">{r.label}</span>
+                  {r.isPublic === false && <KeyRound size={11} style={{ opacity: 0.55, flexShrink: 0 }} />}
+                  {roomMsgCount > 0 && <span className="gowl-hub-roomitem-count">{roomMsgCount}</span>}
                 </button>
               );
             })}
           </div>
         </Panel>
-        <Panel className="flex flex-col overflow-hidden" style={{ height: 480, borderColor: C.line, background: "rgba(255,255,255,0.02)" }}>
-          <div className="flex items-center gap-2 px-4 py-2.5" style={{ borderBottom: `1px solid ${C.line}`, background: "rgba(255,255,255,0.03)" }}>
-            <Activity size={14} style={{ color: C.primary }} className="ml-1" />
-            <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>#{current.label} · {current.desc}</span>
+        <Panel className="flex flex-col overflow-hidden" style={{ height: 520, borderColor: C.line, background: "rgba(255,255,255,0.02)" }}>
+          <div className="gowl-hub-header">
+            <span className="gowl-hub-header-icon" style={{ background: `${getRoomIcon(current.icon).color}1E`, color: getRoomIcon(current.icon).color }}>
+              {(() => { const HIcon = getRoomIcon(current.icon).icon; return <HIcon size={15} />; })()}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-bold truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{current.label}</span>
+                {current.isPublic === false && <span className="gowl-hub-header-tag" style={{ color: C.warn, borderColor: `${C.warn}55`, background: `${C.warn}14` }}>Privé</span>}
+              </div>
+              <span className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>{current.desc}</span>
+            </div>
+            <span className="gowl-hub-header-live"><span className="gowl-live-dot" style={{ background: C.ok }} /> En direct</span>
           </div>
           <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
             {isOwner && (
@@ -2462,42 +2559,38 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
               </div>
             ) : (
               <>
-                {roomMessages.length === 0 && <EmptyState text="Aucun message dans ce salon. Lance la discussion." />}
+                {roomMessages.length === 0 && (
+                  <div className="gowl-hub-empty">
+                    <span className="gowl-hub-empty-icon"><MessageSquare size={20} /></span>
+                    <p className="gowl-hub-empty-title">Aucun message dans ce salon</p>
+                    <p className="gowl-hub-empty-sub">Envoie le premier message pour lancer la discussion.</p>
+                  </div>
+                )}
                 {roomMessages.map((m) => {
               const reactions = m.reactions || {};
+              const authorProfile = profiles.find((p) => p.username === m.author);
               return (
-                <div key={m.id} className="flex items-start gap-2 group">
-                  <div className="w-7 h-7 rounded-md flex items-center justify-center text-xs shrink-0" style={{ background: "rgba(255,255,255,0.06)", color: C.primary, border: `1px solid ${C.line}`, fontFamily: MONO_FONT }}>
-                    {m.author.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1">
+                <div key={m.id} className="gowl-hub-msg group">
+                  <Avatar profile={authorProfile} size={30} />
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: MONO_FONT }}>{m.author}</span>
-                      <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(m.createdAt)}</span>
+                      <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.author}</span>
+                      <span className="text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(m.createdAt)}</span>
                       {isAdmin && <button onClick={() => removeMsg(m.id)} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.alert }}><Trash2 size={11} /></button>}
                     </div>
-                    <p className="text-sm mb-1.5" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.text}</p>
-                    <div className="flex items-center gap-1 flex-wrap opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
-                      {REACTION_EMOJIS.map((em) => {
-                        const users = reactions[em] || [];
-                        const active = users.includes(pseudo);
-                        if (users.length === 0 && !active) {
-                          return (
-                            <button key={em} onClick={() => toggleReaction(m.id, em)} className="text-xs px-1.5 py-0.5 rounded" style={{ background: "transparent", border: `1px solid ${C.line}`, opacity: 0.6 }}>{em}</button>
-                          );
-                        }
-                        return null;
-                      })}
-                    </div>
-                    {Object.keys(reactions).length > 0 && (
-                      <div className="flex items-center gap-1 flex-wrap mt-1">
-                        {Object.entries(reactions).map(([em, users]) => (
-                          <button key={em} onClick={() => toggleReaction(m.id, em)} className="text-xs px-1.5 py-0.5 rounded flex items-center gap-1" style={{ background: users.includes(pseudo) ? `${C.primary}22` : C.panel2, border: `1px solid ${users.includes(pseudo) ? C.primary : C.line}`, color: C.text, fontFamily: MONO_FONT }}>
-                            {em} {users.length}
-                          </button>
+                    <div className="gowl-hub-msg-bubble">{m.text}</div>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+                      {Object.entries(reactions).map(([em, users]) => (
+                        <button key={em} onClick={() => toggleReaction(m.id, em)} className="gowl-hub-reaction" data-active={users.includes(pseudo)}>
+                          {em} <span>{users.length}</span>
+                        </button>
+                      ))}
+                      <div className="gowl-hub-reaction-picker opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                        {REACTION_EMOJIS.filter((em) => !(reactions[em] || []).length).map((em) => (
+                          <button key={em} onClick={() => toggleReaction(m.id, em)} className="gowl-hub-reaction-add">{em}</button>
                         ))}
                       </div>
-                    )}
+                    </div>
                   </div>
                 </div>
                 );
@@ -5035,6 +5128,56 @@ export default function GowlSec() {
         .gowl-footer-social:hover { color: ${C.text}; border-color: currentColor; background: ${C.panel2}; transform: translateY(-2px); }
         .gowl-footer-totop { width: 34px; height: 34px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid ${C.line}; color: ${C.muted}; transition: all 0.2s ease; }
         .gowl-footer-totop:hover { color: ${C.text}; border-color: ${C.primary}88; background: ${C.primary}14; transform: translateY(-2px); }
+
+        /* --- Salon Question : filtres + cartes --- */
+        .gowl-qfilter { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 600; cursor: pointer; color: ${C.muted}; border: 1px solid ${C.line}; background: transparent; font-family: ${BODY_FONT}; transition: all 0.15s ease; }
+        .gowl-qfilter:hover { color: ${C.text}; border-color: var(--gowl-accent); }
+        .gowl-qfilter[data-active="true"] { color: #fff; background: var(--gowl-accent); border-color: var(--gowl-accent); }
+        .gowl-qfilter-count { font-family: ${MONO_FONT}; font-size: 11px; opacity: 0.85; }
+        .gowl-qcard { position: relative; }
+        .gowl-qcard-resolved { position: absolute; top: 0; right: 0; display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px 4px 9px; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: ${C.ok}; background: ${C.ok}1E; border-left: 1px solid ${C.ok}55; border-bottom: 1px solid ${C.ok}55; border-radius: 0 0 0 10px; font-family: ${MONO_FONT}; z-index: 2; }
+        .gowl-qtitle { font-size: 15px; font-weight: 700; line-height: 1.35; color: ${C.text}; font-family: ${DISPLAY_FONT}; transition: color 0.15s ease; }
+        .gowl-qcard:hover .gowl-qtitle { color: var(--gowl-accent); }
+        .gowl-qtoggle { width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; transition: background 0.15s ease, color 0.15s ease; }
+        .gowl-qtoggle:hover { background: ${C.panel2}; color: ${C.text}; }
+        .gowl-qstat { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; padding: 4px 9px; border-radius: 999px; background: ${C.bg}66; border: 1px solid ${C.line}; color: ${C.muted}; font-family: ${MONO_FONT}; }
+        .gowl-qthread { border-top: 1px solid ${C.line}; background: ${C.bg}40; }
+        .gowl-qanswer { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: 10px; background: ${C.panel2}88; border: 1px solid ${C.line}; }
+        .gowl-qcomposer { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px; background: ${C.panel2}CC; border: 1px solid ${C.line}; }
+        .gowl-qcomposer:focus-within { border-color: ${C.primary}77; box-shadow: 0 0 0 3px ${C.primary}1A; }
+
+        /* --- Hub : liste des salons + fil de discussion --- */
+        .gowl-hub-roomitem { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 8px 9px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; color: ${C.muted}; white-space: nowrap; transition: background 0.15s ease, color 0.15s ease; font-family: ${BODY_FONT}; }
+        .gowl-hub-roomitem:hover { background: ${C.panel2}; color: ${C.text}; }
+        .gowl-hub-roomitem[data-active="true"] { background: linear-gradient(155deg, ${C.primary}26, ${C.primary}10); color: ${C.text}; box-shadow: inset 2px 0 0 ${C.primary}; }
+        .gowl-hub-roomitem-icon { display: inline-flex; opacity: 0.85; }
+        .gowl-hub-roomitem-label { flex: 1; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+        .gowl-hub-roomitem-count { font-family: ${MONO_FONT}; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: ${C.bg}88; color: ${C.muted}; }
+        .gowl-hub-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid ${C.line}; background: rgba(255,255,255,0.03); }
+        .gowl-hub-header-icon { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .gowl-hub-header-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 999px; border: 1px solid; font-family: ${MONO_FONT}; }
+        .gowl-hub-header-live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: ${C.muted}; font-family: ${MONO_FONT}; flex-shrink: 0; }
+        .gowl-hub-msg { display: flex; align-items: flex-start; gap: 10px; padding: 6px 8px; border-radius: 10px; transition: background 0.15s ease; }
+        .gowl-hub-msg:hover { background: rgba(255,255,255,0.025); }
+        .gowl-hub-msg-bubble { display: inline-block; margin-top: 3px; padding: 7px 11px; border-radius: 10px; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-size: 13.5px; line-height: 1.5; font-family: ${BODY_FONT}; max-width: 100%; word-break: break-word; }
+        .gowl-hub-reaction { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; cursor: pointer; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-family: ${MONO_FONT}; transition: all 0.15s ease; }
+        .gowl-hub-reaction[data-active="true"] { background: ${C.primary}22; border-color: ${C.primary}; }
+        .gowl-hub-reaction:hover { border-color: ${C.primary}88; }
+        .gowl-hub-reaction-picker { display: inline-flex; gap: 3px; }
+        .gowl-hub-reaction-add { all: unset; box-sizing: border-box; cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 999px; border: 1px solid ${C.line}; opacity: 0.65; transition: all 0.15s ease; }
+        .gowl-hub-reaction-add:hover { opacity: 1; background: ${C.panel2}; transform: scale(1.08); }
+
+        /* --- Hub : sélecteur de logo de salon --- */
+        .gowl-roomicon-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 320px; }
+        .gowl-roomicon-btn { all: unset; box-sizing: border-box; display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1; border-radius: 9px; cursor: pointer; color: ${C.muted}; background: ${C.bg}66; border: 1px solid ${C.line}; transition: all 0.15s ease; }
+        .gowl-roomicon-btn:hover { color: var(--gowl-accent); border-color: var(--gowl-accent); }
+        .gowl-roomicon-btn[data-active="true"] { color: var(--gowl-accent); background: var(--gowl-accent); background: color-mix(in srgb, var(--gowl-accent) 18%, ${C.bg}); border-color: var(--gowl-accent); box-shadow: 0 0 0 1px var(--gowl-accent); }
+
+        /* --- Hub : état vide sobre --- */
+        .gowl-hub-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; }
+        .gowl-hub-empty-icon { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; color: ${C.muted}; background: ${C.panel2}; border: 1px solid ${C.line}; }
+        .gowl-hub-empty-title { font-size: 13.5px; font-weight: 600; color: ${C.text}; font-family: ${BODY_FONT}; margin: 0 0 3px; }
+        .gowl-hub-empty-sub { font-size: 12px; color: ${C.muted}; font-family: ${BODY_FONT}; margin: 0; }
       `}</style>
 
       <header className="sticky top-0 z-30" style={{ background: `${C.bg}F2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.line}`, boxShadow: "0 1px 0 rgba(0,0,0,0.4), 0 8px 24px -16px rgba(0,0,0,0.6)" }}>
@@ -5118,7 +5261,7 @@ export default function GowlSec() {
               />
             )}
             {tab === "actus" && <NewsTab news={news} setNews={setNews} isAdmin={isAdmin} profiles={profiles} notifications={notifications} setNotifications={setNotifications} full />}
-            {tab === "forum" && <ForumTab pseudo={pseudo} questions={questions} setQuestions={setQuestions} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} />}
+            {tab === "forum" && <ForumTab pseudo={pseudo} questions={questions} setQuestions={setQuestions} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} profiles={profiles} />}
             {tab === "salons" && <RoomsTab pseudo={pseudo} messages={messages} setMessages={setMessages} isAdmin={isAdmin} lang={lang || "fr"} profiles={profiles} currentUser={currentUser} />}
             {tab === "equipes" && <TeamsTab pseudo={pseudo} teams={teams} setTeams={setTeams} announcements={teamAnnouncements} setAnnouncements={setTeamAnnouncements} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} />}
             {tab === "labs" && <LabsTab pseudo={pseudo} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} />}
@@ -5148,8 +5291,8 @@ export default function GowlSec() {
                   <p className="text-base font-bold uppercase tracking-[0.24em]" style={{ color: C.text, fontFamily: MONO_FONT }}>GowlSec</p>
                 </div>
                 <p className="text-sm leading-6 max-w-xs mb-4" style={{ color: C.muted, fontFamily: BODY_FONT }}>{L("footer")}</p>
-                <a href="mailto:V2V13@proton.me" className="gowl-footer-mail text-sm w-fit" style={{ color: C.text, fontFamily: MONO_FONT }}>
-                  <Mail size={14} style={{ color: C.primary }} /> V2V13@proton.me
+                <a href="mailto:GowlSec@proton.me" className="gowl-footer-mail text-sm w-fit" style={{ color: C.text, fontFamily: MONO_FONT }}>
+                  <Mail size={14} style={{ color: C.primary }} /> GowlSec@proton.me
                 </a>
               </div>
 
@@ -5280,6 +5423,7 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
     green: "#2dd875",
     purple: "#a970ff",
     orange: "#ff9f1c",
+    indigo: "#818cf8",
   };
 
   const featureCards = [
@@ -5287,6 +5431,7 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
     { icon: MessageCircle, title: "Question", text: "Pose une question et obtiens de l'aide de la communauté.", tab: "forum", color: gh.green, meta: `${questions.length} question${questions.length > 1 ? "s" : ""} posée${questions.length > 1 ? "s" : ""}` },
     { icon: Users, title: "Team", text: "Crée ou rejoins une team (16 max), publique ou privée.", tab: "equipes", color: gh.purple, meta: `${teams.length} team${teams.length > 1 ? "s" : ""} active${teams.length > 1 ? "s" : ""}` },
     { icon: FlaskConical, title: "Labs", text: "Travaille ensemble sur des labs (8 max) HTB, THM, Root-Me...", tab: "labs", color: gh.orange, meta: `${labs.length} lab${labs.length > 1 ? "s" : ""} en cours` },
+    { icon: Compass, title: "Parcours", text: "Suis un chemin guidé : labs, ressources et défis structurés étape par étape.", tab: "parcours", color: gh.indigo, meta: `${LEARNING_PATHS.length} parcours disponible${LEARNING_PATHS.length > 1 ? "s" : ""}` },
   ];
 
   const activity = [
@@ -5552,7 +5697,7 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
         <div className="ghx-features-head">
           <h2 className="ghx-features-title">Comment participer</h2>
         </div>
-        <p className="ghx-features-sub">Quatre façons de contribuer, apprendre et progresser avec les autres membres — choisis ton point d'entrée.</p>
+        <p className="ghx-features-sub">Cinq façons de contribuer, apprendre et progresser avec les autres membres — choisis ton point d'entrée.</p>
         {featureCards.map(({ icon: Icon, title, text, tab, color, meta, live }, i) => (
           <button
             key={title}
