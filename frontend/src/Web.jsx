@@ -21,11 +21,10 @@ function XIcon({ size = 16, style, color = "currentColor" }) {
     </svg>
   );
 }
-import { forgotPassword, resetPassword, resendVerification } from "./api/auth";
+import { forgotPassword, resetPassword, resendVerification, verifyEmail, login, saveSession } from "./api/auth";
 import ProtectedTab from "./components/ProtectedTab";
 import { useAuth } from "./context/AuthContext";
 import Register from "./pages/Register";
-import { login, saveSession } from "./api/auth";
 
 function GitHubIcon({ size = 16, style, color = "currentColor" }) {
   return (
@@ -380,7 +379,7 @@ const I18N = {
     chooseLangTitle: "Choisis ta langue",
     chooseLangSub: "La communauté GowlSec parle plusieurs langues — sélectionne la tienne pour continuer.",
     chooseLangCta: "Continuer",
-    tagline: "",
+    tagline: "Pentest · CTF · Cybersécurité",
     tabs: { accueil: "Accueil", actus: "Actualités", forum: "Question", salons: "Hub", equipes: "Team", labs: "Labs", classement: "Classement", trophies: "Trophées", writeups: "Write-ups", evenements: "Événements", parcours: "Parcours", boutique: "Boutique", assistant: "Assistant IA", support: "Support" },
     live: "en ligne", admin: "Admin",
     heroTitle1: "Communauté francophone ", heroTitle2: "pentest, CTF, réseau et cybersécurité",
@@ -389,11 +388,11 @@ const I18N = {
     ctaAsk: "Poser une question", ctaHub: "Rejoindre le Hub",
     quickStartTitle: "Démarrage rapide", quickStartSubtitle: "Trois actions simples pour entrer dans la communauté et avancer plus vite.",
     quickStartForumTitle: "Poser une question", quickStartForumDesc: "Partage ton blocage et fais remonter ton besoin en quelques secondes.",
-    quickStartHubTitle: "Rejoindre le Hub", quickStartHubDesc: "Échange en direct sur un sujet précis avec l’écosystème GowlSec.",
+    quickStartHubTitle: "Rejoindre le Hub", quickStartHubDesc: "Échange en direct sur un sujet précis avec la communauté GowlSec.",
     quickStartTeamTitle: "Créer une team", quickStartTeamDesc: "Forme une escouade pour un CTF, un lab ou une préparation d’examen.",
     statNews: "actus", statQuestions: "questions", statTrophies: "trophées", statTeams: "teams", statLabs: "labs",
     activityTitle: "Ça bouge en ce moment", activityEmpty: "La communauté démarre — sois le premier à agir.",
-    scanLabel: "corbeau en fouille dans la base de données", watchAll: "Voir toutes les actualités",
+    scanLabel: "Terminal de démonstration — usage pédagogique", watchAll: "Voir toutes les actualités",
     trending: "Ça circule en ce moment", live2: "EN DIRECT", watching: "veille active",
     footer: "GowlSec — communauté pentest & CTF · à but pédagogique",
     forumTitle: "Question", forumSub: "Pose une question ou demande un accompagnement.",
@@ -403,7 +402,7 @@ const I18N = {
     hubTitle: "Hub", hubSub: "Entraide en direct, par thème.",
     hubHeroEyebrow: "Le Hub", hubHeroTitle: "Discute en direct, par thème",
     hubHeroSub: "Choisis un salon pour rejoindre la conversation en cours — chacun a sa propre ambiance et son propre sujet.",
-    teamTitle: "Team", teamSub: "Crée ta team (16 membres max), publique ou privée, recrute, publiez vos annonces.",
+    teamTitle: "Team", teamSub: "Crée ta team (16 membres max), publique ou privée : recrute et publie tes annonces.",
     teamHeroEyebrow: "Nouvelle team", teamHeroTitle: "Monte ton escouade de hackers",
     teamHeroSub: "Choisis un nom, un logo, jusqu'à 16 membres. Publique pour recruter en ouvert, privée pour rester entre vous.",
     newTeam: "Créer une équipe",
@@ -1282,14 +1281,6 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
     }
 
     try {
-
-  if (!resetToken) {
-    notify(
-      "error",
-      "Lien de réinitialisation invalide ou expiré."
-    );
-    return;
-  }
 
       await resetPassword({
         token: resetToken,
@@ -4520,6 +4511,35 @@ export default function GowlSec() {
 
   const [lang, setLang] = useState(null);
   const [langLoading, setLangLoading] = useState(true);
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [verificationLoading, setVerificationLoading] = useState(false);
+
+  const path = window.location.pathname;
+  const emailToken = new URLSearchParams(window.location.search).get("token");
+
+  useEffect(() => {
+    if (path !== "/verify-email" || !emailToken) return;
+
+    async function confirmEmail() {
+      try {
+        setVerificationLoading(true);
+
+        const result = await verifyEmail(emailToken);
+
+        setVerificationMessage(
+          result.message || "Email vérifié avec succès."
+        );
+      } catch (error) {
+        setVerificationMessage(
+          error.message || "Lien de vérification invalide."
+        );
+      } finally {
+        setVerificationLoading(false);
+      }
+    }
+
+    confirmEmail();
+  }, [path, emailToken]);
 
   useEffect(() => {
     (async () => {
@@ -4690,6 +4710,46 @@ export default function GowlSec() {
     return combined;
   }, [activityFeed, news]);
 
+  if (path === "/verify-email") {
+    return (
+      <div
+        className="min-h-screen flex items-center justify-center p-4"
+        style={{ background: C.bg, color: C.text }}
+      >
+        <Panel className="p-8 max-w-md w-full text-center">
+          <div className="flex justify-center">
+            <OwlLogo size={50} />
+          </div>
+
+          <h1
+            className="text-xl font-bold mt-4 mb-3"
+            style={{ fontFamily: DISPLAY_FONT }}
+          >
+            Vérification de l’email
+          </h1>
+
+          {verificationLoading ? (
+            <div className="flex justify-center">
+              <Loader2 size={24} className="animate-spin" />
+            </div>
+          ) : (
+            <p style={{ color: C.muted }}>
+              {verificationMessage || "Token de vérification manquant."}
+            </p>
+          )}
+
+          <a
+            href="/"
+            className="inline-block mt-5 px-4 py-2 rounded-md"
+            style={{ background: C.primary, color: "#fff" }}
+          >
+            Retour à l’accueil
+          </a>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div style={{ background: C.bg, minHeight: "100vh", fontFamily: BODY_FONT, position: "relative" }}>
       {!langLoading && !lang && <LanguageGate onChoose={chooseLang} />}
@@ -4755,6 +4815,14 @@ export default function GowlSec() {
         .gowl-scanlines { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.5;
           background: repeating-linear-gradient(0deg, transparent 0 3px, #ffffff05 3px 4px);
           animation: gowl-scanline-move 9s linear infinite; }
+        @keyframes gowl-owl-bob-kf { 0%, 100% { transform: translateY(0) rotate(-2deg); } 50% { transform: translateY(-6px) rotate(2deg); } }
+        .gowl-owl-bob { animation: gowl-owl-bob-kf 2.6s ease-in-out infinite; filter: drop-shadow(0 6px 14px rgba(0,0,0,0.45)); }
+        @keyframes gowl-owl-wing-left-kf { 0%, 100% { transform: rotate(-6deg); } 50% { transform: rotate(46deg); } }
+        @keyframes gowl-owl-wing-right-kf { 0%, 100% { transform: rotate(6deg); } 50% { transform: rotate(-46deg); } }
+        .gowl-owl-wing-left { transform-origin: 88% 55%; animation: gowl-owl-wing-left-kf 0.32s ease-in-out infinite; }
+        .gowl-owl-wing-right { transform-origin: 12% 55%; animation: gowl-owl-wing-right-kf 0.32s ease-in-out infinite; }
+        @keyframes gowl-owl-fly-kf { 0% { transform: translate(0, 0); } 25% { transform: translate(140px, -18px); } 50% { transform: translate(70px, 26px); } 75% { transform: translate(-90px, -10px); } 100% { transform: translate(0, 0); } }
+        .gowl-owl-fly-wrap { position: absolute; left: 50%; top: 38%; margin-left: -27px; margin-top: -27px; animation: gowl-owl-fly-kf 11s ease-in-out infinite; }
         @keyframes gowl-glitch-1 { 0%, 92%, 100% { transform: translate(0,0); opacity: 0; } 93% { transform: translate(-2px,1px); opacity: 0.7; } 95% { transform: translate(2px,-1px); opacity: 0.5; } 97% { transform: translate(-1px,0); opacity: 0.3; } }
         .gowl-glitch { position: relative; }
         .gowl-glitch::before, .gowl-glitch::after { content: attr(data-text); position: absolute; inset: 0; opacity: 0; pointer-events: none; }
@@ -4887,7 +4955,7 @@ export default function GowlSec() {
       <main className="max-w-7xl mx-auto px-5 lg:px-8 py-10">
         {loading ? (
           <div className="flex items-center justify-center py-24 gap-2 text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-            <RefreshCw size={14} className="animate-spin" /> chargement...
+            <RefreshCw size={14} className="animate-spin" /> Chargement…
           </div>
         ) : (
           <>
@@ -4997,9 +5065,9 @@ export default function GowlSec() {
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.24em] mb-3" style={{ color: C.muted, fontFamily: MONO_FONT }}>Infos</p>
                 <div className="flex flex-col items-start gap-2 text-sm" style={{ color: C.muted, fontFamily: MONO_FONT }}>
-                  <span>Conditions d’utilisation</span>
-                  <span>Mentions légales</span>
-                  <span>Politique de confidentialité</span>
+                  <span title="Bientôt disponible" style={{ opacity: 0.65, cursor: "default" }}>Conditions d'utilisation</span>
+                  <span title="Bientôt disponible" style={{ opacity: 0.65, cursor: "default" }}>Mentions légales</span>
+                  <span title="Bientôt disponible" style={{ opacity: 0.65, cursor: "default" }}>Politique de confidentialité</span>
                   <a href="mailto:V2V13@proton.me" className="transition hover:opacity-80" style={{ color: C.text }}>
                     V2V13@proton.me
                   </a>
@@ -5009,6 +5077,31 @@ export default function GowlSec() {
           </div>
         </footer>
       )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------
+   Sprite hibou — vole en boucle à l'intérieur d'un cadre borné (ex : le
+   terminal de démonstration de l'accueil), jamais hors de son cadre
+--------------------------------------------------------------------- */
+function OwlFlySprite({ size = 40 }) {
+  return (
+    <div className="gowl-owl-fly-wrap pointer-events-none">
+      <div className="gowl-owl-bob">
+        <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" overflow="visible">
+          <ellipse cx="50" cy="58" rx="26" ry="24" fill={C.panel2} stroke={C.gold} strokeWidth="2.5" />
+          <path d="M20 30 12 12 30 22Z" fill={C.gold} opacity="0.9" />
+          <path d="M80 30 88 12 70 22Z" fill={C.gold} opacity="0.9" />
+          <path className="gowl-owl-wing-left" d="M26 50 C8 44 -4 50 1 62 C6 72 20 71 29 62 Z" fill={C.primary} opacity="0.92" />
+          <path className="gowl-owl-wing-right" d="M74 50 C92 44 104 50 99 62 C94 72 80 71 71 62 Z" fill={C.primary} opacity="0.92" />
+          <circle cx="38" cy="54" r="10" fill="#fff" />
+          <circle cx="62" cy="54" r="10" fill="#fff" />
+          <circle cx="38" cy="54" r="4.4" fill="#0A0C10" />
+          <circle cx="62" cy="54" r="4.4" fill="#0A0C10" />
+          <polygon points="50,60 44,70 56,70" fill={C.ok} />
+        </svg>
+      </div>
     </div>
   );
 }
@@ -5036,28 +5129,84 @@ function CrowSearchMascot() {
   );
 }
 
-function DataScanScene({ onClick, label = "corbeau en fouille dans la base de données" }) {
-  const COLS = 16, ROWS = 6;
-  const cells = useMemo(() => Array.from({ length: COLS * ROWS }).map(() => {
-    const show = Math.random() < 0.48;
-    if (!show) return null;
-    return { val: Math.random() < 0.5 ? "0" : "1", op: (0.15 + Math.random() * 0.35).toFixed(2), delay: (Math.random() * 4).toFixed(2) };
-  }), []);
+const TERMINAL_SESSIONS = [
+  { cmd: "nmap -sV 10.10.14.22", out: ["22/tcp  open  ssh", "80/tcp  open  http", "Scan terminé en 4.2s"] },
+  { cmd: "gobuster dir -u http://target.htb -w wordlist.txt", out: ["/admin      (Status: 301)", "/uploads    (Status: 200)", "127 chemins trouvés"] },
+  { cmd: "sqlmap -u \"http://target.htb/item?id=1\" --batch", out: ["Paramètre 'id' injectable", "Backend : MySQL 8.0", "1 vulnérabilité confirmée"] },
+  { cmd: "hydra -l admin -P rockyou.txt ssh://target.htb", out: ["1 cible testée", "1 identifiant valide trouvé", "→ voir le write-up associé"] },
+];
+
+function DataScanScene({ onClick, label = "Terminal de démonstration — usage pédagogique" }) {
+  const [session, setSession] = useState({ idx: 0, typed: "", linesShown: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+    const timeouts = [];
+
+    function typeCmd(idx, charIdx) {
+      if (cancelled) return;
+      const entry = TERMINAL_SESSIONS[idx];
+      setSession({ idx, typed: entry.cmd.slice(0, charIdx), linesShown: 0 });
+      if (charIdx < entry.cmd.length) {
+        timeouts.push(setTimeout(() => typeCmd(idx, charIdx + 1), 26));
+      } else {
+        timeouts.push(setTimeout(() => revealLines(idx, 0), 380));
+      }
+    }
+
+    function revealLines(idx, lineIdx) {
+      if (cancelled) return;
+      const entry = TERMINAL_SESSIONS[idx];
+      setSession({ idx, typed: entry.cmd, linesShown: lineIdx });
+      if (lineIdx < entry.out.length) {
+        timeouts.push(setTimeout(() => revealLines(idx, lineIdx + 1), 420));
+      } else {
+        timeouts.push(setTimeout(() => {
+          const next = (idx + 1) % TERMINAL_SESSIONS.length;
+          typeCmd(next, 0);
+        }, 2600));
+      }
+    }
+
+    typeCmd(0, 0);
+    return () => {
+      cancelled = true;
+      timeouts.forEach(clearTimeout);
+    };
+  }, []);
+
+  const entry = TERMINAL_SESSIONS[session.idx];
 
   return (
     <button onClick={onClick} className="relative w-full overflow-hidden rounded-xl text-left" style={{ height: 300, background: C.panel, border: `1px solid ${C.line}` }}>
-      <div className="absolute inset-0 grid p-4" style={{ gridTemplateColumns: `repeat(${COLS}, 1fr)`, gridTemplateRows: `repeat(${ROWS}, 1fr)` }}>
-        {cells.map((c, i) => (
-          <span key={i} className={c ? "gowl-digit flex items-center justify-center text-xs" : ""}
-            style={c ? { color: C.ok, fontFamily: MONO_FONT, "--gowl-op": c.op, "--gowl-delay": `${c.delay}s`, opacity: c.op } : {}}>
-            {c ? c.val : ""}
-          </span>
-        ))}
+      <div className="absolute inset-0 flex flex-col">
+        <div className="flex items-center gap-1.5 px-3 py-2 shrink-0" style={{ background: C.panel2, borderBottom: `1px solid ${C.line}` }}>
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.alert }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.warn }} />
+          <span className="w-2.5 h-2.5 rounded-full" style={{ background: C.ok }} />
+          <span className="ml-2 text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>gowlsec@ctf-lab:~</span>
+        </div>
+        <div className="flex-1 p-3.5 overflow-hidden" style={{ background: "#080A0E" }}>
+          {TERMINAL_SESSIONS.map((s, i) => {
+            if (i > session.idx) return null;
+            const isCurrent = i === session.idx;
+            const typed = isCurrent ? session.typed : s.cmd;
+            const linesShown = isCurrent ? session.linesShown : s.out.length;
+            return (
+              <div key={i} className="mb-2">
+                <div className="text-xs" style={{ color: C.ok, fontFamily: MONO_FONT }}>
+                  <span style={{ color: C.gold }}>$</span> {typed}
+                  {isCurrent && typed.length < s.cmd.length && <span className="gowl-cursor-blink">▍</span>}
+                </div>
+                {s.out.slice(0, linesShown).map((line, li) => (
+                  <div key={li} className="text-xs pl-3" style={{ color: C.muted, fontFamily: MONO_FONT }}>{line}</div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <div className="absolute left-0 right-0 pointer-events-none" style={{ height: 2, background: `linear-gradient(90deg, transparent, ${C.ok}, transparent)`, boxShadow: `0 0 14px 2px ${C.ok}88`, animation: "gowl-scan-beam 3.4s ease-in-out infinite" }} />
-      <div className="gowl-crow-fly-wrap pointer-events-none">
-        <CrowSearchMascot />
-      </div>
+      <OwlFlySprite size={34} />
       <div className="absolute left-1/2 bottom-4 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1 rounded-full pointer-events-none" style={{ background: `${C.bg}CC`, border: `1px solid ${C.ok}33` }}>
         <span className="text-xs" style={{ color: C.ok, fontFamily: MONO_FONT }}>{label}</span>
         <span className="text-xs" style={{ color: C.ok, fontFamily: MONO_FONT, animation: "gowl-pulse-dot 1.1s steps(3) infinite" }}>...</span>
@@ -5065,6 +5214,7 @@ function DataScanScene({ onClick, label = "corbeau en fouille dans la base de do
     </button>
   );
 }
+
 
 
 function SectionHeader({ icon, eyebrow, title, subtitle, accent = C.primary }) {

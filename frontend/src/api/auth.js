@@ -1,5 +1,7 @@
 const API_URL = import.meta.env.VITE_API_URL;
 
+
+
 export async function register({ username, email, password }) {
   const response = await fetch(`${API_URL}/api/auth/register`, {
     method: "POST",
@@ -112,6 +114,22 @@ export async function resendVerification(email) {
 
   if (!response.ok) {
     throw new Error(data?.message || "Erreur.");
+  }
+
+  return data;
+}
+
+export async function verifyEmail(token) {
+  const response = await fetch(
+    `${API_URL}/api/auth/verify-email?token=${encodeURIComponent(token)}`
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message || "Impossible de vérifier l’email."
+    );
   }
 
   return data;

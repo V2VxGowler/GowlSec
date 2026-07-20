@@ -35,3 +35,46 @@ export const loginLimiter = rateLimit({
         message: "Trop de tentatives de connexion."
     }
 });
+
+export const registerLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 5,
+
+    standardHeaders: true,
+    legacyHeaders: false,
+
+    keyGenerator: (req) => {
+        const email = req.body.email
+            ? req.body.email.trim().toLowerCase()
+            : "unknown";
+
+        return `${ipKeyGenerator(req)}:${email}`;
+    },
+
+    message: {
+        success: false,
+        message: "Trop de tentatives d'inscription. Réessaie plus tard."
+    }
+});
+
+
+export const forgotPasswordLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 3,
+
+    standardHeaders: true,
+    legacyHeaders: false,
+
+    keyGenerator: (req) => {
+        const email = req.body.email
+            ? req.body.email.trim().toLowerCase()
+            : "unknown";
+
+        return `${ipKeyGenerator(req)}:${email}`;
+    },
+
+    message: {
+        success: false,
+        message: "Trop de demandes. Réessaie plus tard."
+    }
+});

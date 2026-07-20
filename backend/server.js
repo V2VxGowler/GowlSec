@@ -30,7 +30,7 @@ app.use(cors({
     "https://www.gowlsec.org"
   ],
   credentials: true
-}));
+})); 
 
 
 app.use(express.json());
@@ -38,14 +38,10 @@ app.use(express.json());
 app.use(cookieParser());
 
 
-app.use(globalLimiter);
+app.use("/api", globalLimiter);
 
-
-// Routes
 app.use("/api/auth", authRoutes);
-
 app.use("/api/admin", adminRoutes);
-
 app.use("/api/users", userRoutes);
 
 

@@ -12,7 +12,11 @@ import { resendVerification } from "../controllers/resendVerificationController.
 import { forgotPassword } from "../controllers/forgotPasswordController.js";
 import { resetPassword } from "../controllers/resetPasswordController.js";
 
-import { loginLimiter } from "../middleware/rateLimiter.js";
+import {
+    loginLimiter,
+    registerLimiter,
+    forgotPasswordLimiter
+} from "../middleware/rateLimiter.js";
 
 
 const router = express.Router();
@@ -20,6 +24,7 @@ const router = express.Router();
 
 router.post(
     "/register",
+    registerLimiter,
     register
 );
 
@@ -49,15 +54,20 @@ router.get(
     verifyEmail
 );
 
+
 router.post(
     "/resend-verification",
+    forgotPasswordLimiter,
     resendVerification
 );
 
+
 router.post(
     "/forgot-password",
+    forgotPasswordLimiter,
     forgotPassword
 );
+
 
 router.post(
     "/reset-password",

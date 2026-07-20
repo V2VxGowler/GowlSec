@@ -11,7 +11,7 @@ export async function sendVerificationEmail(email, token) {
     throw new Error("Adresse email invalide");
   }
 
-  const url = `https://www.gowlsec.org/verify-email?token=${token}`;
+  const url = `${process.env.FRONTEND_URL}/verify-email?token=${token}`;
 
   await resend.emails.send({
     from: "noreply@gowlsec.org",
@@ -25,5 +25,5 @@ export async function sendVerificationEmail(email, token) {
             Vérifier mon email
         </a>
     `
-});
+  });
 }

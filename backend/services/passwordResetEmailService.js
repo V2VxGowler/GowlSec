@@ -5,7 +5,7 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function sendPasswordResetEmail(email, token) {
 
-    const url = `https://www.gowlsec.org/reset-password?token=${token}`;
+    const url = `${process.env.FRONTEND_URL}/reset-password?token=${token}`;
 
 
     await resend.emails.send({
