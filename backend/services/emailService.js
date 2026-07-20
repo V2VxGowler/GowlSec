@@ -82,7 +82,7 @@ function baseTemplate({ title, subtitle, bodyContent, actionUrl, actionText, foo
             <td align="center" style="padding-bottom:32px;">
               <a href="https://gowlsec.org" target="_blank" style="text-decoration:none;">
                 <img 
-                  src="${logoUrl}" 
+                  src="https://gowlsec.org/logo.png"
                   alt="GowlSec" 
                   class="logo"
                   width="96" 
