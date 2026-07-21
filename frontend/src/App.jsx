@@ -9,7 +9,7 @@ import {
   Rabbit, Cpu, Flame, Bird, Hash, Megaphone, User as UserIcon, Pencil,
   ShoppingCart, CreditCard, Users, Clock, Wifi, Circle,
   MessageCircle, Globe, KeyRound, Zap, TrendingUp, Radio,
-  Crown, Search, Calendar, Compass, FileText, MapPin,
+  Crown, Search, Calendar, Compass, FileText, MapPin, Terminal,
 } from "lucide-react";
 
 
@@ -1205,6 +1205,14 @@ function TipCard({ section, dayIndex }) {
   );
 }
 
+function DiscordLogo({ size = 17 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 127.14 96.36" fill="currentColor" aria-hidden="true">
+      <path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" />
+    </svg>
+  );
+}
+
 function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, credentials, setCredentials, setTab }) {
   const [open, setOpen] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -1404,10 +1412,10 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
             className={`gowl-auth-panel relative w-full max-w-md rounded-2xl overflow-hidden max-h-[90vh] overflow-y-auto ${closing ? "gowl-modal-out" : "gowl-modal-in"}`}
             onClick={(e) => e.stopPropagation()}
             style={{
-              background: `linear-gradient(150deg, ${C.panel}F2 0%, #0b0e14F5 100%)`,
+              background: C.bg,
               backdropFilter: "blur(24px)",
               WebkitBackdropFilter: "blur(24px)",
-              border: `1px solid rgba(255,255,255,0.08)`,
+              border: `1px solid ${C.line}`,
               boxShadow: `0 0 0 1px ${C.primary}14 inset, 0 32px 100px -20px rgba(0,0,0,0.85), 0 0 60px -20px ${C.primary}33`,
             }}
           >
@@ -1431,9 +1439,9 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
 
                 {mode !== "forgot" && (
                   <>
-                    <div className="rounded-2xl border p-3.5 mb-4" style={{ background: `${C.panel2}CC`, borderColor: `${C.primary}22` }}>
+                    <div className="rounded-2xl border p-3.5 mb-4 relative" style={{ background: `${C.panel2}CC`, borderColor: `${C.primary}22` }}>
                       <button onClick={connectDiscord}
-                        className="gowl-discord-btn w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold"
+                        className="gowl-discord-btn w-full flex items-center justify-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold relative"
                         style={{
                           background: "linear-gradient(135deg, #5865F2 0%, #7289DA 100%)",
                           color: "#fff",
@@ -1441,10 +1449,12 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
                           boxShadow: "0 10px 24px rgba(88, 101, 242, 0.28)",
                         }}
                       >
-                        <MessageSquare size={17} />
+                        <DiscordLogo size={17} />
                         <span>Continuer avec Discord</span>
+                        <span className="gowl-discord-soon">Bientôt</span>
                       </button>
-                      <p className="text-xs mt-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>
+                      <p className="text-xs mt-2.5 flex items-center gap-1.5" style={{ color: C.muted, fontFamily: BODY_FONT }}>
+                        <Clock size={12} style={{ flexShrink: 0, opacity: 0.8 }} />
                         Connexion Discord bientôt disponible — utilise l'e-mail en attendant.
                       </p>
                     </div>
@@ -1598,6 +1608,10 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
         .gowl-auth-input:focus { outline: none; border-color: ${C.primary}88 !important; box-shadow: 0 0 0 3px ${C.primary}22; }
 
         .gowl-auth-panel { will-change: transform, opacity; }
+        .gowl-discord-btn { filter: saturate(0.9); transition: filter 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease; }
+        .gowl-discord-btn:hover { filter: saturate(1.05) brightness(1.04); transform: translateY(-1px); box-shadow: 0 14px 30px rgba(88, 101, 242, 0.4); }
+        .gowl-discord-btn:active { transform: translateY(0); }
+        .gowl-discord-soon { position: absolute; top: -8px; right: -6px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 2px 7px; border-radius: 999px; background: ${C.warn}; color: #1a1206; box-shadow: 0 2px 6px rgba(0,0,0,0.35), 0 0 0 2px ${C.panel}; }
 
         .gowl-tip-card { transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
         .gowl-tip-card:hover { transform: translateY(-2px); border-color: var(--gowl-tip-accent, ${C.primary})66 !important; box-shadow: 0 10px 22px -10px var(--gowl-tip-accent, ${C.primary})77; }
@@ -3951,71 +3965,182 @@ function AdminTab({
 /* ---------------------------------------------------------------------
    Recherche globale — transversale forum / teams / labs / actus / trophées
 --------------------------------------------------------------------- */
+const SEARCH_GROUPS = [
+  { kind: "question", label: "Questions", icon: MessageSquare, accent: C.primary },
+  { kind: "team", label: "Teams", icon: Users, accent: C.warn },
+  { kind: "lab", label: "Salons lab", icon: Bug, accent: C.alert },
+  { kind: "news", label: "Actualités", icon: Newspaper, accent: C.gold },
+  { kind: "trophy", label: "Trophées", icon: Trophy, accent: C.gold },
+];
+
 function GlobalSearchModal({ onClose, setTab, questions, teams, labs, news, trophies }) {
   const [q, setQ] = useState("");
+  const [activeFilter, setActiveFilter] = useState("all");
+  const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef(null);
   useEffect(() => { inputRef.current?.focus(); }, []);
 
-  const results = useMemo(() => {
+  const allResults = useMemo(() => {
     const query = q.trim().toLowerCase();
     if (query.length < 2) return [];
     const out = [];
     questions.forEach((item) => {
       if (item.title.toLowerCase().includes(query) || item.body?.toLowerCase().includes(query)) {
-        out.push({ kind: "question", id: item.id, title: item.title, sub: `Question de ${item.author}`, tab: "forum", accent: C.primary, icon: <MessageSquare size={14} /> });
+        out.push({ kind: "question", id: item.id, title: item.title, sub: `Question de ${item.author}`, tab: "forum", accent: C.primary, icon: <MessageSquare size={15} /> });
       }
     });
     teams.forEach((item) => {
       if (item.name?.toLowerCase().includes(query)) {
-        out.push({ kind: "team", id: item.id, title: item.name, sub: `Team de ${item.owner}`, tab: "equipes", accent: C.warn, icon: <Users size={14} /> });
+        out.push({ kind: "team", id: item.id, title: item.name, sub: `Team de ${item.owner}`, tab: "equipes", accent: C.warn, icon: <Users size={15} /> });
       }
     });
     labs.forEach((item) => {
       if (item.title?.toLowerCase().includes(query)) {
-        out.push({ kind: "lab", id: item.id, title: item.title, sub: `Salon lab de ${item.owner}`, tab: "labs", accent: C.alert, icon: <Bug size={14} /> });
+        out.push({ kind: "lab", id: item.id, title: item.title, sub: `Salon lab de ${item.owner}`, tab: "labs", accent: C.alert, icon: <Bug size={15} /> });
       }
     });
     news.forEach((item) => {
       if (item.title.toLowerCase().includes(query) || item.summary?.toLowerCase().includes(query)) {
-        out.push({ kind: "news", id: item.id, title: item.title, sub: "Actualité", tab: "actus", accent: C.gold, icon: <Newspaper size={14} /> });
+        out.push({ kind: "news", id: item.id, title: item.title, sub: "Actualité", tab: "actus", accent: C.gold, icon: <Newspaper size={15} /> });
       }
     });
     trophies.forEach((item) => {
       if (item.title?.toLowerCase().includes(query) || item.platform?.toLowerCase().includes(query)) {
-        out.push({ kind: "trophy", id: item.id, title: `${item.platform} — ${item.title}`, sub: `Trophée de ${item.author}`, tab: "trophies", accent: C.gold, icon: <Trophy size={14} /> });
+        out.push({ kind: "trophy", id: item.id, title: `${item.platform} — ${item.title}`, sub: `Trophée de ${item.author}`, tab: "trophies", accent: C.gold, icon: <Trophy size={15} /> });
       }
     });
-    return out.slice(0, 30);
+    return out.slice(0, 40);
   }, [q, questions, teams, labs, news, trophies]);
 
+  const counts = useMemo(() => {
+    const c = {};
+    allResults.forEach((r) => { c[r.kind] = (c[r.kind] || 0) + 1; });
+    return c;
+  }, [allResults]);
+
+  const results = useMemo(
+    () => (activeFilter === "all" ? allResults : allResults.filter((r) => r.kind === activeFilter)),
+    [allResults, activeFilter]
+  );
+
+  useEffect(() => { setActiveIndex(0); }, [q, activeFilter]);
+
+  function openResult(r) {
+    setTab(r.tab);
+    onClose();
+  }
+
+  function onKeyDown(e) {
+    if (e.key === "Escape") { onClose(); return; }
+    if (!results.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % results.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i - 1 + results.length) % results.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const r = results[activeIndex];
+      if (r) openResult(r);
+    }
+  }
+
   return (
-    <ModalOverlay onClose={onClose}>
-      <Panel className="p-4">
-        <div className="flex items-center gap-2.5 px-3 py-2 rounded-md mb-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-          <CrowSearchMascot />
-          <input ref={inputRef} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Rechercher dans le forum, les teams, les labs, les actus, les trophées..."
-            className="w-full bg-transparent outline-none text-sm" style={{ color: C.text, fontFamily: BODY_FONT }} />
-          <button onClick={onClose}><X size={16} style={{ color: C.muted }} /></button>
+    <div className="gowl-search-overlay" onClick={onClose}>
+      <div className="gowl-search-modal" onClick={(e) => e.stopPropagation()} onKeyDown={onKeyDown}>
+        <div className="gowl-search-bar">
+          <span className="gowl-search-bar-icon"><Search size={17} /></span>
+          <input
+            ref={inputRef}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Rechercher dans le forum, les teams, les labs, les actus, les trophées..."
+            className="gowl-search-input"
+          />
+          {q.length > 0 && (
+            <button className="gowl-search-clear" onClick={() => { setQ(""); inputRef.current?.focus(); }} title="Effacer" aria-label="Effacer la recherche">
+              <X size={13} />
+            </button>
+          )}
+          <button className="gowl-search-close" onClick={onClose}>ESC</button>
         </div>
-        {q.trim().length < 2 ? (
-          <p className="text-xs text-center py-6" style={{ color: C.muted, fontFamily: BODY_FONT }}>Tape au moins 2 caractères pour lancer la recherche.</p>
-        ) : results.length === 0 ? (
-          <EmptyState text="Aucun résultat pour cette recherche." icon={<Eye size={18} />} accent={C.muted} />
-        ) : (
-          <div className="space-y-1.5 max-h-[50vh] overflow-y-auto">
-            {results.map((r) => (
-              <button key={`${r.kind}-${r.id}`} onClick={() => { setTab(r.tab); onClose(); }} className="flex items-center gap-2.5 w-full text-left px-2.5 py-2 rounded-md transition-colors hover:opacity-90" style={{ background: C.panel2 }}>
-                <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0" style={{ background: `${r.accent}1A`, color: r.accent }}>{r.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm truncate" style={{ color: C.text, fontFamily: BODY_FONT }}>{r.title}</p>
-                  <p className="text-[11px] truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{r.sub}</p>
-                </div>
-              </button>
-            ))}
+
+        {q.trim().length >= 2 && allResults.length > 0 && (
+          <div className="gowl-search-filters">
+            <button
+              className="gowl-search-filter"
+              data-active={activeFilter === "all"}
+              onClick={() => setActiveFilter("all")}
+              style={{ "--gowl-accent": C.primary }}
+            >
+              Tout · {allResults.length}
+            </button>
+            {SEARCH_GROUPS.filter((g) => counts[g.kind]).map((g) => {
+              const GIcon = g.icon;
+              return (
+                <button
+                  key={g.kind}
+                  className="gowl-search-filter"
+                  data-active={activeFilter === g.kind}
+                  onClick={() => setActiveFilter(g.kind)}
+                  style={{ "--gowl-accent": g.accent }}
+                >
+                  <GIcon size={11} /> {g.label} · {counts[g.kind]}
+                </button>
+              );
+            })}
           </div>
         )}
-      </Panel>
-    </ModalOverlay>
+
+        <div className="gowl-search-body">
+          {q.trim().length < 2 ? (
+            <div className="gowl-search-hint">
+              <SearchTerminalIcon />
+              <p>Tape au moins 2 caractères pour lancer la recherche.</p>
+            </div>
+          ) : results.length === 0 ? (
+            <div className="gowl-search-hint">
+              <Eye size={22} className="gowl-search-hint-icon" />
+              <p>Aucun résultat pour « {q.trim()} ».</p>
+              <span style={{ fontSize: 11, fontFamily: MONO_FONT, color: C.muted, opacity: 0.7 }}>0 correspondance dans l'index — essaie un autre mot-clé</span>
+            </div>
+          ) : (
+            <>
+              <p className="gowl-search-count">$ {results.length} résultat{results.length > 1 ? "s" : ""} trouvé{results.length > 1 ? "s" : ""}</p>
+              <div className="gowl-search-results">
+                {results.map((r, i) => (
+                  <button
+                    key={`${r.kind}-${r.id}`}
+                    className="gowl-search-result"
+                    data-active={i === activeIndex}
+                    style={{
+                      "--gowl-accent": r.accent,
+                      animationDelay: `${Math.min(i, 8) * 0.02}s`,
+                      ...(i === activeIndex ? { background: `color-mix(in srgb, ${r.accent} 10%, ${C.panel2})`, borderColor: r.accent } : {}),
+                    }}
+                    onMouseEnter={() => setActiveIndex(i)}
+                    onClick={() => openResult(r)}
+                  >
+                    <span className="gowl-search-result-icon">{r.icon}</span>
+                    <span className="gowl-search-result-text">
+                      <span className="gowl-search-result-title">{r.title}</span>
+                      <span className="gowl-search-result-sub">{r.sub}</span>
+                    </span>
+                    <ChevronRight size={14} className="gowl-search-result-arrow" style={{ opacity: i === activeIndex ? 1 : undefined }} />
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+        <div className="gowl-search-footer">
+          <span><kbd>↑</kbd> <kbd>↓</kbd> naviguer</span>
+          <span><kbd>↵</kbd> ouvrir</span>
+          <span><kbd>Esc</kbd> fermer</span>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -4526,17 +4651,17 @@ function LearningPathsTab({ currentUser, setTab }) {
 const TABS = [
   { key: "accueil", label: "Accueil", icon: Compass, primary: true },
   { key: "actus", label: "Actualités", icon: Newspaper, primary: true },
-  { key: "forum", label: "Question", icon: MessageSquare, primary: true },
+  { key: "evenements", label: "Événements", icon: Calendar, primary: true },
+  { key: "parcours", label: "Parcours", icon: MapPin, primary: true },
   { key: "salons", label: "Hub", icon: Hash, primary: true },
+  { key: "assistant", label: "Assistant IA", icon: Bot, primary: true },
+  { key: "forum", label: "Question", icon: MessageSquare },
   { key: "equipes", label: "Team", icon: Users },
-  { key: "labs", label: "Labs", icon: FlaskConical, primary: true },
+  { key: "labs", label: "Labs", icon: FlaskConical },
   { key: "classement", label: "Classement", icon: TrendingUp },
   { key: "trophies", label: "Trophées", icon: Trophy },
   { key: "writeups", label: "Write-ups", icon: BookOpen },
-  { key: "evenements", label: "Événements", icon: Calendar, primary: true },
-  { key: "parcours", label: "Parcours", icon: MapPin },
   { key: "boutique", label: "Boutique", icon: ShoppingCart },
-  { key: "assistant", label: "Assistant IA", icon: Bot },
   { key: "support", label: "Support", icon: MessageCircle },
   { key: "admin", label: "Admin", icon: Shield },
 ];
@@ -5178,11 +5303,59 @@ export default function GowlSec() {
         .gowl-hub-empty-icon { width: 42px; height: 42px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; margin-bottom: 12px; color: ${C.muted}; background: ${C.panel2}; border: 1px solid ${C.line}; }
         .gowl-hub-empty-title { font-size: 13.5px; font-weight: 600; color: ${C.text}; font-family: ${BODY_FONT}; margin: 0 0 3px; }
         .gowl-hub-empty-sub { font-size: 12px; color: ${C.muted}; font-family: ${BODY_FONT}; margin: 0; }
+        /* --- Recherche globale --- */
+@keyframes gowl-search-in { from { opacity: 0; transform: translateY(-8px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+@keyframes gowl-search-glow-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+@keyframes gowl-search-scan-move { 0% { background-position: 0 -40px; } 100% { background-position: 0 160px; } }
+@keyframes gowl-search-line-in { from { opacity: 0; transform: translateX(-4px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes gowl-search-row-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+.gowl-search-overlay { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: flex-start; justify-content: center; padding: 20px 12px; background: radial-gradient(600px 380px at 50% 0%, rgba(20,26,20,0.55), rgba(5,6,10,0.82) 60%); backdrop-filter: blur(3px); isolation: isolate; }
+.gowl-search-modal { width: 100%; max-width: 620px; max-height: 82vh; display: flex; flex-direction: column; overflow: hidden; border-radius: 16px; background: ${C.bg}; border: 1px solid ${C.line}; box-shadow: 0 24px 60px -20px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.03), 0 0 46px -16px ${C.ok}3D; animation: gowl-search-in 0.18s ease both; margin-top: 24px; position: relative; }
+.gowl-search-modal::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, ${C.ok}, ${C.primary}, transparent); opacity: 0.7; }
+.gowl-search-bar { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-bottom: 1px solid ${C.line}; background: linear-gradient(155deg, ${C.primary}10, transparent); flex-shrink: 0; transition: background 0.2s ease; }
+.gowl-search-bar:focus-within { background: linear-gradient(155deg, ${C.ok}14, transparent); }
+.gowl-search-bar-icon { display: inline-flex; align-items: center; justify-content: center; color: ${C.primary}; flex-shrink: 0; transition: color 0.2s ease; }
+.gowl-search-bar:focus-within .gowl-search-bar-icon { color: ${C.ok}; }
+.gowl-search-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; font-size: 15px; color: ${C.text}; font-family: ${BODY_FONT}; }
+.gowl-search-input::placeholder { color: ${C.muted}; }
+.gowl-search-clear { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 999px; color: ${C.muted}; cursor: pointer; flex-shrink: 0; transition: background 0.15s ease, color 0.15s ease; }
+.gowl-search-clear:hover { background: ${C.panel2}; color: ${C.text}; }
+.gowl-search-close { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; padding: 4px 9px; border-radius: 7px; font-size: 11px; font-weight: 600; color: ${C.muted}; background: ${C.panel2}; border: 1px solid ${C.line}; cursor: pointer; font-family: ${MONO_FONT}; flex-shrink: 0; transition: all 0.15s ease; }
+.gowl-search-close:hover { color: ${C.text}; border-color: ${C.primary}88; }
+.gowl-search-body { overflow-y: auto; padding: 10px; }
+.gowl-search-hint { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; text-align: center; padding: 40px 20px 34px; color: ${C.muted}; }
+.gowl-search-hint-icon { opacity: 0.5; margin-bottom: 10px; }
+.gowl-search-hint p { margin: 0; font-size: 13px; font-family: ${BODY_FONT}; }
+.gowl-search-results { display: flex; flex-direction: column; gap: 4px; }
+.gowl-search-result { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 11px; border-radius: 10px; cursor: pointer; background: transparent; border: 1px solid transparent; border-left: 2px solid transparent; transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease; animation: gowl-search-row-in 0.16s ease both; }
+.gowl-search-result:hover { background: ${C.panel2}; border-color: var(--gowl-accent, ${C.line}); }
+.gowl-search-result[data-active="true"] { border-left-color: var(--gowl-accent, ${C.primary}); transform: translateX(1px); }
+.gowl-search-result-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 9px; flex-shrink: 0; background: color-mix(in srgb, var(--gowl-accent, ${C.primary}) 14%, transparent); color: var(--gowl-accent, ${C.primary}); }
+.gowl-search-result-text { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.gowl-search-result-title { font-size: 13.5px; font-weight: 600; color: ${C.text}; font-family: ${BODY_FONT}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gowl-search-result-sub { font-size: 11px; color: ${C.muted}; font-family: ${MONO_FONT}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gowl-search-result-arrow { color: ${C.muted}; opacity: 0; transform: translateX(-3px); transition: all 0.15s ease; flex-shrink: 0; }
+.gowl-search-result:hover .gowl-search-result-arrow { opacity: 1; transform: translateX(0); color: var(--gowl-accent, ${C.text}); }
+.gowl-search-trigger { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 12px; border-radius: 9px; cursor: pointer; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.muted}; font-family: ${BODY_FONT}; font-size: 12.5px; transition: all 0.15s ease; }
+.gowl-search-trigger:hover { color: ${C.text}; border-color: ${C.primary}77; }
+.gowl-search-trigger-kbd { font-family: ${MONO_FONT}; font-size: 10px; padding: 1px 6px; border-radius: 5px; background: ${C.bg}88; border: 1px solid ${C.line}; }
+.gowl-search-filters { display: flex; align-items: center; gap: 6px; padding: 10px 16px; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; flex-shrink: 0; border-bottom: 1px solid ${C.line}66; }
+.gowl-search-filters::-webkit-scrollbar { display: none; height: 0; }
+.gowl-search-filter { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px; cursor: pointer; font-size: 11px; font-weight: 600; font-family: ${MONO_FONT}; white-space: nowrap; color: ${C.muted}; background: transparent; border: 1px solid ${C.line}; transition: all 0.15s ease; }
+.gowl-search-filter:hover { color: ${C.text}; border-color: var(--gowl-accent, ${C.line}); }
+.gowl-search-filter[data-active="true"] { color: var(--gowl-accent, ${C.primary}); background: color-mix(in srgb, var(--gowl-accent, ${C.primary}) 16%, transparent); border-color: var(--gowl-accent, ${C.primary}); box-shadow: 0 0 0 1px var(--gowl-accent, ${C.primary}) inset; }
+.gowl-search-count { font-size: 10px; text-transform: uppercase; letter-spacing: 0.05em; color: ${C.ok}; font-family: ${MONO_FONT}; padding: 10px 6px 6px; margin: 0; }
+.gowl-search-hint-kbd { display: flex; align-items: center; justify-content: center; gap: 4px; margin-top: 8px; font-size: 10.5px; color: ${C.muted}; opacity: 0.75; font-family: ${MONO_FONT}; }
+.gowl-search-footer { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 8px 14px; border-top: 1px solid ${C.line}66; background: ${C.bg}88; flex-shrink: 0; font-family: ${MONO_FONT}; font-size: 10px; color: ${C.muted}; }
+.gowl-search-footer kbd { font-family: ${MONO_FONT}; font-size: 9.5px; padding: 1px 5px; border-radius: 4px; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; }
+.gowl-search-term-glow { animation: gowl-search-glow-pulse 2.4s ease-in-out infinite; }
+.gowl-search-term-scan { position: absolute; inset: 0; pointer-events: none; opacity: 0.06; background: repeating-linear-gradient(0deg, #fff 0px, #fff 1px, transparent 1px, transparent 3px); animation: gowl-search-scan-move 5s linear infinite; }
+.gowl-search-term-line { animation: gowl-search-line-in 0.3s ease both; }
       `}</style>
 
       <header className="sticky top-0 z-30" style={{ background: `${C.bg}F2`, backdropFilter: "blur(10px)", borderBottom: `1px solid ${C.line}`, boxShadow: "0 1px 0 rgba(0,0,0,0.4), 0 8px 24px -16px rgba(0,0,0,0.6)" }}>
         <div aria-hidden style={{ height: 2, background: `linear-gradient(90deg, ${C.primary}, ${C.gold}, ${C.ok})`, opacity: 0.7 }} />
-        <div className="max-w-7xl mx-auto px-5 lg:px-8 h-[78px] flex items-center justify-between gap-4">
+        <div className="max-w-[1600px] mx-auto px-5 lg:px-8 h-[78px] flex items-center justify-center gap-1.5">
           <div className="flex items-center gap-6 min-w-0">
             <button onClick={() => setTab("accueil")} className="flex items-center gap-3 shrink-0 group">
               <img src={owlLogoImg} alt="Logo GowlSec" className="w-11 h-11 object-contain shrink-0 transition-transform group-hover:scale-105" />
@@ -5192,31 +5365,33 @@ export default function GowlSec() {
               </span>
             </button>
             <span className="hidden lg:block w-px h-8 shrink-0" style={{ background: C.line }} />
-            <nav className="hidden md:flex items-center gap-1 overflow-x-auto gowl-nav-track">
-              {TABS.filter((t) => t.key !== "admin" && t.primary).map((t) => {
-                const active = tab === t.key;
-                const Icon = t.icon;
-                return (
-                  <button key={t.key} onClick={() => setTab(t.key)} className={`gowl-navtab flex items-center gap-1.5 px-3.5 py-2 text-[13.5px] font-semibold whitespace-nowrap rounded-lg${active ? " active" : ""}`}
-                    style={{ fontFamily: BODY_FONT }}
-                  >
-                    {Icon && <Icon size={14} />}
-                    {(I18N[lang || "fr"].tabs[t.key]) || t.label}
-                  </button>
-                );
-              })}
-              <NavMoreMenu tabs={TABS.filter((t) => t.key !== "admin" && !t.primary)} tab={tab} setTab={setTab} lang={lang} />
-            </nav>
+            <div className="hidden md:flex items-center gap-1.5 min-w-0">
+              <nav className="flex items-center gap-0.5 overflow-x-auto gowl-nav-track min-w-0">
+                {TABS.filter((t) => t.key !== "admin" && t.primary).map((t) => {
+                  const active = tab === t.key;
+                  const Icon = t.icon;
+                  return (
+                    <button key={t.key} onClick={() => setTab(t.key)} className={`gowl-navtab flex items-center gap-1.5 px-2.5 py-2 text-[13px] font-semibold whitespace-nowrap rounded-lg${active ? " active" : ""}`}
+                      style={{ fontFamily: BODY_FONT }}
+                    >
+                      {Icon && <Icon size={13} />}
+                      {(I18N[lang || "fr"].tabs[t.key]) || t.label}
+                    </button>
+                  );
+                })}
+                <NavMoreMenu tabs={TABS.filter((t) => t.key !== "admin" && !t.primary)} tab={tab} setTab={setTab} lang={lang} />
+              </nav>
+              <button onClick={() => setSearchOpen(true)} className="gowl-search-trigger shrink-0" style={{ padding: 0, width: 36, justifyContent: "center" }} title="Rechercher">
+                <Search size={15} />
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             {isAdmin && (
               <button onClick={() => setTab("admin")} className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ background: `${C.gold}14`, border: `1px solid ${C.gold}44`, color: C.gold, fontFamily: MONO_FONT }}>
                 <Shield size={12} /> {L("admin")}
               </button>
             )}
-            <button onClick={() => setSearchOpen(true)} className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: C.panel2, border: `1px solid ${C.line}` }} title="Rechercher">
-              <Search size={15} style={{ color: C.muted }} />
-            </button>
             <NotificationBell currentUser={currentUser} questions={questions} teams={teams} labs={labs} notifications={notifications} setTab={setTab} />
             <AuthWidget currentUser={currentUser} setCurrentUser={setCurrentUser} profiles={profiles} setProfiles={setProfiles} credentials={credentials} setCredentials={setCredentials} setTab={setTab} />
             <div className="hidden sm:flex items-center gap-2.5 pr-2.5" style={{ borderRight: `1px solid ${C.line}` }}>
@@ -5336,6 +5511,33 @@ export default function GowlSec() {
   );
 }
 
+
+/* ---------------------------------------------------------------------
+   Terminal de recherche — visuel de l'état vide de la modale de recherche
+--------------------------------------------------------------------- */
+function SearchTerminalIcon() {
+  return (
+    <div className="relative">
+      <div aria-hidden className="absolute inset-0 rounded-2xl gowl-search-term-glow" style={{ background: `radial-gradient(circle, ${C.ok}33, transparent 70%)`, filter: "blur(14px)", transform: "scale(1.6)" }} />
+      <div className="relative rounded-xl overflow-hidden gowl-search-term" style={{ width: 208, background: "#0A0C10", border: `1px solid ${C.line}`, boxShadow: `0 18px 40px -18px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.02)` }}>
+        <div aria-hidden className="gowl-search-term-scan" />
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 relative" style={{ borderBottom: `1px solid ${C.line}`, background: `${C.bg}CC` }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: C.alert, opacity: 0.85 }} />
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: C.warn, opacity: 0.85 }} />
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: C.ok, opacity: 0.85 }} />
+          <span style={{ fontFamily: MONO_FONT, fontSize: 9.5, letterSpacing: "0.06em", color: C.muted, marginLeft: 4 }}>gowlsec@search</span>
+          <Terminal size={11} style={{ color: C.muted, marginLeft: "auto" }} />
+        </div>
+        <div className="px-2.5 py-2.5 relative" style={{ fontFamily: MONO_FONT, fontSize: 10.5, lineHeight: 1.75 }}>
+          <p style={{ color: C.muted, margin: 0 }}>$ gowlsec --search --index=all</p>
+          <p className="gowl-search-term-line" style={{ color: C.primary, margin: 0, animationDelay: "0.15s" }}>&gt; forum · teams · labs · actus · trophées</p>
+          <p className="gowl-search-term-line" style={{ color: C.muted, margin: 0, animationDelay: "0.35s" }}>&gt; index chargé, 0 requête active</p>
+          <p className="gowl-search-term-line" style={{ color: C.ok, margin: 0, animationDelay: "0.55s" }}>&gt; en attente de requête<span className="gowl-cursor-blink">_</span></p>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* ---------------------------------------------------------------------
    Mascotte corbeau — "fouille" la base de données (visuel central accueil)
