@@ -637,7 +637,38 @@ const DEFAULT_ROOMS = [
     isPublic: true,
     icon: "web",
   },
+  {
+    key: "updates",
+    label: "Updates",
+    desc: "Nouveautés, correctifs et annonces officielles de GowlSec",
+    isPublic: true,
+    icon: "radio",
+    owner: "system",
+    adminOnly: true,
+    official: true,
+  },
 ];
+
+const EMPTY_PLATFORM_ACCOUNTS = {
+  hackTheBox: "",
+  rootMe: "",
+  tryHackMe: "",
+  otherName: "",
+  otherUrl: "",
+};
+
+function getPlatformProfileUrl(platform, value) {
+  const clean = String(value || "").trim();
+  if (!clean) return "";
+  if (/^https?:\/\//i.test(clean)) return clean;
+  if (platform === "hackTheBox")
+    return `https://app.hackthebox.com/profile/${encodeURIComponent(clean)}`;
+  if (platform === "rootMe")
+    return `https://www.root-me.org/${encodeURIComponent(clean)}`;
+  if (platform === "tryHackMe")
+    return `https://tryhackme.com/p/${encodeURIComponent(clean)}`;
+  return "";
+}
 
 const AVATAR_OPTIONS = [
   { key: "bird", icon: Bird, color: "#1F2937" },
@@ -1637,13 +1668,20 @@ function isAdminProfile(profile) {
 }
 function AdminBadge() {
   return (
-    <Shield
-      size={13}
-      style={{ color: C.gold, verticalAlign: "-2px" }}
-      fill={C.gold}
-      fillOpacity={0.25}
+    <span
+      className="inline-flex items-center justify-center rounded-md"
+      style={{
+        width: 22,
+        height: 22,
+        color: "#8BE9FD",
+        background: "linear-gradient(145deg, #5B6EF529, #22D3A633)",
+        border: "1px solid #5B9BFF66",
+        boxShadow: "0 0 16px #5B6EF530, inset 0 1px 0 #FFFFFF18",
+      }}
       title="Administrateur"
-    />
+    >
+      <Cpu size={12} strokeWidth={2.2} />
+    </span>
   );
 }
 function Panel({ children, className = "", style = {}, onClick }) {
@@ -2115,6 +2153,8 @@ function PublicProfileModal({
       : BANNER_MAP[safeProfile.banner] ||
         `linear-gradient(135deg, ${C.primary}, ${C.panel2})`;
   const socials = safeProfile.socials || {};
+  const publicPlatformAccounts =
+    safeProfile.platformAccounts || EMPTY_PLATFORM_ACCOUNTS;
   const streak =
     Number(safeProfile.currentStreak ?? safeProfile.activityStreak ?? 0) || 0;
   const badges = Array.isArray(safeProfile.badges)
@@ -2449,7 +2489,70 @@ function PublicProfileModal({
                     <MessageCircle size={12} /> {socials.discord}
                   </span>
                 )}
+                {[
+                  ["hackTheBox", "Hack The Box", publicPlatformAccounts.hackTheBox, Target, C.ok],
+                  ["rootMe", "Root-Me", publicPlatformAccounts.rootMe, Skull, C.alert],
+                  ["tryHackMe", "TryHackMe", publicPlatformAccounts.tryHackMe, Zap, C.warn],
+                ]
+                  .filter(([, , value]) => value)
+                  .map(([key, label, value, PlatformIcon, color]) => (
+                    <a
+                      key={key}
+                      href={getPlatformProfileUrl(key, value)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs"
+                      style={{ color, border: `1px solid ${color}44` }}
+                    >
+                      <PlatformIcon size={12} /> {label}
+                    </a>
+                  ))}
+                {publicPlatformAccounts.otherName &&
+                  publicPlatformAccounts.otherUrl && (
+                    <a
+                      href={publicPlatformAccounts.otherUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs"
+                      style={{ color: C.primary, border: `1px solid ${C.primary}44` }}
+                    >
+                      <ExternalLink size={12} /> {publicPlatformAccounts.otherName}
+                    </a>
+                  )}
               </div>
+
+              {(safeProfile.certifications || []).length > 0 && (
+                <div
+                  className="mt-4 pt-4"
+                  style={{ borderTop: `1px solid ${C.line}` }}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Award size={13} style={{ color: C.gold }} />
+                    <h4
+                      className="text-xs font-bold"
+                      style={{ color: C.text, fontFamily: DISPLAY_FONT }}
+                    >
+                      Certifications
+                    </h4>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {safeProfile.certifications.map((certification) => (
+                      <span
+                        key={certification}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px]"
+                        style={{
+                          color: C.gold,
+                          background: `${C.gold}10`,
+                          border: `1px solid ${C.gold}35`,
+                          fontFamily: MONO_FONT,
+                        }}
+                      >
+                        <Award size={10} /> {certification}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div
                 className="mt-4 pt-4"
@@ -4323,6 +4426,27 @@ function ProfileTab({
   const [github, setGithub] = useState(currentUser?.socials?.github || "");
   const [twitter, setTwitter] = useState(currentUser?.socials?.twitter || "");
   const [discord, setDiscord] = useState(currentUser?.socials?.discord || "");
+  const [hackTheBox, setHackTheBox] = useState(
+    currentUser?.platformAccounts?.hackTheBox || "",
+  );
+  const [rootMe, setRootMe] = useState(
+    currentUser?.platformAccounts?.rootMe || "",
+  );
+  const [tryHackMe, setTryHackMe] = useState(
+    currentUser?.platformAccounts?.tryHackMe || "",
+  );
+  const [otherPlatformName, setOtherPlatformName] = useState(
+    currentUser?.platformAccounts?.otherName || "",
+  );
+  const [otherPlatformUrl, setOtherPlatformUrl] = useState(
+    currentUser?.platformAccounts?.otherUrl || "",
+  );
+  const [certifications, setCertifications] = useState(
+    Array.isArray(currentUser?.certifications)
+      ? currentUser.certifications.slice(0, 12)
+      : [],
+  );
+  const [certificationDraft, setCertificationDraft] = useState("");
   const [bio, setBio] = useState((currentUser?.bio || "").slice(0, 300));
   const [profileStatus, setProfileStatus] = useState(
     currentUser?.profileStatus || "learning",
@@ -4337,6 +4461,9 @@ function ProfileTab({
   const [showAge, setShowAge] = useState(currentUser?.showAge !== false);
   const [showSocials, setShowSocials] = useState(
     currentUser?.showSocials !== false,
+  );
+  const [showCertifications, setShowCertifications] = useState(
+    currentUser?.showCertifications !== false,
   );
   const [pinnedBadges, setPinnedBadges] = useState(
     Array.isArray(currentUser?.pinnedBadges)
@@ -4396,6 +4523,17 @@ function ProfileTab({
     setGithub(currentUser?.socials?.github || "");
     setTwitter(currentUser?.socials?.twitter || "");
     setDiscord(currentUser?.socials?.discord || "");
+    setHackTheBox(currentUser?.platformAccounts?.hackTheBox || "");
+    setRootMe(currentUser?.platformAccounts?.rootMe || "");
+    setTryHackMe(currentUser?.platformAccounts?.tryHackMe || "");
+    setOtherPlatformName(currentUser?.platformAccounts?.otherName || "");
+    setOtherPlatformUrl(currentUser?.platformAccounts?.otherUrl || "");
+    setCertifications(
+      Array.isArray(currentUser?.certifications)
+        ? currentUser.certifications.slice(0, 12)
+        : [],
+    );
+    setCertificationDraft("");
     setBio((currentUser?.bio || "").slice(0, 300));
     setProfileStatus(currentUser?.profileStatus || "learning");
     setSpecialties(
@@ -4405,6 +4543,7 @@ function ProfileTab({
     setIsProfilePublic(currentUser?.isProfilePublic !== false);
     setShowAge(currentUser?.showAge !== false);
     setShowSocials(currentUser?.showSocials !== false);
+    setShowCertifications(currentUser?.showCertifications !== false);
     setPinnedBadges(
       Array.isArray(currentUser?.pinnedBadges)
         ? currentUser.pinnedBadges.slice(0, 3)
@@ -4416,6 +4555,15 @@ function ProfileTab({
   function toggleProfileEditor() {
     if (editing) resetProfileDraft();
     setEditing((isEditing) => !isEditing);
+  }
+
+  function addCertification() {
+    const clean = certificationDraft.trim().slice(0, 80);
+    if (!clean || certifications.some((item) => item.toLowerCase() === clean.toLowerCase()))
+      return;
+    setCertifications((current) => [...current, clean].slice(0, 12));
+    setCertificationDraft("");
+    setSaveStatus({ type: "idle", message: "" });
   }
 
   function openProfileImagePicker(type) {
@@ -4501,6 +4649,8 @@ function ProfileTab({
       ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})`
       : BANNER_MAP[banner] || "transparent";
   const socials = currentUser.socials || {};
+  const platformAccounts =
+    currentUser.platformAccounts || EMPTY_PLATFORM_ACCOUNTS;
 
   const myPoints = useMemo(
     () => computeUserPoints(currentUser.username, questions, trophies, labs),
@@ -4691,6 +4841,12 @@ function ProfileTab({
     formData.append("github", githubUsername);
     formData.append("twitter", twitterUsername);
     formData.append("discord", discord.trim());
+    formData.append("hackTheBox", hackTheBox.trim());
+    formData.append("rootMe", rootMe.trim());
+    formData.append("tryHackMe", tryHackMe.trim());
+    formData.append("otherPlatformName", otherPlatformName.trim());
+    formData.append("otherPlatformUrl", otherPlatformUrl.trim());
+    formData.append("certifications", JSON.stringify(certifications.slice(0, 12)));
     formData.append("avatarKey", avatarKey || "bird");
     formData.append("bannerKey", banner || "indigo");
     formData.append("bannerColor", bannerColor.trim());
@@ -4700,6 +4856,7 @@ function ProfileTab({
     formData.append("isProfilePublic", String(isProfilePublic));
     formData.append("showAge", String(showAge));
     formData.append("showSocials", String(showSocials));
+    formData.append("showCertifications", String(showCertifications));
     formData.append("pinnedBadges", JSON.stringify(pinnedBadges.slice(0, 3)));
     formData.append("removeAvatar", String(!avatarFile && !avatarImage));
     formData.append("removeBanner", String(!bannerFile && !bannerImage));
@@ -4728,12 +4885,23 @@ function ProfileTab({
         isProfilePublic: savedProfile?.isProfilePublic ?? isProfilePublic,
         showAge: savedProfile?.showAge ?? showAge,
         showSocials: savedProfile?.showSocials ?? showSocials,
+        showCertifications:
+          savedProfile?.showCertifications ?? showCertifications,
         pinnedBadges: savedProfile?.pinnedBadges || pinnedBadges.slice(0, 3),
         socials: savedProfile?.socials || {
           github: githubUsername,
           twitter: twitterUsername,
           discord: discord.trim(),
         },
+        platformAccounts: savedProfile?.platformAccounts || {
+          hackTheBox: hackTheBox.trim(),
+          rootMe: rootMe.trim(),
+          tryHackMe: tryHackMe.trim(),
+          otherName: otherPlatformName.trim(),
+          otherUrl: otherPlatformUrl.trim(),
+        },
+        certifications:
+          savedProfile?.certifications || certifications.slice(0, 12),
       };
       const profileExists = profiles.some(
         (profile) => profile.id === currentUser.id,
@@ -4747,6 +4915,12 @@ function ProfileTab({
       setGithub(updated.socials?.github || "");
       setTwitter(updated.socials?.twitter || "");
       setDiscord(updated.socials?.discord || "");
+      setHackTheBox(updated.platformAccounts?.hackTheBox || "");
+      setRootMe(updated.platformAccounts?.rootMe || "");
+      setTryHackMe(updated.platformAccounts?.tryHackMe || "");
+      setOtherPlatformName(updated.platformAccounts?.otherName || "");
+      setOtherPlatformUrl(updated.platformAccounts?.otherUrl || "");
+      setCertifications(updated.certifications || []);
       setAvatarImage(updated.avatarImage || "");
       setBannerImage(updated.bannerImage || "");
       setAvatarFile(null);
@@ -4882,7 +5056,7 @@ function ProfileTab({
                       border: `1px solid ${C.gold}55`,
                     }}
                   >
-                    <Shield size={11} /> Admin
+                    <Cpu size={11} /> Admin
                   </span>
                 )}
               </button>
@@ -5368,7 +5542,83 @@ function ProfileTab({
                     <MessageCircle size={13} /> {socials.discord}
                   </span>
                 )}
+                {[
+                  {
+                    key: "hackTheBox",
+                    label: "Hack The Box",
+                    value: platformAccounts.hackTheBox,
+                    icon: Target,
+                    color: C.ok,
+                  },
+                  {
+                    key: "rootMe",
+                    label: "Root-Me",
+                    value: platformAccounts.rootMe,
+                    icon: Skull,
+                    color: C.alert,
+                  },
+                  {
+                    key: "tryHackMe",
+                    label: "TryHackMe",
+                    value: platformAccounts.tryHackMe,
+                    icon: Zap,
+                    color: C.warn,
+                  },
+                ]
+                  .filter((item) => item.value)
+                  .map(({ key, label, value, icon: PlatformIcon, color }) => (
+                    <a
+                      key={key}
+                      href={getPlatformProfileUrl(key, value)}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs gowl-social-link"
+                      style={{ color, border: `1px solid ${color}44` }}
+                    >
+                      <PlatformIcon size={12} /> {label}
+                    </a>
+                  ))}
+                {platformAccounts.otherName && platformAccounts.otherUrl && (
+                  <a
+                    href={platformAccounts.otherUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs gowl-social-link"
+                    style={{ color: C.primary, border: `1px solid ${C.primary}44` }}
+                  >
+                    <ExternalLink size={12} /> {platformAccounts.otherName}
+                  </a>
+                )}
               </div>
+              {(currentUser.certifications || []).length > 0 && (
+                <div
+                  className="mt-3 pt-3"
+                  style={{ borderTop: `1px solid ${C.line}` }}
+                >
+                  <span
+                    className="text-[10px] uppercase tracking-wider flex items-center gap-1.5 mb-2"
+                    style={{ color: C.gold, fontFamily: MONO_FONT }}
+                  >
+                    <Award size={11} /> Certifications affichées
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {currentUser.certifications.map((certification) => (
+                      <span
+                        key={certification}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px]"
+                        style={{
+                          color: C.gold,
+                          background: `${C.gold}10`,
+                          border: `1px solid ${C.gold}35`,
+                          fontFamily: MONO_FONT,
+                        }}
+                      >
+                        <Award size={10} /> {certification}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </Panel>
 
@@ -5675,6 +5925,11 @@ function ProfileTab({
                     ],
                     ["Afficher mon âge", showAge, setShowAge],
                     ["Afficher mes réseaux", showSocials, setShowSocials],
+                    [
+                      "Afficher mes certifications",
+                      showCertifications,
+                      setShowCertifications,
+                    ],
                   ].map(([label, value, setter]) => (
                     <label
                       key={label}
@@ -5961,6 +6216,177 @@ function ProfileTab({
                       />
                     </label>
                   </div>
+                </section>
+
+                <section
+                  className="rounded-xl p-3.5 space-y-4"
+                  style={{
+                    background: `linear-gradient(145deg, ${C.primary}0B, rgba(255,255,255,0.02))`,
+                    border: `1px solid ${C.primary}30`,
+                  }}
+                >
+                  <div>
+                    <h4
+                      className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-2"
+                      style={{ color: C.text, fontFamily: MONO_FONT }}
+                    >
+                      <Target size={13} style={{ color: C.primary }} /> Profils cybersécurité
+                    </h4>
+                    <p className="text-[11px] mt-1" style={{ color: C.muted }}>
+                      Ajoute tes identifiants publics. Les liens de profil sont générés automatiquement.
+                    </p>
+                  </div>
+                  <div className="grid sm:grid-cols-2 gap-3">
+                    {[
+                      {
+                        label: "Hack The Box",
+                        hint: "ID de profil HTB",
+                        value: hackTheBox,
+                        setter: setHackTheBox,
+                        icon: Target,
+                        color: C.ok,
+                      },
+                      {
+                        label: "Root-Me",
+                        hint: "nom d’utilisateur Root-Me",
+                        value: rootMe,
+                        setter: setRootMe,
+                        icon: Skull,
+                        color: C.alert,
+                      },
+                      {
+                        label: "TryHackMe",
+                        hint: "nom d’utilisateur TryHackMe",
+                        value: tryHackMe,
+                        setter: setTryHackMe,
+                        icon: Zap,
+                        color: C.warn,
+                      },
+                    ].map(({ label, hint, value, setter, icon: PlatformIcon, color }) => (
+                      <label key={label} className="block">
+                        <span
+                          className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide mb-1.5"
+                          style={{ color, fontFamily: MONO_FONT }}
+                        >
+                          <PlatformIcon size={11} /> {label}
+                        </span>
+                        <input
+                          value={value}
+                          maxLength={80}
+                          onChange={(event) => setter(event.target.value.slice(0, 80))}
+                          placeholder={hint}
+                          className="w-full px-3 py-2.5 rounded-lg text-sm"
+                          style={{ ...inputStyle, background: "rgba(5,10,16,0.82)" }}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  <div className="grid sm:grid-cols-[0.7fr_1.3fr] gap-3">
+                    <label className="block">
+                      <span
+                        className="block text-[10px] uppercase tracking-wide mb-1.5"
+                        style={{ color: C.muted, fontFamily: MONO_FONT }}
+                      >
+                        Autre plateforme
+                      </span>
+                      <input
+                        value={otherPlatformName}
+                        maxLength={60}
+                        onChange={(event) => setOtherPlatformName(event.target.value.slice(0, 60))}
+                        placeholder="Ex. PortSwigger Academy"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm"
+                        style={{ ...inputStyle, background: "rgba(5,10,16,0.82)" }}
+                      />
+                    </label>
+                    <label className="block">
+                      <span
+                        className="block text-[10px] uppercase tracking-wide mb-1.5"
+                        style={{ color: C.muted, fontFamily: MONO_FONT }}
+                      >
+                        Lien du profil
+                      </span>
+                      <input
+                        type="url"
+                        value={otherPlatformUrl}
+                        maxLength={300}
+                        onChange={(event) => setOtherPlatformUrl(event.target.value.slice(0, 300))}
+                        placeholder="https://…"
+                        className="w-full px-3 py-2.5 rounded-lg text-sm"
+                        style={{ ...inputStyle, background: "rgba(5,10,16,0.82)" }}
+                      />
+                    </label>
+                  </div>
+                </section>
+
+                <section
+                  className="rounded-xl p-3.5"
+                  style={{
+                    background: `linear-gradient(145deg, ${C.gold}0C, rgba(255,255,255,0.02))`,
+                    border: `1px solid ${C.gold}30`,
+                  }}
+                >
+                  <div className="flex items-center justify-between gap-3 mb-3">
+                    <div>
+                      <h4
+                        className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-2"
+                        style={{ color: C.text, fontFamily: MONO_FONT }}
+                      >
+                        <Award size={13} style={{ color: C.gold }} /> Certifications
+                      </h4>
+                      <p className="text-[10px] mt-1" style={{ color: C.muted }}>
+                        OSCP, eJPT, CPTS, CEH… jusqu’à 12 certifications.
+                      </p>
+                    </div>
+                    <span className="text-[10px]" style={{ color: C.gold, fontFamily: MONO_FONT }}>
+                      {certifications.length}/12
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <input
+                      value={certificationDraft}
+                      maxLength={80}
+                      onChange={(event) => setCertificationDraft(event.target.value.slice(0, 80))}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addCertification();
+                        }
+                      }}
+                      placeholder="Ex. eJPTv2 — INE Security"
+                      className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-sm"
+                      style={{ ...inputStyle, background: "rgba(5,10,16,0.82)" }}
+                    />
+                    <button
+                      type="button"
+                      onClick={addCertification}
+                      disabled={!certificationDraft.trim() || certifications.length >= 12}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-40"
+                      style={{ color: C.gold, border: `1px solid ${C.gold}55`, background: `${C.gold}12` }}
+                    >
+                      <Plus size={12} /> Ajouter
+                    </button>
+                  </div>
+                  {certifications.length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-3">
+                      {certifications.map((item) => (
+                        <span
+                          key={item}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px]"
+                          style={{ color: C.gold, background: `${C.gold}12`, border: `1px solid ${C.gold}38`, fontFamily: MONO_FONT }}
+                        >
+                          <Award size={10} /> {item}
+                          <button
+                            type="button"
+                            onClick={() => setCertifications((current) => current.filter((certification) => certification !== item))}
+                            aria-label={`Retirer ${item}`}
+                            style={{ color: C.muted }}
+                          >
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </section>
 
                 {saveStatus.type !== "idle" && (
@@ -8261,6 +8687,7 @@ function RoomsTab({
       .includes(roomSearch.trim().toLowerCase()),
   );
   const isOwner = current.owner === pseudo;
+  const isAnnouncementOnly = current.adminOnly === true && !isAdmin;
   const isBanned = (current.bannedUsers || []).includes(pseudo);
   const accessLocked =
     current.isPublic === false &&
@@ -8290,6 +8717,8 @@ function RoomsTab({
           passwordHash: room.passwordHash || null,
           bannedUsers: Array.isArray(room.bannedUsers) ? room.bannedUsers : [],
           icon: room.icon || (room.key === "general" ? "web" : "hash"),
+          adminOnly: room.adminOnly === true || room.key === "updates",
+          official: room.official === true || room.key === "updates",
         }));
         setRooms(normalized);
         setRoomAccess((prev) => ({
@@ -8315,6 +8744,12 @@ function RoomsTab({
     if (!text.trim()) return;
     const activeRoom =
       rooms.find((r) => r.key === room) || rooms[0] || DEFAULT_ROOMS[0];
+    if (activeRoom.adminOnly && !isAdmin) {
+      setRoomActionFeedback(
+        "Ce salon est réservé aux annonces officielles des administrateurs.",
+      );
+      return;
+    }
     if ((activeRoom.bannedUsers || []).includes(pseudo)) return;
     if (
       activeRoom.isPublic === false &&
@@ -8849,6 +9284,13 @@ function RoomsTab({
                       style={{ opacity: 0.55, flexShrink: 0 }}
                     />
                   )}
+                  {r.adminOnly && (
+                    <Megaphone
+                      size={11}
+                      style={{ color: C.gold, flexShrink: 0 }}
+                      title="Annonces officielles"
+                    />
+                  )}
                   {roomMsgCount > 0 && (
                     <span className="gowl-hub-roomitem-count">
                       {roomMsgCount}
@@ -8903,6 +9345,18 @@ function RoomsTab({
                     }}
                   >
                     Privé
+                  </span>
+                )}
+                {current.official && (
+                  <span
+                    className="gowl-hub-header-tag"
+                    style={{
+                      color: C.gold,
+                      borderColor: `${C.gold}55`,
+                      background: `${C.gold}14`,
+                    }}
+                  >
+                    Officiel
                   </span>
                 )}
               </div>
@@ -9307,7 +9761,31 @@ function RoomsTab({
                 {banFeedback}
               </p>
             )}
-            {isBanned ? (
+            {isAnnouncementOnly ? (
+              <div
+                className="rounded-xl p-3 flex items-center gap-3"
+                style={{
+                  color: C.gold,
+                  background: `linear-gradient(135deg, ${C.gold}12, ${C.panel}CC)`,
+                  border: `1px solid ${C.gold}38`,
+                }}
+              >
+                <span
+                  className="w-9 h-9 rounded-lg shrink-0 inline-flex items-center justify-center"
+                  style={{ background: `${C.gold}18` }}
+                >
+                  <Megaphone size={16} />
+                </span>
+                <div>
+                  <p className="text-xs font-bold" style={{ color: C.text }}>
+                    Canal officiel en lecture seule
+                  </p>
+                  <p className="text-[11px] mt-0.5" style={{ color: C.muted }}>
+                    Seuls les administrateurs peuvent publier les nouveautés de GowlSec.
+                  </p>
+                </div>
+              </div>
+            ) : isBanned ? (
               <div
                 className="rounded-xl p-3 text-sm"
                 style={{
@@ -12260,6 +12738,9 @@ function AIAssistantTab({ setTab }) {
 --------------------------------------------------------------------- */
 function AdminList({ title, icon, items, onDelete, accent = C.primary }) {
   const [q, setQ] = useState("");
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [actionError, setActionError] = useState("");
   const filtered = q.trim()
     ? items.filter((it) =>
         `${it.primary} ${it.secondary}`
@@ -12267,8 +12748,28 @@ function AdminList({ title, icon, items, onDelete, accent = C.primary }) {
           .includes(q.trim().toLowerCase()),
       )
     : items;
+
+  async function confirmDelete(id) {
+    setDeletingId(id);
+    setActionError("");
+    try {
+      await onDelete(id);
+      setPendingDeleteId(null);
+    } catch (error) {
+      setActionError(error?.message || "Impossible de supprimer cet élément.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
-    <Panel className="p-4 mb-4">
+    <Panel
+      className="p-4 mb-4 overflow-hidden"
+      style={{
+        borderColor: `${accent}35`,
+        background: `linear-gradient(145deg, ${accent}09, ${C.panel} 42%)`,
+      }}
+    >
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <span style={{ color: accent }}>{icon}</span>
         <span
@@ -12301,6 +12802,18 @@ function AdminList({ title, icon, items, onDelete, accent = C.primary }) {
           </div>
         )}
       </div>
+      {actionError && (
+        <div
+          className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-3"
+          style={{
+            color: C.alert,
+            background: `${C.alert}12`,
+            border: `1px solid ${C.alert}38`,
+          }}
+        >
+          <AlertTriangle size={13} /> {actionError}
+        </div>
+      )}
       {items.length === 0 ? (
         <p
           className="text-xs"
@@ -12320,8 +12833,11 @@ function AdminList({ title, icon, items, onDelete, accent = C.primary }) {
           {filtered.map((it) => (
             <div
               key={it.id}
-              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md"
-              style={{ background: C.panel2 }}
+              className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg"
+              style={{
+                background: C.panel2,
+                border: `1px solid ${pendingDeleteId === it.id ? `${C.alert}55` : C.line}`,
+              }}
             >
               <div className="min-w-0">
                 <p
@@ -12337,13 +12853,50 @@ function AdminList({ title, icon, items, onDelete, accent = C.primary }) {
                   {it.secondary}
                 </p>
               </div>
-              <button
-                onClick={() => onDelete(it.id)}
-                style={{ color: C.alert }}
-                className="shrink-0"
-              >
-                <Trash2 size={13} />
-              </button>
+              {pendingDeleteId === it.id ? (
+                <div className="shrink-0 flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => confirmDelete(it.id)}
+                    disabled={deletingId === it.id}
+                    className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold"
+                    style={{
+                      color: "#fff",
+                      background: C.alert,
+                      opacity: deletingId === it.id ? 0.7 : 1,
+                    }}
+                  >
+                    {deletingId === it.id ? (
+                      <Loader2 size={11} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={11} />
+                    )}
+                    Supprimer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDeleteId(null)}
+                    disabled={deletingId === it.id}
+                    className="px-2 py-1 rounded-md text-[10px]"
+                    style={{ color: C.muted, border: `1px solid ${C.line}` }}
+                  >
+                    Annuler
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActionError("");
+                    setPendingDeleteId(it.id);
+                  }}
+                  title="Supprimer définitivement"
+                  style={{ color: C.alert }}
+                  className="shrink-0 w-8 h-8 inline-flex items-center justify-center rounded-lg"
+                >
+                  <Trash2 size={13} />
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -12361,6 +12914,8 @@ function AdminTab({
   setMessages,
   trophies,
   setTrophies,
+  writeups,
+  setWriteups,
   events,
   setEvents,
   profiles,
@@ -12403,6 +12958,105 @@ function AdminTab({
     type: "idle",
     message: "",
   });
+  const [adminRooms, setAdminRooms] = useState([]);
+  const [loadingAdminRooms, setLoadingAdminRooms] = useState(false);
+  const [moderationStatus, setModerationStatus] = useState({
+    type: "idle",
+    message: "",
+  });
+
+  async function refreshAdminRooms() {
+    setLoadingAdminRooms(true);
+    try {
+      const data = await communityRequest();
+      setAdminRooms(Array.isArray(data?.rooms) ? data.rooms : []);
+    } catch (error) {
+      setModerationStatus({
+        type: "error",
+        message: error.message || "Impossible de charger les salons Hub.",
+      });
+    } finally {
+      setLoadingAdminRooms(false);
+    }
+  }
+
+  async function deleteCommunityResource(resource, id, onSuccess, label) {
+    setModerationStatus({
+      type: "loading",
+      message: `Suppression de ${label || "l’élément"}…`,
+    });
+    try {
+      await communityRequest(`/${resource}/${id}`, { method: "DELETE" });
+      await onSuccess?.();
+      setModerationStatus({
+        type: "success",
+        message: `${label || "Élément"} supprimé définitivement.`,
+      });
+    } catch (error) {
+      if (error?.status === 404) {
+        await onSuccess?.();
+        setModerationStatus({
+          type: "success",
+          message: `${label || "Élément"} était déjà supprimé.`,
+        });
+        return;
+      }
+      setModerationStatus({
+        type: "error",
+        message: error.message || "Suppression impossible.",
+      });
+      throw error;
+    }
+  }
+
+  async function deleteAdminRoom(roomId) {
+    const room = adminRooms.find((item) => item.id === roomId);
+    await deleteCommunityResource(
+      "rooms",
+      roomId,
+      async () => {
+        setAdminRooms((current) =>
+          current.filter((item) => item.id !== roomId),
+        );
+        if (room?.key) {
+          setMessages((current) =>
+            current.filter((message) => message.room !== room.key),
+          );
+        }
+      },
+      "Salon Hub",
+    );
+  }
+
+  async function deleteAdminHubMessage(id) {
+    const messageId = Number(id);
+    setModerationStatus({
+      type: "loading",
+      message: "Suppression du message Hub…",
+    });
+    await new Promise((resolve, reject) => {
+      socket.emit("hub-message:delete", { id: messageId }, (response) => {
+        if (response?.success) resolve(response);
+        else
+          reject(
+            new Error(response?.message || "Suppression du message impossible."),
+          );
+      });
+    })
+      .then(() => {
+        setMessages((current) =>
+          current.filter((message) => Number(message.id) !== messageId),
+        );
+        setModerationStatus({
+          type: "success",
+          message: "Message Hub supprimé définitivement.",
+        });
+      })
+      .catch((error) => {
+        setModerationStatus({ type: "error", message: error.message });
+        throw error;
+      });
+  }
 
   async function publishSiteAnnouncement(event) {
     event.preventDefault();
@@ -12429,9 +13083,21 @@ function AdminTab({
         formatted,
         ...current.filter((item) => item.id !== formatted.id),
       ]);
+      const updateMessage = [
+        `📢 ${announcementDraft.title.trim()}`,
+        announcementDraft.content.trim(),
+        announcementDraft.link.trim(),
+      ]
+        .filter(Boolean)
+        .join("\n");
+      socket.emit(
+        "hub-message:send",
+        { room: "updates", content: updateMessage.slice(0, 1000) },
+        () => {},
+      );
       setAnnouncementStatus({
         type: "success",
-        message: "Annonce publiée sur l’accueil.",
+        message: "Annonce publiée sur l’accueil et dans #updates.",
       });
       setAnnouncementDraft({
         title: "",
@@ -12488,6 +13154,9 @@ function AdminTab({
   }
   useEffect(() => {
     if (isAdmin) refreshPresence();
+  }, [isAdmin]);
+  useEffect(() => {
+    if (isAdmin) refreshAdminRooms();
   }, [isAdmin]);
   useEffect(() => {
     if (!selectedTicketId && tickets[0]) setSelectedTicketId(tickets[0].id);
@@ -12632,9 +13301,13 @@ function AdminTab({
     questions.length +
     messages.length +
     trophies.length +
+    writeups.length +
     teams.length +
+    teamAnnouncements.length +
     labs.length +
-    events.length;
+    labMessages.length +
+    events.length +
+    adminRooms.length;
 
   const filteredProfiles = profiles.filter((p) => {
     if (userFilter === "online") {
@@ -12654,7 +13327,7 @@ function AdminTab({
   const SECTIONS = [
     { key: "overview", label: "Vue d'ensemble", icon: <Gauge size={14} /> },
     { key: "users", label: "Utilisateurs", icon: <Users size={14} /> },
-    { key: "content", label: "Contenu", icon: <MessageSquare size={14} /> },
+    { key: "content", label: "Modération", icon: <Activity size={14} /> },
     {
       key: "shop",
       label: "Boutique & Support",
@@ -12669,25 +13342,66 @@ function AdminTab({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-        <div>
-          <h2
-            className="text-xl font-bold flex items-center gap-2"
-            style={{ color: C.text, fontFamily: DISPLAY_FONT }}
-          >
-            Panel admin <AdminBadge />
-          </h2>
-          <p
-            className="text-sm mt-1"
-            style={{ color: C.muted, fontFamily: BODY_FONT }}
-          >
-            Modération et suivi de la communauté.
-          </p>
+      <Panel
+        className="p-5 mb-5 overflow-hidden"
+        style={{
+          background: `linear-gradient(135deg, ${C.primary}18, ${C.panel} 48%, ${C.ok}0D)`,
+          borderColor: `${C.primary}55`,
+          boxShadow: `0 18px 50px -34px ${C.primary}AA, inset 0 1px 0 #FFFFFF10`,
+        }}
+      >
+        <div className="flex items-center justify-between flex-wrap gap-4 relative z-10">
+          <div className="flex items-center gap-3.5">
+            <span
+              className="w-12 h-12 rounded-xl inline-flex items-center justify-center"
+              style={{
+                color: "#8BE9FD",
+                background: "linear-gradient(145deg, #5B6EF533, #22D3A629)",
+                border: "1px solid #5B9BFF66",
+                boxShadow: "0 0 26px #5B6EF52E, inset 0 1px 0 #FFFFFF18",
+              }}
+            >
+              <Cpu size={23} strokeWidth={1.9} />
+            </span>
+            <div>
+              <span
+                className="text-[9px] uppercase tracking-[0.2em] font-bold"
+                style={{ color: C.ok, fontFamily: MONO_FONT }}
+              >
+                ● Systèmes opérationnels
+              </span>
+              <h2
+                className="text-xl font-extrabold flex items-center gap-2 mt-0.5"
+                style={{ color: C.text, fontFamily: DISPLAY_FONT }}
+              >
+                GowlSec Control Center <AdminBadge />
+              </h2>
+              <p
+                className="text-xs mt-1"
+                style={{ color: C.muted, fontFamily: BODY_FONT }}
+              >
+                Administration, modération et supervision de la communauté.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="px-2.5 py-1.5 rounded-lg text-[10px]"
+              style={{
+                color: C.ok,
+                background: `${C.ok}12`,
+                border: `1px solid ${C.ok}38`,
+                fontFamily: MONO_FONT,
+              }}
+            >
+              {onlineCount} en ligne
+            </span>
+            <GhostButton onClick={() => setIsAdmin(false)}>
+              <Lock size={12} /> Fermer
+            </GhostButton>
+          </div>
         </div>
-        <GhostButton onClick={() => setIsAdmin(false)}>
-          <Lock size={12} /> Se déconnecter
-        </GhostButton>
-      </div>
+      </Panel>
 
       <div
         className="flex items-center gap-1.5 mb-6 flex-wrap p-1 rounded-xl"
@@ -12727,7 +13441,7 @@ function AdminTab({
               value={profiles.length}
             />
             <StatChip
-              icon={<Shield size={14} />}
+              icon={<Cpu size={14} />}
               label="admins"
               value={adminCount}
             />
@@ -12777,6 +13491,16 @@ function AdminTab({
               icon={<Bug size={14} />}
               label="labs"
               value={labs.length}
+            />
+            <StatChip
+              icon={<Hash size={14} />}
+              label="salons Hub"
+              value={adminRooms.length}
+            />
+            <StatChip
+              icon={<BookOpen size={14} />}
+              label="write-ups"
+              value={writeups.length}
             />
           </div>
 
@@ -13093,7 +13817,7 @@ function AdminTab({
                               </>
                             ) : (
                               <>
-                                <Shield size={11} /> Promouvoir
+                                <Cpu size={11} /> Promouvoir
                               </>
                             )}
                           </button>
@@ -13110,6 +13834,75 @@ function AdminTab({
 
       {section === "content" && (
         <div>
+          <div
+            className="flex items-center justify-between gap-3 flex-wrap p-3.5 rounded-xl mb-4"
+            style={{
+              background: `linear-gradient(135deg, ${C.primary}12, ${C.panel2})`,
+              border: `1px solid ${C.primary}35`,
+            }}
+          >
+            <div className="flex items-center gap-2.5">
+              <Activity size={15} style={{ color: C.primary }} />
+              <div>
+                <p
+                  className="text-xs font-bold"
+                  style={{ color: C.text, fontFamily: DISPLAY_FONT }}
+                >
+                  Centre de modération
+                </p>
+                <p
+                  className="text-[10px] mt-0.5"
+                  style={{ color: C.muted, fontFamily: MONO_FONT }}
+                >
+                  Les suppressions sont appliquées au serveur et persistent après F5.
+                </p>
+              </div>
+            </div>
+            <GhostButton onClick={refreshAdminRooms} disabled={loadingAdminRooms}>
+              <RefreshCw
+                size={12}
+                className={loadingAdminRooms ? "animate-spin" : ""}
+              />{" "}
+              Actualiser les salons
+            </GhostButton>
+          </div>
+
+          {moderationStatus.type !== "idle" && (
+            <div
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs mb-4"
+              style={{
+                color:
+                  moderationStatus.type === "error"
+                    ? C.alert
+                    : moderationStatus.type === "success"
+                      ? C.ok
+                      : C.primary,
+                background:
+                  moderationStatus.type === "error"
+                    ? `${C.alert}12`
+                    : moderationStatus.type === "success"
+                      ? `${C.ok}12`
+                      : `${C.primary}12`,
+                border: `1px solid ${
+                  moderationStatus.type === "error"
+                    ? `${C.alert}38`
+                    : moderationStatus.type === "success"
+                      ? `${C.ok}38`
+                      : `${C.primary}38`
+                }`,
+              }}
+            >
+              {moderationStatus.type === "loading" ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : moderationStatus.type === "error" ? (
+                <AlertTriangle size={13} />
+              ) : (
+                <CheckCircle2 size={13} />
+              )}
+              {moderationStatus.message}
+            </div>
+          )}
+
           <Panel
             className="overflow-hidden mb-5"
             style={{ borderColor: `${C.gold}45` }}
@@ -13354,6 +14147,19 @@ function AdminTab({
           </Panel>
 
           <AdminList
+            title="Salons Hub"
+            icon={<Hash size={14} />}
+            accent={C.ok}
+            items={adminRooms
+              .filter((room) => room.key !== "updates")
+              .map((room) => ({
+              id: room.id,
+              primary: `#${room.label || room.key}`,
+              secondary: `${room.isPublic === false ? "Privé" : "Public"} · propriétaire ${room.owner || "système"}`,
+              }))}
+            onDelete={deleteAdminRoom}
+          />
+          <AdminList
             title="Événements"
             icon={<Calendar size={14} />}
             accent={C.gold}
@@ -13362,11 +14168,18 @@ function AdminTab({
               primary: e.title,
               secondary: `${e.author} · ${new Date(e.date).toLocaleDateString("fr-FR")}`,
             }))}
-            onDelete={(id) => {
-              const next = events.filter((e) => e.id !== id);
-              setEvents(next);
-              saveCollection("gowlsec:events", next);
-            }}
+            onDelete={(id) =>
+              deleteCommunityResource(
+                "events",
+                id,
+                async () => {
+                  const next = events.filter((event) => event.id !== id);
+                  setEvents(next);
+                  await saveCollection("gowlsec:events", next);
+                },
+                "Événement",
+              )
+            }
           />
           <AdminList
             title="Questions"
@@ -13377,11 +14190,18 @@ function AdminTab({
               primary: q.title,
               secondary: `${q.author} · ${timeAgo(q.createdAt)}`,
             }))}
-            onDelete={(id) => {
-              const next = questions.filter((q) => q.id !== id);
-              setQuestions(next);
-              saveCollection("gowlsec:questions", next);
-            }}
+            onDelete={(id) =>
+              deleteCommunityResource(
+                "questions",
+                id,
+                async () => {
+                  const next = questions.filter((question) => question.id !== id);
+                  setQuestions(next);
+                  await saveCollection("gowlsec:questions", next);
+                },
+                "Question",
+              )
+            }
           />
           <AdminList
             title="Messages des salons"
@@ -13392,11 +14212,7 @@ function AdminTab({
               primary: m.text,
               secondary: `#${m.room || "general"} · ${m.author}`,
             }))}
-            onDelete={(id) => {
-              const next = messages.filter((m) => m.id !== id);
-              setMessages(next);
-              saveCollection("gowlsec:chat", next);
-            }}
+            onDelete={deleteAdminHubMessage}
           />
           <AdminList
             title="Trophées"
@@ -13407,11 +14223,40 @@ function AdminTab({
               primary: `${t.platform} — ${t.title}`,
               secondary: `${t.author} · ${timeAgo(t.createdAt)}`,
             }))}
-            onDelete={(id) => {
-              const next = trophies.filter((t) => t.id !== id);
-              setTrophies(next);
-              saveCollection("gowlsec:trophies", next);
-            }}
+            onDelete={(id) =>
+              deleteCommunityResource(
+                "trophies",
+                id,
+                async () => {
+                  const next = trophies.filter((trophy) => trophy.id !== id);
+                  setTrophies(next);
+                  await saveCollection("gowlsec:trophies", next);
+                },
+                "Trophée",
+              )
+            }
+          />
+          <AdminList
+            title="Write-ups"
+            icon={<BookOpen size={14} />}
+            accent={C.ok}
+            items={writeups.map((writeup) => ({
+              id: writeup.id,
+              primary: `${writeup.platform} — ${writeup.title}`,
+              secondary: `${writeup.author} · ${timeAgo(writeup.createdAt)}`,
+            }))}
+            onDelete={(id) =>
+              deleteCommunityResource(
+                "writeups",
+                id,
+                async () => {
+                  const next = writeups.filter((writeup) => writeup.id !== id);
+                  setWriteups(next);
+                  await saveCollection("gowlsec:writeups", next);
+                },
+                "Write-up",
+              )
+            }
           />
           <AdminList
             title="Team"
@@ -13422,14 +14267,50 @@ function AdminTab({
               primary: `${t.name} (${t.visibility === "private" ? "privée" : "publique"})`,
               secondary: `${t.members.length}/${t.maxMembers || TEAM_MAX_MEMBERS} membre(s) · capitaine ${t.owner}`,
             }))}
-            onDelete={(id) => {
-              const next = teams.filter((t) => t.id !== id);
-              setTeams(next);
-              saveCollection("gowlsec:teams", next);
-              const na = teamAnnouncements.filter((a) => a.teamId !== id);
-              setTeamAnnouncements(na);
-              saveCollection("gowlsec:team_announcements", na);
-            }}
+            onDelete={(id) =>
+              deleteCommunityResource(
+                "teams",
+                id,
+                async () => {
+                  const next = teams.filter((team) => team.id !== id);
+                  setTeams(next);
+                  await saveCollection("gowlsec:teams", next);
+                  const nextAnnouncements = teamAnnouncements.filter(
+                    (announcement) => announcement.teamId !== id,
+                  );
+                  setTeamAnnouncements(nextAnnouncements);
+                  await saveCollection(
+                    "gowlsec:team_announcements",
+                    nextAnnouncements,
+                  );
+                },
+                "Team",
+              )
+            }
+          />
+          <AdminList
+            title="Annonces d’équipe"
+            icon={<Megaphone size={14} />}
+            accent={C.warn}
+            items={teamAnnouncements.map((announcement) => ({
+              id: announcement.id,
+              primary: announcement.text,
+              secondary: `${announcement.author} · team #${announcement.teamId}`,
+            }))}
+            onDelete={(id) =>
+              deleteCommunityResource(
+                "team-announcements",
+                id,
+                async () => {
+                  const next = teamAnnouncements.filter(
+                    (announcement) => announcement.id !== id,
+                  );
+                  setTeamAnnouncements(next);
+                  await saveCollection("gowlsec:team_announcements", next);
+                },
+                "Annonce d’équipe",
+              )
+            }
           />
           <AdminList
             title="Salons labs"
@@ -13440,14 +14321,45 @@ function AdminTab({
               primary: `${l.title}${l.finished ? " · Terminé" : ""} (${l.visibility === "private" ? "privé" : "public"})`,
               secondary: `${l.members.length}/${l.maxMembers || LAB_MAX_MEMBERS} membre(s) · ${l.owner}`,
             }))}
-            onDelete={(id) => {
-              const next = labs.filter((l) => l.id !== id);
-              setLabs(next);
-              saveCollection("gowlsec:labs", next);
-              const nm = labMessages.filter((m) => m.labId !== id);
-              setLabMessages(nm);
-              saveCollection("gowlsec:lab_messages", nm);
-            }}
+            onDelete={(id) =>
+              deleteCommunityResource(
+                "labs",
+                id,
+                async () => {
+                  const next = labs.filter((lab) => lab.id !== id);
+                  setLabs(next);
+                  await saveCollection("gowlsec:labs", next);
+                  const nextMessages = labMessages.filter(
+                    (message) => message.labId !== id,
+                  );
+                  setLabMessages(nextMessages);
+                  await saveCollection("gowlsec:lab_messages", nextMessages);
+                },
+                "Salon lab",
+              )
+            }
+          />
+          <AdminList
+            title="Messages des labs"
+            icon={<MessageSquare size={14} />}
+            accent={C.alert}
+            items={labMessages.map((message) => ({
+              id: message.id,
+              primary: message.text,
+              secondary: `${message.author} · lab #${message.labId}`,
+            }))}
+            onDelete={(id) =>
+              deleteCommunityResource(
+                "lab-messages",
+                id,
+                async () => {
+                  const next = labMessages.filter((message) => message.id !== id);
+                  setLabMessages(next);
+                  await saveCollection("gowlsec:lab_messages", next);
+                },
+                "Message de lab",
+              )
+            }
           />
         </div>
       )}
@@ -17394,7 +18306,7 @@ const TABS = [
   { key: "writeups", label: "Write-ups", icon: BookOpen },
   { key: "boutique", label: "Boutique", icon: ShoppingCart },
   { key: "support", label: "Support", icon: MessageCircle },
-  { key: "admin", label: "Admin", icon: Shield },
+  { key: "admin", label: "Admin", icon: Cpu },
 ];
 
 /* ---------------------------------------------------------------------
@@ -18613,13 +19525,15 @@ export default function GowlSec() {
         @keyframes gowl-msg-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         .gowl-hub-msg { display: flex; align-items: flex-start; gap: 12px; padding: 3px 14px; border-radius: 10px; position: relative; transition: background 0.1s ease; animation: gowl-msg-in 0.15s ease; }
         .gowl-hub-msg:hover { background: ${C.panel2}75; }
-        .gowl-hub-msg[data-grouped="false"] { margin-top: 14px; }
-        .gowl-hub-msg[data-grouped="true"] { margin-top: 0; }
+        .gowl-hub-msg[data-grouped="false"] { margin-top: 10px; padding-bottom: 1px; }
+        .gowl-hub-msg[data-grouped="true"] { margin-top: -1px; padding-top: 0; padding-bottom: 0; }
         .gowl-hub-msg-gutter { width: 30px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 2px; }
         .gowl-hub-msg-hovertime { display: block; width: 100%; text-align: center; font-size: 9.5px; line-height: 1.4; color: ${C.muted}; font-family: ${MONO_FONT}; opacity: 0; padding-top: 2px; }
         .gowl-hub-msg:hover .gowl-hub-msg-hovertime { opacity: 1; }
         .gowl-hub-msg-author { display: flex; align-items: baseline; gap: 7px; margin-bottom: 2px; }
         .gowl-hub-msg-bubble { display: block; width: fit-content; padding: 7px 10px; margin: 0; background: ${C.panel2}; border: 1px solid ${C.line}; border-radius: 4px 12px 12px 12px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.025); color: ${C.text}; font-size: 14px; line-height: 1.45; font-family: ${BODY_FONT}; max-width: min(100%, 720px); word-break: break-word; white-space: pre-wrap; }
+        .gowl-hub-msg[data-grouped="true"] .gowl-hub-msg-bubble { padding-top: 3px; padding-bottom: 3px; line-height: 1.32; border-radius: 7px 12px 12px 7px; }
+        .gowl-hub-msg[data-grouped="true"] .gowl-hub-msg-gutter { padding-top: 3px; }
         .gowl-hub-msg[data-self="true"] .gowl-hub-msg-bubble { background: ${C.primary}14; border-color: ${C.primary}35; box-shadow: inset 2px 0 0 ${C.primary}88; }
         .gowl-hub-msg-hoveractions { position: absolute; top: -14px; right: 14px; display: inline-flex; gap: 2px; background: ${C.panel2}; border: 1px solid ${C.line}; border-radius: 8px; padding: 3px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 1; }
         .gowl-hub-msg-action { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
@@ -18818,7 +19732,7 @@ export default function GowlSec() {
                   fontFamily: MONO_FONT,
                 }}
               >
-                <Shield size={12} /> {L("admin")}
+                <Cpu size={12} /> {L("admin")}
               </button>
             )}
             <div
@@ -19048,6 +19962,8 @@ export default function GowlSec() {
                     setMessages={setMessages}
                     trophies={trophies}
                     setTrophies={setTrophies}
+                    writeups={writeups}
+                    setWriteups={setWriteups}
                     events={events}
                     setEvents={setEvents}
                     profiles={profiles}
@@ -19793,6 +20709,54 @@ function ProfessionalHome({
     [news],
   );
 
+  const nextCtf = useMemo(() => {
+    const ctfs = news
+      .filter(
+        (item) => item.external && String(item.id).startsWith("ctftime-"),
+      )
+      .sort(
+        (a, b) =>
+          new Date(a.start || a.date || 0) - new Date(b.start || b.date || 0),
+      );
+    return (
+      ctfs.find(
+        (item) => new Date(item.finish || item.start || item.date) >= new Date(),
+      ) || ctfs[0]
+    );
+  }, [news]);
+
+  const homeRadar = [
+    {
+      label: "Prochain CTF",
+      title: nextCtf?.title || "Calendrier à surveiller",
+      meta: nextCtf
+        ? new Date(nextCtf.start || nextCtf.date).toLocaleDateString("fr-FR", {
+            day: "numeric",
+            month: "long",
+          })
+        : "Découvre les prochains événements",
+      icon: Flag,
+      color: gh.orange,
+      tab: "actus",
+    },
+    {
+      label: "Besoin d’un coup de main",
+      title: `${questions.filter((question) => !question.resolved).length} question${questions.filter((question) => !question.resolved).length > 1 ? "s" : ""} ouverte${questions.filter((question) => !question.resolved).length > 1 ? "s" : ""}`,
+      meta: "Réponds, aide et gagne des points",
+      icon: MessageCircle,
+      color: gh.blue,
+      tab: "forum",
+    },
+    {
+      label: "Opérations en cours",
+      title: `${labs.length} lab${labs.length > 1 ? "s" : ""} · ${teams.length} team${teams.length > 1 ? "s" : ""}`,
+      meta: "Rejoins une mission communautaire",
+      icon: Target,
+      color: gh.green,
+      tab: labs.length ? "labs" : "equipes",
+    },
+  ];
+
   return (
     <div className="ghx-home">
       <style>{`
@@ -19837,6 +20801,23 @@ function ProfessionalHome({
         .ghx-stat-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 7px; margin-bottom: 12px; }
         .ghx-stat-value { position: relative; font-family: ${DISPLAY_FONT}; font-size: 27px; font-weight: 800; line-height: 1; color: ${gh.text}; }
         .ghx-stat-label { position: relative; margin-top: 7px; font-size: 11.5px; color: ${gh.muted}; font-family: ${MONO_FONT}; text-transform: uppercase; letter-spacing: 0.06em; }
+
+        .ghx-radar { margin: -18px 0 48px; }
+        .ghx-radar-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+        .ghx-radar-title { margin: 0; font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: ${gh.muted}; font-family: ${MONO_FONT}; }
+        .ghx-radar-live { display: inline-flex; align-items: center; gap: 6px; font-size: 10px; color: ${gh.green}; font-family: ${MONO_FONT}; }
+        .ghx-radar-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid ${gh.border}; border-radius: 12px; overflow: hidden; background: ${gh.panel}; }
+        .ghx-radar-item { all: unset; box-sizing: border-box; position: relative; display: grid; grid-template-columns: 38px minmax(0, 1fr) auto; align-items: center; gap: 12px; min-width: 0; padding: 16px; cursor: pointer; border-right: 1px solid ${gh.border}; transition: background .18s ease; }
+        .ghx-radar-item:last-child { border-right: 0; }
+        .ghx-radar-item:hover { background: ${gh.panel2}; }
+        .ghx-radar-icon { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--radar-accent); background: color-mix(in srgb, var(--radar-accent) 14%, transparent); border: 1px solid color-mix(in srgb, var(--radar-accent) 36%, transparent); }
+        .ghx-radar-body { min-width: 0; }
+        .ghx-radar-label { display: block; font-size: 8.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: var(--radar-accent); font-family: ${MONO_FONT}; }
+        .ghx-radar-name { display: block; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${gh.text}; font-size: 13px; font-weight: 750; font-family: ${DISPLAY_FONT}; }
+        .ghx-radar-meta { display: block; margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: ${gh.muted}; font-size: 10.5px; }
+        .ghx-radar-arrow { color: ${gh.muted}; transition: transform .18s ease, color .18s ease; }
+        .ghx-radar-item:hover .ghx-radar-arrow { color: var(--radar-accent); transform: translateX(3px); }
+        @media (max-width: 900px) { .ghx-radar-grid { grid-template-columns: 1fr; } .ghx-radar-item { border-right: 0; border-bottom: 1px solid ${gh.border}; } .ghx-radar-item:last-child { border-bottom: 0; } }
 
         /* Toutes les annonces restent accessibles sans allonger la page : rail horizontal éditorial. */
         .ghx-updates { margin: -8px 0 48px; }
@@ -20082,6 +21063,37 @@ function ProfessionalHome({
           </div>
         ))}
       </div>
+
+      <section className="ghx-radar">
+        <div className="ghx-radar-head">
+          <h2 className="ghx-radar-title">Radar communautaire</h2>
+          <span className="ghx-radar-live">
+            <span className="gowl-live-dot" style={{ background: gh.green }} />
+            Données en direct
+          </span>
+        </div>
+        <div className="ghx-radar-grid">
+          {homeRadar.map(({ label, title, meta, icon: Icon, color, tab }) => (
+            <button
+              type="button"
+              key={label}
+              onClick={() => setTab(tab)}
+              className="ghx-radar-item"
+              style={{ "--radar-accent": color }}
+            >
+              <span className="ghx-radar-icon">
+                <Icon size={17} />
+              </span>
+              <span className="ghx-radar-body">
+                <span className="ghx-radar-label">{label}</span>
+                <span className="ghx-radar-name">{title}</span>
+                <span className="ghx-radar-meta">{meta}</span>
+              </span>
+              <ChevronRight size={14} className="ghx-radar-arrow" />
+            </button>
+          ))}
+        </div>
+      </section>
 
       <section id="gowlsec-updates" className="ghx-updates">
         <div className="ghx-updates-head">
