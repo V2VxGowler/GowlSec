@@ -15,6 +15,8 @@ import { verifyAccessToken } from "./utils/jwt.js";
 import prisma from "./utils/prisma.js";
 import communityRoutes from "./routes/community.routes.js";
 
+import ctftimeRoutes from "./routes/ctftime.routes.js";
+
 dotenv.config();
 
 const app = express();
@@ -58,6 +60,29 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/community", communityRoutes);
+app.use("/api/ctftime", ctftimeRoutes);
+
+app.get("/api/stats/members", async (req, res) => {
+  try {
+    const count = await prisma.user.count();
+
+    return res.json({
+      success: true,
+      count,
+    });
+  } catch (error) {
+    console.error(
+      "Erreur compteur membres :",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        "Impossible de récupérer le nombre de membres.",
+    });
+  }
+});
 
 app.get("/", (req, res) => {
   res.json({
