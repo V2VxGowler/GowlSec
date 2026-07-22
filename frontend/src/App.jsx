@@ -1827,7 +1827,7 @@ function AuthSidebarInfo({ profiles }) {
 /* ---------------------------------------------------------------------
    Profil
 --------------------------------------------------------------------- */
-function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questions, trophies, labs = [], teams = [], messages = [], writeups = [], setTab }) {
+function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questions, trophies, labs = [], teams = [], messages = [], setTab }) {
   const [editing, setEditing] = useState(false);
   const [avatarKey, setAvatarKey] = useState(currentUser?.avatarKey);
   const [avatarImage, setAvatarImage] = useState(currentUser?.avatarImage || "");
@@ -1846,40 +1846,6 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
     return clean.endsWith(".gif");
   }
 
-  function handleAvatarUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type === "image/gif") {
-      setAvatarImgWarn("Les GIF ne sont pas autorisés — utilise un JPG, PNG ou WebP.");
-      e.target.value = "";
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : "";
-      if (dataUrl) { setAvatarImage(dataUrl); setAvatarImgWarn(""); }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  }
-
-  function handleBannerUpload(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.type === "image/gif") {
-      setBannerImgWarn("Les GIF ne sont pas autorisés — utilise un JPG, PNG ou WebP.");
-      e.target.value = "";
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = typeof reader.result === "string" ? reader.result : "";
-      if (dataUrl) { setBannerImage(dataUrl); setBannerColor(""); setBannerImgWarn(""); }
-    };
-    reader.readAsDataURL(file);
-    e.target.value = "";
-  }
-
   if (!currentUser) {
     return (
       <div className="max-w-sm mx-auto text-center py-16">
@@ -1895,7 +1861,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
   const bannerCss = bannerImage ? `url(${bannerImage}) center/cover no-repeat` : bannerColor ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})` : BANNER_MAP[banner] || "transparent";
   const socials = currentUser.socials || {};
 
-  const myPoints = useMemo(() => computeUserPoints(currentUser.username, questions, trophies, labs, writeups), [currentUser.username, questions, trophies, labs, writeups]);
+  const myPoints = useMemo(() => computeUserPoints(currentUser.username, questions, trophies, labs), [currentUser.username, questions, trophies, labs]);
   const levelInfo = useMemo(() => getLevelInfo(myPoints), [myPoints]);
   const isMaxLevel = !levelInfo.next;
 
@@ -1940,13 +1906,6 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
           <span aria-hidden className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${levelInfo.level.color}33, transparent 70%)`, filter: "blur(6px)" }} />
           <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff1c 1px, transparent 1px)", backgroundSize: "18px 18px", opacity: 0.3, maskImage: "linear-gradient(180deg, black, transparent 88%)" }} />
           <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(180deg, transparent 30%, rgba(8,10,14,0.6) 100%)` }} />
-          {editing && (
-            <label className="absolute inset-0 flex items-center justify-center gap-1.5 cursor-pointer gowl-banner-edit" title="Changer la bannière">
-              <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
-              <Pencil size={13} color="#fff" />
-              <span className="text-[11px] font-semibold" style={{ color: "#fff", fontFamily: BODY_FONT }}>Changer la bannière</span>
-            </label>
-          )}
           {isAdminProfile(currentUser) && (
             <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase gowl-mono-tag" style={{ background: `${C.bg}B0`, color: C.gold, border: `1px solid ${C.gold}55` }}>
               <Shield size={11} /> Admin
@@ -1963,12 +1922,6 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
                     <Avatar profile={{ avatarKey, avatarImage }} size={56} />
                   </div>
                 </div>
-                {editing && (
-                  <label className="absolute inset-0 rounded-full flex items-center justify-center cursor-pointer gowl-avatar-edit" title="Changer la photo de profil">
-                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-                    <Pencil size={16} color="#fff" />
-                  </label>
-                )}
                 <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full gowl-live-dot" style={{ background: C.ok, border: `2px solid #0A0C10` }} title="En ligne" />
                 {isMaxLevel && (
                   <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center gowl-count-pop" style={{ background: "#0A0C10", border: `1.5px solid ${levelInfo.level.color}`, color: levelInfo.level.color, boxShadow: `0 4px 10px -3px ${levelInfo.level.color}AA` }} title="Niveau maximum">
@@ -2077,7 +2030,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
 
       {editing && (
         <Panel className="overflow-hidden mb-6">
-          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
+          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}`, background: `linear-gradient(155deg, ${C.primary}14, transparent)` }}>
             <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${C.primary}1A`, color: C.primary }}><Pencil size={13} /></span>
             <div>
               <span className="text-xs font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Modifier le profil</span>
@@ -2090,12 +2043,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
             <span className="block mt-1 text-xs text-right" style={{ color: C.muted, fontFamily: MONO_FONT }}>{bio.length}/160</span>
           </Field>
           <Field label="Photo de profil">
-            <p className="text-[11px] mb-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>Clique sur ta photo en haut de la page, ou choisis un fichier ci-dessous.</p>
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <label className="gowl-upload-btn inline-flex items-center gap-1.5 px-3 py-1.75 rounded-md text-xs font-semibold cursor-pointer" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
-                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
-                <UserIcon size={13} /> Choisir un fichier
-              </label>
+            <div className="flex flex-wrap gap-2 mb-2">
               {AVATAR_OPTIONS.map((a) => {
                 const Icon = a.icon;
                 const active = avatarKey === a.key && !avatarImage;
@@ -2108,15 +2056,16 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
                 );
               })}
             </div>
-            {avatarImgWarn && <p className="mt-1 text-[11px]" style={{ color: C.alert, fontFamily: BODY_FONT }}>{avatarImgWarn}</p>}
+            <input value={avatarImage} onChange={(e) => { const v = e.target.value; setAvatarImage(v); setAvatarImgWarn(isGifUrl(v) ? "Les GIF ne sont pas autorisés — utilise un JPG, PNG ou WebP." : ""); }} placeholder="Photo de profil — colle une URL d'image (pas de GIF)..."
+              className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
+            {avatarImgWarn ? (
+              <p className="mt-1 text-[11px]" style={{ color: C.alert, fontFamily: BODY_FONT }}>{avatarImgWarn}</p>
+            ) : (
+              <p className="mt-1 text-[11px]" style={{ color: C.muted, fontFamily: BODY_FONT }}>Format image uniquement (JPG, PNG, WebP...) — les GIF ne sont pas acceptés.</p>
+            )}
           </Field>
           <Field label="Bannière">
-            <p className="text-[11px] mb-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>Clique sur la bannière en haut de la page, ou choisis un fichier ci-dessous.</p>
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <label className="gowl-upload-btn inline-flex items-center gap-1.5 px-3 py-1.75 rounded-md text-xs font-semibold cursor-pointer" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
-                <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
-                <ExternalLink size={13} style={{ transform: "rotate(90deg)" }} /> Choisir un fichier
-              </label>
               <label className="relative w-20 h-11 rounded-md flex items-center justify-center cursor-pointer overflow-hidden gowl-avatar-swatch"
                 style={{ background: bannerColor ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})` : BANNER_MAP.indigo, outline: `2px solid ${C.text}`, outlineOffset: 2 }}
                 title="Choisir ma propre couleur">
@@ -2125,7 +2074,13 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
               </label>
             </div>
-            {bannerImgWarn && <p className="mt-1 text-[11px]" style={{ color: C.alert, fontFamily: BODY_FONT }}>{bannerImgWarn}</p>}
+            <input value={bannerImage} onChange={(e) => { const v = e.target.value; setBannerImage(v); setBannerColor(""); setBannerImgWarn(isGifUrl(v) ? "Les GIF ne sont pas autorisés — utilise un JPG, PNG ou WebP." : ""); }} placeholder="Bannière — colle une URL d'image (pas de GIF)..."
+              className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
+            {bannerImgWarn ? (
+              <p className="mt-1 text-[11px]" style={{ color: C.alert, fontFamily: BODY_FONT }}>{bannerImgWarn}</p>
+            ) : (
+              <p className="mt-1 text-[11px]" style={{ color: C.muted, fontFamily: BODY_FONT }}>Format image uniquement (JPG, PNG, WebP...) — les GIF ne sont pas acceptés.</p>
+            )}
           </Field>
           <Field label="GitHub">
             <div className="flex items-center gap-2">
@@ -2630,16 +2585,43 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
       }
     );
   }
-  async function removeMsg(id) {
-    const target = messages.find((m) => m.id === id);
-    if (!target) return;
-    if (!isAdmin && target.author !== pseudo) return;
-    const next = messages.filter((m) => m.id !== id);
-    setMessages(next);
-    saveCollection("gowlsec:chat", next);
-    try {
-      socket.emit("hub-message:delete", { id });
-    } catch { /* best effort — suppression locale déjà appliquée */ }
+  function removeMsg(id) {
+    const messageId = Number(id);
+    const target = messages.find(
+      (message) => Number(message.id) === messageId
+    );
+
+    if (!Number.isInteger(messageId) || messageId <= 0) {
+      setRoomActionFeedback("Identifiant du message invalide.");
+      return;
+    }
+
+    if (!target || (!isAdmin && target.author !== pseudo)) {
+      setRoomActionFeedback(
+        "Tu n’as pas la permission de supprimer ce message."
+      );
+      return;
+    }
+
+    socket.emit(
+      "hub-message:delete",
+      { id: messageId },
+      (response) => {
+        if (!response?.success) {
+          setRoomActionFeedback(
+            response?.message || "Impossible de supprimer le message."
+          );
+          return;
+        }
+
+        setMessages((currentMessages) =>
+          currentMessages.filter(
+            (message) => Number(message.id) !== messageId
+          )
+        );
+        setRoomActionFeedback("");
+      }
+    );
   }
   function startEditMsg(m) {
     setEditingId(m.id);
@@ -3072,22 +3054,13 @@ function TeamsTab({ pseudo, teams, setTeams, announcements, setAnnouncements, is
     await saveCollection("gowlsec:teams", next);
   }
   async function removeTeam(teamId) {
-    try {
-      await communityRequest(`/teams/${teamId}`, {
-        method: "DELETE",
-      });
-      setTeams((current) =>
-        current.filter((team) => team.id !== teamId)
-      );
-      setAnnouncements((current) =>
-        current.filter(
-          (announcement) => announcement.teamId !== teamId
-        )
-      );
-      setSelectedId(null);
-    } catch (error) {
-      window.alert(error.message);
-    }
+    const next = teams.filter((t) => t.id !== teamId);
+    setTeams(next);
+    await saveCollection("gowlsec:teams", next);
+    const nextAnn = announcements.filter((a) => a.teamId !== teamId);
+    setAnnouncements(nextAnn);
+    await saveCollection("gowlsec:team_announcements", nextAnn);
+    setSelectedId(null);
   }
   async function postAnnouncement(teamId) {
     if (!currentUser) return;
@@ -3357,20 +3330,13 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
     await saveCollection("gowlsec:labs", next);
   }
   async function removeLab(labId) {
-    try {
-      await communityRequest(`/labs/${labId}`, {
-        method: "DELETE",
-      });
-      setLabs((current) =>
-        current.filter((lab) => lab.id !== labId)
-      );
-      setLabMessages((current) =>
-        current.filter((message) => message.labId !== labId)
-      );
-      setSelectedId(null);
-    } catch (error) {
-      window.alert(error.message);
-    }
+    const next = labs.filter((l) => l.id !== labId);
+    setLabs(next);
+    await saveCollection("gowlsec:labs", next);
+    const nextMsgs = labMessages.filter((m) => m.labId !== labId);
+    setLabMessages(nextMsgs);
+    await saveCollection("gowlsec:lab_messages", nextMsgs);
+    setSelectedId(null);
   }
   async function toggleLabFinished(labId) {
     const next = labs.map((l) => l.id === labId ? { ...l, finished: !l.finished } : l);
@@ -3605,45 +3571,30 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
 /* ---------------------------------------------------------------------
    Classement — points calculés depuis trophées, forum et labs créés
 --------------------------------------------------------------------- */
+const TROPHY_POINTS = { facile: 10, moyen: 20, difficile: 35, insane: 50 };
 const RANK_MEDALS = ["🥇", "🥈", "🥉"];
 
-/* Barème d'XP — utilisé partout où les points d'un membre sont calculés */
-const XP_RULES = {
-  question: 10,   // Publier une question
-  answer: 15,     // Donner une réponse
-  acceptedAnswer: 40, // Réponse acceptée
-  lab: 75,        // Terminer un lab
-  writeup: 100,   // Publier un write-up validé
-  ctf: 150,       // Participer à un CTF
-  trophy: 200,    // Gagner un trophée
-};
-
-/* Points d'un membre — calcul partagé entre Classement, Accueil, Admin et Profil (niveaux/XP) */
-function computeUserPoints(username, questions, trophies, labs, writeups = []) {
+/* Points d'un membre — calcul partagé entre Classement et Profil (niveaux/XP) */
+function computeUserPoints(username, questions, trophies, labs) {
   if (!username) return 0;
   let total = 0;
-  trophies.forEach((t) => { if (t.author === username) total += XP_RULES.trophy; });
+  trophies.forEach((t) => { if (t.author === username) total += TROPHY_POINTS[t.difficulty] || 10; });
   questions.forEach((q) => {
-    if (q.author === username) total += XP_RULES.question;
-    (q.answers || []).forEach((a) => { if (a.author === username) total += XP_RULES.answer; });
+    if (q.author === username) total += 2;
+    (q.answers || []).forEach((a) => { if (a.author === username) total += 3; });
   });
-  labs.forEach((l) => { if (l.owner === username) total += XP_RULES.lab; });
-  writeups.forEach((w) => { if (w.author === username) total += XP_RULES.writeup; });
+  labs.forEach((l) => { if (l.owner === username) total += 5; });
   return total;
 }
 
-/* Niveaux/XP — 10 paliers de progression pentest */
+/* Niveaux/XP — paliers construits sur les mêmes points que le classement */
 const LEVELS = [
-  { key: "rookie", label: "Cybersecurity Rookie", min: 0, color: C.muted },
-  { key: "explorer", label: "Security Explorer", min: 100, color: C.primary },
-  { key: "apprentice", label: "Pentest Apprentice", min: 300, color: "#3AA0FF" },
-  { key: "junior", label: "Junior Pentester", min: 700, color: C.ok },
-  { key: "intermediate", label: "Intermediate Pentester", min: 1500, color: "#9FEF00" },
-  { key: "advanced", label: "Advanced Pentester", min: 3000, color: C.warn },
-  { key: "senior", label: "Senior Pentester", min: 6000, color: "#FF9F43" },
-  { key: "elite", label: "Elite Pentester", min: 10000, color: C.alert },
-  { key: "master", label: "Security Master", min: 16000, color: "#B388FF" },
-  { key: "legendary", label: "Legendary Ethical Hacker", min: 25000, color: C.gold },
+  { key: "debutant", label: "Débutant", min: 0, color: C.muted },
+  { key: "initie", label: "Initié", min: 50, color: C.primary },
+  { key: "operateur", label: "Opérateur", min: 150, color: C.ok },
+  { key: "expert", label: "Expert", min: 350, color: C.warn },
+  { key: "elite", label: "Elite", min: 700, color: C.alert },
+  { key: "legende", label: "Légende", min: 1500, color: C.gold },
 ];
 function getLevelInfo(points) {
   let idx = 0;
@@ -3656,7 +3607,7 @@ function getLevelInfo(points) {
   return { level: current, next, pct, pointsToNext: next ? next.min - points : 0 };
 }
 
-function LeaderboardTab({ questions, trophies, labs, teams, profiles, writeups = [], currentUser = null }) {
+function LeaderboardTab({ questions, trophies, labs, teams, profiles, currentUser = null }) {
   const rows = useMemo(() => {
     const scores = {};
     function add(author, points, kind) {
@@ -3666,18 +3617,17 @@ function LeaderboardTab({ questions, trophies, labs, teams, profiles, writeups =
       scores[author][kind] += points;
     }
     trophies.forEach((t) => {
-      if (!currentUser || (t.author || "") !== currentUser.username) add(t.author, XP_RULES.trophy, "trophies");
+      if (!currentUser || (t.author || "") !== currentUser.username) add(t.author, TROPHY_POINTS[t.difficulty] || 10, "trophies");
     });
     questions.forEach((q) => {
-      add(q.author, XP_RULES.question, "forum");
-      (q.answers || []).forEach((a) => add(a.author, XP_RULES.answer, "forum"));
+      add(q.author, 2, "forum");
+      (q.answers || []).forEach((a) => add(a.author, 3, "forum"));
     });
     labs.forEach((l) => {
-      if (!currentUser || (l.owner || "") !== currentUser.username) add(l.owner, XP_RULES.lab, "labs");
+      if (!currentUser || (l.owner || "") !== currentUser.username) add(l.owner, 5, "labs");
     });
-    writeups.forEach((w) => add(w.author, XP_RULES.writeup, "forum"));
     return Object.values(scores).sort((a, b) => b.total - a.total);
-  }, [questions, trophies, labs, writeups]);
+  }, [questions, trophies, labs]);
 
   const podium = rows.slice(0, 3);
   const rest = rows.slice(3);
@@ -3853,16 +3803,9 @@ function TrophyTab({ pseudo, trophies, setTrophies, isAdmin, currentUser = null 
     }
   }
   async function removeTrophy(id) {
-    try {
-      await communityRequest(`/trophies/${id}`, {
-        method: "DELETE",
-      });
-      setTrophies((current) =>
-        current.filter((trophy) => trophy.id !== id)
-      );
-    } catch (error) {
-      window.alert(error.message);
-    }
+    const next = trophies.filter((t) => t.id !== id);
+    setTrophies(next);
+    saveCollection("gowlsec:trophies", next);
   }
   const filtered = trophies;
 
@@ -4116,123 +4059,39 @@ Reste concis mais suffisamment détaillé pour être utile.`,
 /* ---------------------------------------------------------------------
    Admin
 --------------------------------------------------------------------- */
-function AdminList({
-  title,
-  icon,
-  items,
-  onDelete,
-}) {
-  const [deletingId, setDeletingId] = useState(null);
-
-  async function handleDelete(id) {
-    if (deletingId !== null) return;
-
-    const confirmed = window.confirm(
-      "Supprimer définitivement cet élément ?"
-    );
-
-    if (!confirmed) return;
-
-    setDeletingId(id);
-
-    try {
-      await onDelete(id);
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
+function AdminList({ title, icon, items, onDelete, accent = C.primary }) {
+  const [q, setQ] = useState("");
+  const filtered = q.trim()
+    ? items.filter((it) => `${it.primary} ${it.secondary}`.toLowerCase().includes(q.trim().toLowerCase()))
+    : items;
   return (
     <Panel className="p-4 mb-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span style={{ color: C.primary }}>
-          {icon}
-        </span>
-
-        <span
-          className="text-sm font-semibold"
-          style={{
-            color: C.text,
-            fontFamily: DISPLAY_FONT,
-          }}
-        >
-          {title}
-        </span>
-
-        <span
-          className="text-xs"
-          style={{
-            color: C.muted,
-            fontFamily: MONO_FONT,
-          }}
-        >
-          ({items.length})
-        </span>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span style={{ color: accent }}>{icon}</span>
+        <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</span>
+        <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>({filtered.length}{filtered.length !== items.length ? `/${items.length}` : ""})</span>
+        {items.length > 4 && (
+          <div className="ml-auto relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: C.muted }} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrer..." className="pl-6 pr-2 py-1 rounded-md text-xs w-36" style={inputStyle} />
+          </div>
+        )}
       </div>
-
       {items.length === 0 ? (
-        <p
-          className="text-xs"
-          style={{
-            color: C.muted,
-            fontFamily: BODY_FONT,
-          }}
-        >
-          Rien ici.
-        </p>
+        <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Rien ici.</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun résultat pour « {q} ».</p>
       ) : (
         <div className="space-y-1.5 max-h-64 overflow-y-auto">
-          {items.map((item) => {
-            const deleting = deletingId === item.id;
-
-            return (
-              <div
-                key={item.id}
-                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md"
-                style={{ background: C.panel2 }}
-              >
-                <div className="min-w-0">
-                  <p
-                    className="text-xs truncate"
-                    style={{
-                      color: C.text,
-                      fontFamily: BODY_FONT,
-                    }}
-                  >
-                    {item.primary}
-                  </p>
-
-                  <p
-                    className="text-xs"
-                    style={{
-                      color: C.muted,
-                      fontFamily: MONO_FONT,
-                    }}
-                  >
-                    {item.secondary}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleDelete(item.id)}
-                  disabled={deletingId !== null}
-                  className="shrink-0 disabled:opacity-40"
-                  style={{ color: C.alert }}
-                  aria-label="Supprimer"
-                >
-                  {deleting ? (
-                    <Loader2
-                      size={13}
-                      className="animate-spin"
-                    />
-                  ) : (
-                    <Trash2 size={13} />
-                  )}
-                </button>
+          {filtered.map((it) => (
+            <div key={it.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md" style={{ background: C.panel2 }}>
+              <div className="min-w-0">
+                <p className="text-xs truncate" style={{ color: C.text, fontFamily: BODY_FONT }}>{it.primary}</p>
+                <p className="text-xs truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{it.secondary}</p>
               </div>
-            );
-          })}
+              <button onClick={() => onDelete(it.id)} style={{ color: C.alert }} className="shrink-0"><Trash2 size={13} /></button>
+            </div>
+          ))}
         </div>
       )}
     </Panel>
@@ -4243,7 +4102,7 @@ function AdminTab({
   isAdmin, setIsAdmin, questions, setQuestions, messages, setMessages, trophies, setTrophies,
   events, setEvents, profiles, setProfiles, teams, setTeams, teamAnnouncements, setTeamAnnouncements, orders, setOrders,
   labs, setLabs, labMessages, setLabMessages, tickets, setTickets, supportThreads, setSupportThreads,
-  writeups = [], currentUser,
+  currentUser,
 }) {
   const [presence, setPresence] = useState([]);
   const [loadingPresence, setLoadingPresence] = useState(false);
@@ -4508,7 +4367,7 @@ function AdminTab({
                   {filteredProfiles.map((p) => {
                     const pres = presence.find((x) => x.userId === p.id);
                     const online = pres && (now - new Date(pres.lastSeen).getTime() < ONLINE_WINDOW_MS);
-                    const points = computeUserPoints(p.username, questions, trophies, labs, writeups);
+                    const points = computeUserPoints(p.username, questions, trophies, labs);
                     const admin = isAdminProfile(p);
                     const isSelf = currentUser && p.username === currentUser.username;
                     return (
@@ -4555,44 +4414,18 @@ function AdminTab({
           <AdminList title="Questions" icon={<Flag size={14} />} accent={C.primary} items={questions.map((q) => ({ id: q.id, primary: q.title, secondary: `${q.author} · ${timeAgo(q.createdAt)}` }))}
             onDelete={(id) => { const next = questions.filter((q) => q.id !== id); setQuestions(next); saveCollection("gowlsec:questions", next); }} />
           <AdminList title="Messages des salons" icon={<MessageSquare size={14} />} accent={C.primary} items={messages.map((m) => ({ id: m.id, primary: m.text, secondary: `#${m.room || "general"} · ${m.author}` }))}
-            onDelete={(id) => {
-              socket.emit("hub-message:delete", { id }, (response) => {
-                if (!response?.success) {
-                  window.alert(
-                    response?.message ||
-                    "Impossible de supprimer le message."
-                  );
-                }
-              });
-            }} />
+            onDelete={(id) => { const next = messages.filter((m) => m.id !== id); setMessages(next); saveCollection("gowlsec:chat", next); }} />
           <AdminList title="Trophées" icon={<Trophy size={14} />} accent={C.gold} items={trophies.map((t) => ({ id: t.id, primary: `${t.platform} — ${t.title}`, secondary: `${t.author} · ${timeAgo(t.createdAt)}` }))}
-            onDelete={async (id) => {
-              try {
-                await communityRequest(`/trophies/${id}`, { method: "DELETE" });
-                setTrophies((current) => current.filter((trophy) => trophy.id !== id));
-              } catch (error) {
-                window.alert(error.message);
-              }
-            }} />
+            onDelete={(id) => { const next = trophies.filter((t) => t.id !== id); setTrophies(next); saveCollection("gowlsec:trophies", next); }} />
           <AdminList title="Team" icon={<Users size={14} />} accent={C.warn} items={teams.map((t) => ({ id: t.id, primary: `${t.name} (${t.visibility === "private" ? "privée" : "publique"})`, secondary: `${t.members.length}/${t.maxMembers || TEAM_MAX_MEMBERS} membre(s) · capitaine ${t.owner}` }))}
-            onDelete={async (id) => {
-              try {
-                await communityRequest(`/teams/${id}`, { method: "DELETE" });
-                setTeams((current) => current.filter((team) => team.id !== id));
-                setTeamAnnouncements((current) => current.filter((announcement) => announcement.teamId !== id));
-              } catch (error) {
-                window.alert(error.message);
-              }
+            onDelete={(id) => {
+              const next = teams.filter((t) => t.id !== id); setTeams(next); saveCollection("gowlsec:teams", next);
+              const na = teamAnnouncements.filter((a) => a.teamId !== id); setTeamAnnouncements(na); saveCollection("gowlsec:team_announcements", na);
             }} />
           <AdminList title="Salons labs" icon={<Bug size={14} />} accent={C.alert} items={labs.map((l) => ({ id: l.id, primary: `${l.title}${l.finished ? " · Terminé" : ""} (${l.visibility === "private" ? "privé" : "public"})`, secondary: `${l.members.length}/${l.maxMembers || LAB_MAX_MEMBERS} membre(s) · ${l.owner}` }))}
-            onDelete={async (id) => {
-              try {
-                await communityRequest(`/labs/${id}`, { method: "DELETE" });
-                setLabs((current) => current.filter((lab) => lab.id !== id));
-                setLabMessages((current) => current.filter((message) => message.labId !== id));
-              } catch (error) {
-                window.alert(error.message);
-              }
+            onDelete={(id) => {
+              const next = labs.filter((l) => l.id !== id); setLabs(next); saveCollection("gowlsec:labs", next);
+              const nm = labMessages.filter((m) => m.labId !== id); setLabMessages(nm); saveCollection("gowlsec:lab_messages", nm);
             }} />
         </div>
       )}
@@ -5058,17 +4891,10 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
       window.alert(error.message);
     }
   }
-  async function remove(id) {
-    try {
-      await communityRequest(`/writeups/${id}`, {
-        method: "DELETE",
-      });
-      setWriteups((current) =>
-        current.filter((writeup) => writeup.id !== id)
-      );
-    } catch (error) {
-      window.alert(error.message);
-    }
+  function remove(id) {
+    const next = writeups.filter((w) => w.id !== id);
+    setWriteups(next);
+    saveCollection("gowlsec:writeups", next);
   }
 
   return (
@@ -5657,43 +5483,8 @@ export default function GowlSec() {
   const [supportThreads, setSupportThreads] = useState([]);
   const [writeups, setWriteups] = useState([]);
   const [events, setEvents] = useState([]);
-  const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadMemberCount() {
-      try {
-        const response = await fetch(
-          `${COMMUNITY_API_URL}/api/stats/members`
-        );
-        const data = await response.json().catch(() => null);
-
-        if (
-          active &&
-          response.ok &&
-          Number.isInteger(data?.count)
-        ) {
-          setMemberCount(data.count);
-        }
-      } catch (error) {
-        console.error(
-          "Impossible de charger le nombre de membres :",
-          error
-        );
-      }
-    }
-
-    loadMemberCount();
-    const interval = window.setInterval(loadMemberCount, 15000);
-
-    return () => {
-      active = false;
-      window.clearInterval(interval);
-    };
-  }, []);
 
   useEffect(() => {
     const loadHubMessages = () => {
@@ -5716,10 +5507,14 @@ export default function GowlSec() {
       });
     };
 
-    const handleDeletedHubMessage = ({ id }) => {
+    const handleDeletedHubMessage = (payload) => {
+      const messageId = Number(payload?.id);
+
+      if (!Number.isInteger(messageId) || messageId <= 0) return;
+
       setMessages((currentMessages) =>
         currentMessages.filter(
-          (message) => Number(message.id) !== Number(id)
+          (message) => Number(message.id) !== messageId
         )
       );
     };
@@ -5858,12 +5653,11 @@ export default function GowlSec() {
   const topLeaders = useMemo(() => {
     const scores = {};
     const add = (author, pts) => { if (!author) return; scores[author] = (scores[author] || 0) + pts; };
-    trophies.forEach((t) => add(t.author, XP_RULES.trophy));
-    questions.forEach((q) => { add(q.author, XP_RULES.question); (q.answers || []).forEach((a) => add(a.author, XP_RULES.answer)); });
-    labs.forEach((l) => add(l.owner, XP_RULES.lab));
-    writeups.forEach((w) => add(w.author, XP_RULES.writeup));
+    trophies.forEach((t) => add(t.author, TROPHY_POINTS[t.difficulty] || 10));
+    questions.forEach((q) => { add(q.author, 2); (q.answers || []).forEach((a) => add(a.author, 3)); });
+    labs.forEach((l) => add(l.owner, 5));
     return Object.entries(scores).map(([author, total]) => ({ author, total })).sort((a, b) => b.total - a.total).slice(0, 3);
-  }, [questions, trophies, labs, writeups]);
+  }, [questions, trophies, labs]);
 
   const openLabs = useMemo(() => labs.filter((l) => l.members.length < (l.maxMembers || LAB_MAX_MEMBERS)).slice(0, 3), [labs]);
 
@@ -6082,12 +5876,6 @@ export default function GowlSec() {
         .gowl-profile-name { background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
         .gowl-avatar-swatch { transition: transform 0.15s ease; }
         .gowl-avatar-swatch:hover { transform: translateY(-2px) scale(1.05); }
-        .gowl-avatar-edit { background: rgba(5,6,10,0.35); opacity: 0; transition: opacity 0.15s ease; }
-        .gowl-avatar-edit:hover { opacity: 1; background: rgba(5,6,10,0.55); }
-        .gowl-banner-edit { background: rgba(5,6,10,0.3); opacity: 0; transition: opacity 0.15s ease; }
-        .gowl-banner-edit:hover { opacity: 1; background: rgba(5,6,10,0.5); }
-        .gowl-upload-btn { transition: background 0.15s ease, border-color 0.15s ease; }
-        .gowl-upload-btn:hover { background: ${C.line} !important; border-color: ${C.primary}55 !important; }
         .gowl-timeline { position: relative; }
         .gowl-notif-bell[data-ring="true"] { position: relative; }
         .gowl-notif-bell[data-ring="true"]::after { content: ""; position: absolute; inset: -3px; border-radius: 10px; border: 1.5px solid ${C.alert}88; animation: gowl-ping-ring 1.8s ease-out infinite; pointer-events: none; }
@@ -6350,14 +6138,12 @@ export default function GowlSec() {
                 L={L}
                 setTab={setTab}
                 profiles={profiles}
-                memberCount={memberCount}
                 liveCount={liveCount}
                 news={news}
                 questions={questions}
                 trophies={trophies}
                 teams={teams}
                 labs={labs}
-                writeups={writeups}
                 events={events}
               />
             )}
@@ -6366,7 +6152,7 @@ export default function GowlSec() {
             {tab === "salons" && <RoomsTab pseudo={pseudo} messages={messages} setMessages={setMessages} isAdmin={isAdmin} lang={lang || "fr"} profiles={profiles} currentUser={currentUser} />}
             {tab === "equipes" && <TeamsTab pseudo={pseudo} teams={teams} setTeams={setTeams} announcements={teamAnnouncements} setAnnouncements={setTeamAnnouncements} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} />}
             {tab === "labs" && <LabsTab pseudo={pseudo} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} />}
-            {tab === "classement" && <LeaderboardTab questions={questions} trophies={trophies} labs={labs} teams={teams} profiles={profiles} writeups={writeups} currentUser={currentUser} />}
+            {tab === "classement" && <LeaderboardTab questions={questions} trophies={trophies} labs={labs} teams={teams} profiles={profiles} currentUser={currentUser} />}
             {tab === "trophies" && <TrophyTab pseudo={pseudo} trophies={trophies} setTrophies={setTrophies} isAdmin={isAdmin} currentUser={currentUser} />}
             {tab === "writeups" && <WriteupsTab pseudo={pseudo} writeups={writeups} setWriteups={setWriteups} isAdmin={isAdmin} currentUser={currentUser} />}
             {tab === "evenements" && <EventsTab pseudo={pseudo} events={events} setEvents={setEvents} isAdmin={isAdmin} currentUser={currentUser} />}
@@ -6374,8 +6160,8 @@ export default function GowlSec() {
             {tab === "boutique" && <ShopTab />}
             {tab === "assistant" && <AIAssistantTab pseudo={pseudo} />}
             {tab === "support" && <SupportTab pseudo={pseudo} currentUser={currentUser} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} />}
-            {tab === "profil" && <ProtectedTab><ProfileTab currentUser={user} setCurrentUser={setUser} profiles={profiles} setProfiles={setProfiles} questions={questions} trophies={trophies} labs={labs} teams={teams} messages={messages} writeups={writeups} setTab={setTab} /> </ProtectedTab>}
-            {tab === "admin" && (user?.role === "admin" ? <AdminTab isAdmin={isAdmin} setIsAdmin={setIsAdmin} questions={questions} setQuestions={setQuestions} messages={messages} setMessages={setMessages} trophies={trophies} setTrophies={setTrophies} events={events} setEvents={setEvents} profiles={profiles} setProfiles={setProfiles} teams={teams} setTeams={setTeams} teamAnnouncements={teamAnnouncements} setTeamAnnouncements={setTeamAnnouncements} orders={orders} setOrders={setOrders} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} writeups={writeups} currentUser={user} /> : <div style={{ padding: "40px", textAlign: "center", color: "#fff" }}><h2>Accès refusé</h2><p>Vous devez être administrateur pour accéder à cette page.</p></div>)}
+            {tab === "profil" && <ProtectedTab><ProfileTab currentUser={user} setCurrentUser={setUser} profiles={profiles} setProfiles={setProfiles} questions={questions} trophies={trophies} labs={labs} teams={teams} messages={messages} setTab={setTab} /> </ProtectedTab>}
+            {tab === "admin" && (user?.role === "admin" ? <AdminTab isAdmin={isAdmin} setIsAdmin={setIsAdmin} questions={questions} setQuestions={setQuestions} messages={messages} setMessages={setMessages} trophies={trophies} setTrophies={setTrophies} events={events} setEvents={setEvents} profiles={profiles} setProfiles={setProfiles} teams={teams} setTeams={setTeams} teamAnnouncements={teamAnnouncements} setTeamAnnouncements={setTeamAnnouncements} orders={orders} setOrders={setOrders} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} currentUser={user} /> : <div style={{ padding: "40px", textAlign: "center", color: "#fff" }}><h2>Accès refusé</h2><p>Vous devez être administrateur pour accéder à cette page.</p></div>)}
           </>
         )}
       </main>
@@ -6541,7 +6327,7 @@ function HackerWorkstation() {
   );
 }
 
-function ProfessionalHome({ L, setTab, profiles, memberCount = 0, liveCount, news, questions, trophies, teams, labs, writeups = [], events = [] }) {
+function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, trophies, teams, labs, events = [] }) {
   const gh = {
     bg: "#07101a",
     panel: "#0b1520",
@@ -6580,22 +6366,21 @@ function ProfessionalHome({ L, setTab, profiles, memberCount = 0, liveCount, new
   const topTalents = useMemo(() => {
     const scores = {};
     const add = (author, points) => { if (author) scores[author] = (scores[author] || 0) + points; };
-    trophies.forEach((t) => add(t.author, XP_RULES.trophy));
+    trophies.forEach((t) => add(t.author, TROPHY_POINTS[t.difficulty] || 10));
     questions.forEach((q) => {
-      add(q.author, XP_RULES.question);
-      (q.answers || []).forEach((a) => add(a.author, XP_RULES.answer));
+      add(q.author, 2);
+      (q.answers || []).forEach((a) => add(a.author, 3));
     });
-    labs.forEach((l) => add(l.owner, XP_RULES.lab));
-    writeups.forEach((w) => add(w.author, XP_RULES.writeup));
+    labs.forEach((l) => add(l.owner, 5));
     return Object.entries(scores)
       .map(([author, total]) => ({ author, total, profile: profiles.find((p) => p.username === author) }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 3);
-  }, [trophies, questions, labs, writeups, profiles]);
+  }, [trophies, questions, labs, profiles]);
 
 
   const stats = [
-    { label: "Membres", value: memberCount, icon: Users, color: gh.blue },
+    { label: "Membres", value: profiles.length, icon: Users, color: gh.blue },
     { label: "Trophées décrochés", value: trophies.length, icon: Trophy, color: gh.orange },
     { label: "Questions répondues", value: questions.filter((q) => (q.answers || []).length > 0).length, icon: MessageCircle, color: gh.purple },
   ];
@@ -6804,7 +6589,7 @@ function ProfessionalHome({ L, setTab, profiles, memberCount = 0, liveCount, new
           <div className="ghx-proof">
             <MemberAvatarStack profiles={profiles} max={5} />
             <span className="ghx-proof-text">
-              {memberCount > 0 ? <><strong style={{ color: gh.text }}>{memberCount}</strong> membre{memberCount > 1 ? "s" : ""} ont déjà rejoint la communauté</> : "Sois l'un des premiers membres de la communauté"}
+              {profiles.length > 0 ? <><strong style={{ color: gh.text }}>{profiles.length}</strong> membre{profiles.length > 1 ? "s" : ""} ont déjà rejoint la communauté</> : "Sois l'un des premiers membres de la communauté"}
             </span>
           </div>
         </div>
