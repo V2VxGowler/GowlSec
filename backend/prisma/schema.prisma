@@ -23,6 +23,20 @@ model User {
 
   refreshTokens RefreshToken[]
   hubMessages   HubMessage[]
+  questions     Question[]
+  answers       Answer[]
+  hubRooms      HubRoom[]      @relation("HubRoomOwner")
+
+  teamsOwned        Team[]             @relation("TeamOwner")
+  teamMemberships   TeamMember[]
+  teamAnnouncements TeamAnnouncement[]
+
+  labsOwned      Lab[]        @relation("LabOwner")
+  labMemberships LabMember[]
+  labMessages    LabMessage[]
+
+  writeups Writeup[]
+  trophies Trophy[]
 }
 
 model RefreshToken {
@@ -51,4 +65,190 @@ model HubMessage {
 
   @@index([room, createdAt])
   @@index([userId])
+}
+
+model Question {
+  id        Int      @id @default(autoincrement())
+  title     String   @db.VarChar(150)
+  body      String   @db.Text
+  type      String   @default("question") @db.VarChar(30)
+  views     Int      @default(0)
+  resolved  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  answers Answer[]
+
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+model Answer {
+  id        Int      @id @default(autoincrement())
+  body      String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questionId Int
+  question   Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@index([authorId])
+}
+
+model HubRoom {
+  id           Int      @id @default(autoincrement())
+  key          String   @unique @db.VarChar(80)
+  label        String   @db.VarChar(80)
+  description  String   @default("") @db.VarChar(300)
+  icon         String   @default("hash") @db.VarChar(30)
+  isPublic     Boolean  @default(true)
+  passwordHash String?
+  bannedUsers  String[] @default([])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownerId Int?
+  owner   User? @relation("HubRoomOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([ownerId])
+}
+
+model Team {
+  id           Int      @id @default(autoincrement())
+  name         String   @db.VarChar(80)
+  description  String   @default("") @db.VarChar(500)
+  logoType     String   @default("emoji") @db.VarChar(20)
+  logoValue    String   @default("🛡️") @db.Text
+  visibility   String   @default("public") @db.VarChar(20)
+  passwordHash String?
+  maxMembers   Int      @default(8)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownerId Int
+  owner   User @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  members       TeamMember[]
+  announcements TeamAnnouncement[]
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+model TeamMember {
+  teamId   Int
+  userId   Int
+  joinedAt DateTime @default(now())
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([teamId, userId])
+  @@index([userId])
+}
+
+model TeamAnnouncement {
+  id        Int      @id @default(autoincrement())
+  text      String   @db.Text
+  createdAt DateTime @default(now())
+
+  teamId Int
+  team   Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([teamId])
+  @@index([authorId])
+}
+
+model Lab {
+  id           Int      @id @default(autoincrement())
+  title        String   @db.VarChar(120)
+  platform     String   @db.VarChar(50)
+  description  String   @default("") @db.Text
+  visibility   String   @default("public") @db.VarChar(20)
+  passwordHash String?
+  maxMembers   Int      @default(8)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  ownerId Int
+  owner   User @relation("LabOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+
+  members  LabMember[]
+  messages LabMessage[]
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+model LabMember {
+  labId    Int
+  userId   Int
+  joinedAt DateTime @default(now())
+
+  lab  Lab  @relation(fields: [labId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([labId, userId])
+  @@index([userId])
+}
+
+model LabMessage {
+  id        Int      @id @default(autoincrement())
+  text      String   @db.VarChar(1000)
+  createdAt DateTime @default(now())
+
+  labId Int
+  lab   Lab @relation(fields: [labId], references: [id], onDelete: Cascade)
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([labId, createdAt])
+  @@index([authorId])
+}
+
+model Writeup {
+  id         Int      @id @default(autoincrement())
+  platform   String   @db.VarChar(50)
+  title      String   @db.VarChar(150)
+  difficulty String   @db.VarChar(30)
+  summary    String   @default("") @db.VarChar(500)
+  content    String   @db.Text
+  link       String   @default("") @db.VarChar(500)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([createdAt])
+}
+
+model Trophy {
+  id            Int      @id @default(autoincrement())
+  platform      String   @db.VarChar(50)
+  title         String   @db.VarChar(150)
+  difficulty    String   @db.VarChar(30)
+  note          String   @default("") @db.VarChar(500)
+  certification String   @default("") @db.VarChar(150)
+  imageUrl      String   @default("") @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([createdAt])
 }

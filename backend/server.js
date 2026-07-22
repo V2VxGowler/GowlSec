@@ -13,6 +13,7 @@ import userRoutes from "./routes/user.routes.js";
 import { globalLimiter } from "./middleware/rateLimiter.js";
 import { verifyAccessToken } from "./utils/jwt.js";
 import prisma from "./utils/prisma.js";
+import communityRoutes from "./routes/community.routes.js";
 
 dotenv.config();
 
@@ -48,7 +49,7 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
 app.use("/api", globalLimiter);
@@ -56,6 +57,7 @@ app.use("/api", globalLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/community", communityRoutes);
 
 app.get("/", (req, res) => {
   res.json({
