@@ -313,6 +313,103 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on(
+  "hub-message:delete",
+  async (payload, callback) => {
+    const reply =
+      typeof callback === "function"
+        ? callback
+        : () => {};
+
+    const numericUserId = Number(userId);
+    const messageId = Number(payload?.id);
+
+    if (
+      !Number.isInteger(numericUserId) ||
+      !Number.isInteger(messageId)
+    ) {
+      return reply({
+        success: false,
+        message: "Identifiant invalide.",
+      });
+    }
+
+    try {
+      const [message, currentUser] =
+        await Promise.all([
+          prisma.hubMessage.findUnique({
+            where: {
+              id: messageId,
+            },
+            select: {
+              id: true,
+              userId: true,
+            },
+          }),
+
+          prisma.user.findUnique({
+            where: {
+              id: numericUserId,
+            },
+            select: {
+              role: true,
+            },
+          }),
+        ]);
+
+      if (!message) {
+        return reply({
+          success: false,
+          message: "Message introuvable.",
+        });
+      }
+
+      const isAuthor =
+        message.userId === numericUserId;
+
+      const isAdmin =
+        currentUser?.role === "admin";
+
+      if (!isAuthor && !isAdmin) {
+        return reply({
+          success: false,
+          message:
+            "Tu ne peux pas supprimer ce message.",
+        });
+      }
+
+      await prisma.hubMessage.delete({
+        where: {
+          id: messageId,
+        },
+      });
+
+      /*
+       * Retirer le message chez tous les visiteurs.
+       */
+      io.emit("hub-message:deleted", {
+        id: messageId,
+      });
+
+      return reply({
+        success: true,
+        message: "Message supprimé.",
+      });
+    } catch (error) {
+      console.error(
+        "Erreur suppression du message :",
+        error
+      );
+
+      return reply({
+        success: false,
+        message:
+          "Impossible de supprimer le message.",
+      });
+    }
+  }
+);
+
   socket.on("disconnect", () => {
     if (userId && onlineUsers.has(userId)) {
       const userSockets = onlineUsers.get(userId);
