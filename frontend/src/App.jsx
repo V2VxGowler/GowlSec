@@ -4448,7 +4448,16 @@ function AdminTab({
           <AdminList title="Questions" icon={<Flag size={14} />} accent={C.primary} items={questions.map((q) => ({ id: q.id, primary: q.title, secondary: `${q.author} · ${timeAgo(q.createdAt)}` }))}
             onDelete={(id) => { const next = questions.filter((q) => q.id !== id); setQuestions(next); saveCollection("gowlsec:questions", next); }} />
           <AdminList title="Messages des salons" icon={<MessageSquare size={14} />} accent={C.primary} items={messages.map((m) => ({ id: m.id, primary: m.text, secondary: `#${m.room || "general"} · ${m.author}` }))}
-            onDelete={(id) => { const next = messages.filter((m) => m.id !== id); setMessages(next); saveCollection("gowlsec:chat", next); }} />
+            onDelete={(id) => {
+              socket.emit("hub-message:delete", { id }, (response) => {
+                if (!response?.success) {
+                  window.alert(
+                    response?.message ||
+                    "Impossible de supprimer le message."
+                  );
+                }
+              });
+            }} />
           <AdminList title="Trophées" icon={<Trophy size={14} />} accent={C.gold} items={trophies.map((t) => ({ id: t.id, primary: `${t.platform} — ${t.title}`, secondary: `${t.author} · ${timeAgo(t.createdAt)}` }))}
             onDelete={(id) => { const next = trophies.filter((t) => t.id !== id); setTrophies(next); saveCollection("gowlsec:trophies", next); }} />
           <AdminList title="Team" icon={<Users size={14} />} accent={C.warn} items={teams.map((t) => ({ id: t.id, primary: `${t.name} (${t.visibility === "private" ? "privée" : "publique"})`, secondary: `${t.members.length}/${t.maxMembers || TEAM_MAX_MEMBERS} membre(s) · capitaine ${t.owner}` }))}
@@ -5517,8 +5526,43 @@ export default function GowlSec() {
   const [supportThreads, setSupportThreads] = useState([]);
   const [writeups, setWriteups] = useState([]);
   const [events, setEvents] = useState([]);
+  const [memberCount, setMemberCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadMemberCount() {
+      try {
+        const response = await fetch(
+          `${COMMUNITY_API_URL}/api/stats/members`
+        );
+        const data = await response.json().catch(() => null);
+
+        if (
+          active &&
+          response.ok &&
+          Number.isInteger(data?.count)
+        ) {
+          setMemberCount(data.count);
+        }
+      } catch (error) {
+        console.error(
+          "Impossible de charger le nombre de membres :",
+          error
+        );
+      }
+    }
+
+    loadMemberCount();
+    const interval = window.setInterval(loadMemberCount, 15000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const loadHubMessages = () => {
@@ -5541,8 +5585,17 @@ export default function GowlSec() {
       });
     };
 
+    const handleDeletedHubMessage = ({ id }) => {
+      setMessages((currentMessages) =>
+        currentMessages.filter(
+          (message) => Number(message.id) !== Number(id)
+        )
+      );
+    };
+
     socket.on("connect", loadHubMessages);
     socket.on("hub-message:new", handleNewHubMessage);
+    socket.on("hub-message:deleted", handleDeletedHubMessage);
 
     if (socket.connected) {
       loadHubMessages();
@@ -5551,6 +5604,7 @@ export default function GowlSec() {
     return () => {
       socket.off("connect", loadHubMessages);
       socket.off("hub-message:new", handleNewHubMessage);
+      socket.off("hub-message:deleted", handleDeletedHubMessage);
     };
   }, []);
 
@@ -6165,6 +6219,7 @@ export default function GowlSec() {
                 L={L}
                 setTab={setTab}
                 profiles={profiles}
+                memberCount={memberCount}
                 liveCount={liveCount}
                 news={news}
                 questions={questions}
@@ -6355,7 +6410,7 @@ function HackerWorkstation() {
   );
 }
 
-function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, trophies, teams, labs, writeups = [], events = [] }) {
+function ProfessionalHome({ L, setTab, profiles, memberCount = 0, liveCount, news, questions, trophies, teams, labs, writeups = [], events = [] }) {
   const gh = {
     bg: "#07101a",
     panel: "#0b1520",
@@ -6409,7 +6464,7 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
 
 
   const stats = [
-    { label: "Membres", value: profiles.length, icon: Users, color: gh.blue },
+    { label: "Membres", value: memberCount, icon: Users, color: gh.blue },
     { label: "Trophées décrochés", value: trophies.length, icon: Trophy, color: gh.orange },
     { label: "Questions répondues", value: questions.filter((q) => (q.answers || []).length > 0).length, icon: MessageCircle, color: gh.purple },
   ];
@@ -6618,7 +6673,7 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
           <div className="ghx-proof">
             <MemberAvatarStack profiles={profiles} max={5} />
             <span className="ghx-proof-text">
-              {profiles.length > 0 ? <><strong style={{ color: gh.text }}>{profiles.length}</strong> membre{profiles.length > 1 ? "s" : ""} ont déjà rejoint la communauté</> : "Sois l'un des premiers membres de la communauté"}
+              {memberCount > 0 ? <><strong style={{ color: gh.text }}>{memberCount}</strong> membre{memberCount > 1 ? "s" : ""} ont déjà rejoint la communauté</> : "Sois l'un des premiers membres de la communauté"}
             </span>
           </div>
         </div>
