@@ -5,6 +5,7 @@ import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
 import { createServer } from "http";
 import { Server } from "socket.io";
+import { rateLimit } from "express-rate-limit";
 
 import authRoutes from "./routes/auth.js";
 import adminRoutes from "./routes/admin.js";
@@ -58,7 +59,36 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
 
-app.use("/api", globalLimiter);
+/*
+ * Les pages GowlSec chargent plusieurs ressources publiques en parallèle.
+ * Un seul limiteur très strict sur tout /api bloquait donc les lectures
+ * normales avant même que l'utilisateur effectue une action.
+ *
+ * - lectures et heartbeat de streak : quota large, anti-abus ;
+ * - créations/modifications/suppressions : limiteur strict existant.
+ */
+const readApiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 300,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: {
+    success: false,
+    message: "Trop de requêtes de lecture. Réessaie dans quelques instants.",
+  },
+});
+
+app.use("/api", (req, res, next) => {
+  const isReadRequest = ["GET", "HEAD", "OPTIONS"].includes(req.method);
+  const isActivityHeartbeat =
+    req.method === "POST" && req.path === "/users/me/activity";
+
+  if (isReadRequest || isActivityHeartbeat) {
+    return readApiLimiter(req, res, next);
+  }
+
+  return globalLimiter(req, res, next);
+});
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
