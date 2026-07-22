@@ -1313,7 +1313,7 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
       password,
     });
 
-    await (rememberMe ? saveSession(result.user, true) : clearSession());
+    saveSession(result);
 
     notify("success", "Connexion réussie.");
 
@@ -1403,7 +1403,7 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
           <Avatar profile={currentUser} size={30} />
           <span className="text-sm hidden sm:inline" style={{ color: C.text, fontFamily: BODY_FONT }}>{currentUser.username}</span>
         </button>
-        <button onClick={async () => { await clearSession(); setCurrentUser(null); }} title="Se déconnecter" className="gowl-icon-btn" style={{ color: C.muted }}><LogOut size={15} /></button>
+        <button onClick={async () => { saveSession(null); await clearSession(); setCurrentUser(null); }} title="Se déconnecter" className="gowl-icon-btn" style={{ color: C.muted }}><LogOut size={15} /></button>
       </div>
     );
   }
