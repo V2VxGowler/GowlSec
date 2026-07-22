@@ -3,14 +3,16 @@ import cors from "cors";
 import helmet from "helmet";
 import dotenv from "dotenv";
 import cookieParser from "cookie-parser";
+import { createServer } from "http";
+import { Server } from "socket.io";
+
 import authRoutes from "./routes/auth.js";
 import adminRoutes from "./routes/admin.js";
 import userRoutes from "./routes/user.routes.js";
-import { globalLimiter } from "./middleware/rateLimiter.js";
-import { createServer } from "http";
-import { Server } from "socket.io";
-import { verifyAccessToken } from "./utils/jwt.js";
 
+import { globalLimiter } from "./middleware/rateLimiter.js";
+import { verifyAccessToken } from "./utils/jwt.js";
+import prisma from "./utils/prisma.js";
 
 dotenv.config();
 
@@ -38,7 +40,9 @@ app.use(
         return callback(null, true);
       }
 
-      return callback(new Error(`Origine CORS refusée : ${origin}`));
+      return callback(
+        new Error(`Origine CORS refusée : ${origin}`)
+      );
     },
     credentials: true,
   })
@@ -47,35 +51,27 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-
 app.use("/api", globalLimiter);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
 
-
-// Route de test
 app.get("/", (req, res) => {
-    res.json({
-        success: true,
-        message: "Backend GowlSec opérationnel 🚀"
-    });
+  res.json({
+    success: true,
+    message: "Backend GowlSec opérationnel 🚀",
+  });
 });
 
-
-// Gestionnaire d'erreurs
 app.use((err, req, res, next) => {
+  console.error(err);
 
-    console.error(err);
-
-    res.status(500).json({
-        success: false,
-        message: "Erreur serveur"
-    });
-
+  res.status(500).json({
+    success: false,
+    message: "Erreur serveur",
+  });
 });
-
 
 const PORT = process.env.PORT || 8080;
 
@@ -88,7 +84,9 @@ const io = new Server(httpServer, {
         return callback(null, true);
       }
 
-      return callback(new Error(`Origine Socket.IO refusée : ${origin}`));
+      return callback(
+        new Error(`Origine Socket.IO refusée : ${origin}`)
+      );
     },
     credentials: true,
   },
@@ -96,10 +94,12 @@ const io = new Server(httpServer, {
 
 const onlineUsers = new Map();
 
+/*
+ * Vérification du token envoyé par le frontend.
+ */
 io.use((socket, next) => {
   const token = socket.handshake.auth?.token;
 
- 
   if (!token) {
     socket.data.userId = null;
     return next();
@@ -114,10 +114,10 @@ io.use((socket, next) => {
       decoded.sub ??
       null;
 
-    next();
+    return next();
   } catch {
     socket.data.userId = null;
-    next();
+    return next();
   }
 });
 
@@ -127,6 +127,7 @@ const sendLiveCount = () => {
 
 io.on("connection", (socket) => {
   const userId = socket.data.userId;
+  let lastMessageAt = 0;
 
   if (userId) {
     if (!onlineUsers.has(userId)) {
@@ -141,6 +142,138 @@ io.on("connection", (socket) => {
   }
 
   sendLiveCount();
+
+  /*
+   * Envoie les 100 derniers messages au frontend.
+   */
+  socket.on("hub-messages:load", async (callback) => {
+    const reply =
+      typeof callback === "function" ? callback : () => {};
+
+    try {
+      const messages = await prisma.hubMessage.findMany({
+        take: 100,
+        orderBy: {
+          createdAt: "desc",
+        },
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              username: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+      reply({
+        success: true,
+        messages: messages.reverse(),
+      });
+    } catch (error) {
+      console.error(
+        "Erreur pendant le chargement des messages :",
+        error
+      );
+
+      reply({
+        success: false,
+        message: "Impossible de charger les messages.",
+      });
+    }
+  });
+
+  /*
+   * Enregistre un nouveau message dans PostgreSQL.
+   */
+  socket.on("hub-message:send", async (payload, callback) => {
+    const reply =
+      typeof callback === "function" ? callback : () => {};
+
+    const numericUserId = Number(userId);
+
+    if (!Number.isInteger(numericUserId)) {
+      return reply({
+        success: false,
+        message: "Connecte-toi pour envoyer un message.",
+      });
+    }
+
+    const content =
+      typeof payload?.content === "string"
+        ? payload.content.trim()
+        : "";
+
+    if (!content) {
+      return reply({
+        success: false,
+        message: "Le message est vide.",
+      });
+    }
+
+    if (content.length > 1000) {
+      return reply({
+        success: false,
+        message: "Le message ne peut pas dépasser 1000 caractères.",
+      });
+    }
+
+    const now = Date.now();
+
+    if (now - lastMessageAt < 1000) {
+      return reply({
+        success: false,
+        message: "Tu envoies des messages trop rapidement.",
+      });
+    }
+
+    lastMessageAt = now;
+
+    try {
+      const message = await prisma.hubMessage.create({
+        data: {
+          content,
+          userId: numericUserId,
+        },
+        select: {
+          id: true,
+          content: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              username: true,
+              role: true,
+            },
+          },
+        },
+      });
+
+      /*
+       * Envoie le message à tous les membres connectés.
+       */
+      io.emit("hub-message:new", message);
+
+      return reply({
+        success: true,
+        message,
+      });
+    } catch (error) {
+      console.error(
+        "Erreur pendant l’enregistrement du message :",
+        error
+      );
+
+      return reply({
+        success: false,
+        message: "Impossible d’enregistrer le message.",
+      });
+    }
+  });
 
   socket.on("disconnect", () => {
     if (userId && onlineUsers.has(userId)) {
