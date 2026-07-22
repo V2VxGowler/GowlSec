@@ -43,6 +43,17 @@ const socket = io(
   }
 );
 
+function normalizeHubMessage(message) {
+  return {
+    id: message.id,
+    room: message.room || "general",
+    author: message.user?.username || "Utilisateur",
+    text: message.content || "",
+    createdAt: message.createdAt,
+    reactions: message.reactions || {},
+  };
+}
+
 const SEED_NEWS = [
   {
     id: 1,
@@ -745,15 +756,17 @@ function GuestGate({ text = "Connecte-toi pour participer.", accent = C.primary 
 }
 function EmptyState({ text, icon, accent = C.primary, cta, onCta }) {
   return (
-    <div className="col-span-full flex flex-col items-center justify-center text-center py-10 px-6 rounded-xl relative overflow-hidden" style={{ border: `1px dashed ${accent}44`, background: `linear-gradient(180deg, ${accent}0A, transparent)` }}>
-      <div aria-hidden className="gowl-podium-spot" style={{ width: 160, height: 160, left: "50%", top: "10%", marginLeft: -80, background: accent, opacity: 0.25 }} />
+    <div className="col-span-full flex flex-col items-center justify-center text-center py-12 px-6 rounded-xl relative overflow-hidden gowl-empty-state" style={{ border: `1px solid ${accent}33`, background: `linear-gradient(180deg, ${accent}0D, ${C.bg}40)` }}>
+      <div aria-hidden className="absolute inset-0 pointer-events-none" style={{ backgroundImage: `radial-gradient(${accent}22 1px, transparent 1px)`, backgroundSize: "22px 22px", opacity: 0.5, maskImage: "radial-gradient(ellipse at center, black, transparent 75%)" }} />
+      <span aria-hidden className="absolute" style={{ top: 10, left: 10, width: 14, height: 14, borderTop: `2px solid ${accent}55`, borderLeft: `2px solid ${accent}55`, borderRadius: "4px 0 0 0" }} />
+      <span aria-hidden className="absolute" style={{ bottom: 10, right: 10, width: 14, height: 14, borderBottom: `2px solid ${accent}55`, borderRight: `2px solid ${accent}55`, borderRadius: "0 0 4px 0" }} />
       {icon && (
-        <span className="relative w-12 h-12 rounded-xl flex items-center justify-center mb-3" style={{ background: `${accent}1A`, border: `1px solid ${accent}44`, color: accent }}>
+        <span className="relative w-14 h-14 rounded-2xl flex items-center justify-center mb-3.5 gowl-empty-icon" style={{ background: `${accent}1A`, border: `1px solid ${accent}4D`, color: accent, boxShadow: `0 0 0 5px ${accent}0A` }}>
           {icon}
         </span>
       )}
-      <p className="relative text-sm max-w-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>{text}</p>
-      {cta && <div className="relative mt-3"><PrimaryButton onClick={onCta}>{cta}</PrimaryButton></div>}
+      <p className="relative text-sm max-w-sm leading-relaxed" style={{ color: C.muted, fontFamily: BODY_FONT }}>{text}</p>
+      {cta && <div className="relative mt-4"><PrimaryButton onClick={onCta}>{cta}</PrimaryButton></div>}
     </div>
   );
 }
@@ -1917,19 +1930,27 @@ function NewsMarquee({ news }) {
   if (news.length === 0) return null;
   const loop = [...news, ...news];
   return (
-    <div className="overflow-hidden rounded-lg" style={{ border: `1px solid ${C.line}` }}>
+    <div className="rounded-lg relative overflow-hidden gowl-news-marquee" style={{ border: `1px solid ${C.line}`, background: C.bg }}>
       <style>{`
         @keyframes gowl-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
         .gowl-marquee-track { animation: gowl-marquee 40s linear infinite; }
         .gowl-marquee-track:hover { animation-play-state: paused; }
+        .gowl-marquee-item { transition: background 0.15s ease; }
+        .gowl-marquee-item:hover { background: ${C.panel2} !important; }
       `}</style>
+      <div className="flex items-center gap-2 px-3 py-1.5 shrink-0 relative z-10" style={{ borderBottom: `1px solid ${C.line}`, background: `${C.bg}F0` }}>
+        <span className="w-1.5 h-1.5 rounded-full gowl-cursor-blink" style={{ background: C.alert }} />
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: C.alert, fontFamily: MONO_FONT }}>En direct</span>
+        <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>· flux des actualités GowlSec</span>
+      </div>
       <div className="flex gowl-marquee-track" style={{ width: "max-content" }}>
         {loop.map((n, i) => {
           const cat = NEWS_CATEGORIES.find((c) => c.key === n.category) || NEWS_CATEGORIES[3];
+          const CatIcon = cat.icon;
           return (
-            <div key={`${n.id}-${i}`} className="flex items-center gap-3 px-4 py-2.5 shrink-0" style={{ width: 340, borderRight: `1px solid ${C.line}`, background: C.panel }}>
-              <div className="w-9 h-9 rounded-md flex items-center justify-center shrink-0" style={{ background: `${cat.color}1A`, color: cat.color }}>
-                <Newspaper size={15} />
+            <div key={`${n.id}-${i}`} className="flex items-center gap-3 px-4 py-2.5 shrink-0 gowl-marquee-item" style={{ width: 340, borderRight: `1px solid ${C.line}` }}>
+              <div className="w-9 h-9 rounded-md flex items-center justify-center shrink-0" style={{ background: `${cat.color}1A`, color: cat.color, border: `1px solid ${cat.color}33` }}>
+                <CatIcon size={15} />
               </div>
               <div className="min-w-0">
                 <Chip label={cat.label} color={cat.color} />
@@ -1948,20 +1969,35 @@ function NewsMarquee({ news }) {
 --------------------------------------------------------------------- */
 function NewsCard({ item, isAdmin, onDelete }) {
   const cat = NEWS_CATEGORIES.find((c) => c.key === item.category) || NEWS_CATEGORIES[3];
+  const CatIcon = cat.icon;
   return (
-    <Panel className="overflow-hidden flex flex-col h-full" style={{ borderColor: `${cat.color}40` }}>
-      <div className="h-1.5" style={{ background: cat.color }} />
+    <Panel className="overflow-hidden flex flex-col h-full gowl-news-card" style={{ borderColor: `${cat.color}33` }}>
+      <div aria-hidden className="absolute inset-x-0 top-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${cat.color}, transparent)` }} />
       <div className="p-4 flex flex-col flex-1">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>{item.ref}</span>
-          {isAdmin && <button onClick={() => onDelete(item.id)} style={{ color: C.alert }}><Trash2 size={13} /></button>}
+        <div className="flex items-start justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${cat.color}1A`, color: cat.color, border: `1px solid ${cat.color}33` }}>
+              <CatIcon size={14} />
+            </span>
+            <div className="min-w-0">
+              <Chip label={cat.label} color={cat.color} />
+            </div>
+          </div>
+          {isAdmin && (
+            <button onClick={() => onDelete(item.id)} className="gowl-news-delete shrink-0 w-6 h-6 rounded-md flex items-center justify-center" style={{ color: C.muted }}>
+              <Trash2 size={13} />
+            </button>
+          )}
         </div>
-        <Chip label={cat.label} color={cat.color} />
-        <h3 className="text-sm font-semibold mt-2.5 mb-1.5 leading-snug" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{item.title}</h3>
-        <p className="text-sm flex-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{item.summary}</p>
-        <div className="mt-3 pt-2.5 flex items-center justify-between" style={{ borderTop: `1px solid ${C.line}` }}>
-          <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>{item.source} · {timeAgo(item.date)}</span>
-          {item.url && <a href={item.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs" style={{ color: C.primary, fontFamily: BODY_FONT }}>Lire <ExternalLink size={11} /></a>}
+        <h3 className="text-sm font-semibold mb-1.5 leading-snug" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{item.title}</h3>
+        <p className="text-sm flex-1 leading-relaxed" style={{ color: C.muted, fontFamily: BODY_FONT }}>{item.summary}</p>
+        <div className="mt-3 pt-2.5 flex items-center justify-between gap-2" style={{ borderTop: `1px solid ${C.line}` }}>
+          <span className="text-[11px] truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{item.ref} · {item.source} · {timeAgo(item.date)}</span>
+          {item.url && (
+            <a href={item.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-xs font-semibold shrink-0" style={{ color: cat.color, fontFamily: BODY_FONT }}>
+              Lire <ExternalLink size={11} />
+            </a>
+          )}
         </div>
       </div>
     </Panel>
@@ -2017,9 +2053,14 @@ function NewsTab({ news, setNews, isAdmin, profiles = [], notifications = [], se
     <div>
       {full && (
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-          <div>
-            <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Actualités & annonces</h2>
-            <p className="text-sm mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>Nouveautés du site, annonces de l'équipe, félicitations et événements à venir.</p>
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${C.gold}1A`, color: C.gold, border: `1px solid ${C.gold}33` }}>
+              <Newspaper size={18} />
+            </span>
+            <div>
+              <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Actualités & annonces</h2>
+              <p className="text-sm mt-0.5" style={{ color: C.muted, fontFamily: BODY_FONT }}>Nouveautés du site, annonces de l'équipe, félicitations et événements à venir.</p>
+            </div>
           </div>
           {isAdmin && <PrimaryButton onClick={() => setShowForm((s) => !s)}>{showForm ? <X size={15} /> : <Plus size={15} />} {showForm ? "Annuler" : "Publier"}</PrimaryButton>}
         </div>
@@ -2030,8 +2071,8 @@ function NewsTab({ news, setNews, isAdmin, profiles = [], notifications = [], se
             const c = NEWS_CATEGORIES.find((x) => x.key === k);
             const active = filter === k;
             return (
-              <button key={k} onClick={() => setFilter(k)} className="text-xs px-3 py-1.5 rounded-md flex items-center gap-1.5"
-                style={{ background: active ? (c ? c.color : C.primary) : "transparent", color: active ? "#0A0C10" : C.muted, border: `1px solid ${active ? "transparent" : C.line}`, fontFamily: MONO_FONT }}>
+              <button key={k} onClick={() => setFilter(k)} className="gowl-news-filter text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5 font-semibold"
+                style={{ background: active ? `${(c ? c.color : C.primary)}22` : "transparent", color: active ? (c ? c.color : C.primary) : C.muted, border: `1px solid ${active ? (c ? c.color : C.primary) : C.line}`, fontFamily: MONO_FONT }}>
                 {c?.icon && <c.icon size={12} />} {k === "Tous" ? "Tous" : c.label}
               </button>
             );
@@ -2326,11 +2367,23 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
     const activeRoom = rooms.find((r) => r.key === room) || rooms[0] || DEFAULT_ROOMS[0];
     if ((activeRoom.bannedUsers || []).includes(pseudo)) return;
     if (activeRoom.isPublic === false && !isOwner && !isAdmin && !roomAccess[activeRoom.key] && activeRoom.key !== "general") return;
-    const m = { id: uid(), room, author: pseudo, text: text.trim(), createdAt: new Date().toISOString(), reactions: {} };
-    const next = [...messages, m];
-    setMessages(next);
-    saveCollection("gowlsec:chat", next);
-    setText("");
+    const content = text.trim();
+
+    socket.emit(
+      "hub-message:send",
+      { content, room },
+      (response) => {
+        if (!response?.success) {
+          setRoomActionFeedback(
+            response?.message || "Impossible d'envoyer le message."
+          );
+          return;
+        }
+
+        setText("");
+        setRoomActionFeedback("");
+      }
+    );
   }
   async function removeMsg(id) {
     const next = messages.filter((m) => m.id !== id);
@@ -2542,7 +2595,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
             </div>
             <span className="gowl-hub-header-live"><span className="gowl-live-dot" style={{ background: C.ok }} /> En direct</span>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4" style={{ background: "rgba(255,255,255,0.02)" }}>
             {isOwner && (
               <div className="rounded-xl border p-3 mb-3" style={{ borderColor: C.line, background: "rgba(255,255,255,0.03)" }}>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -2587,8 +2640,8 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
                 <div key={m.id} className="gowl-hub-msg group">
                   <Avatar profile={authorProfile} size={30} />
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.author}</span>
+                    <div className="gowl-hub-msg-author">
+                      <span className="text-[13px] font-bold" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.author}</span>
                       <span className="text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(m.createdAt)}</span>
                       {isAdmin && <button onClick={() => removeMsg(m.id)} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.alert }}><Trash2 size={11} /></button>}
                     </div>
@@ -3054,20 +3107,20 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
             <MessageSquare size={14} style={{ color: C.ok }} />
             <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>Discussion du salon lab</span>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
             {selectedMessages.length === 0 && <EmptyState text="Aucun message. Rejoins le salon pour discuter du lab." />}
             {selectedMessages.map((m) => (
-              <div key={m.id} className="flex items-start gap-2 group">
+              <div key={m.id} className="flex items-start gap-2.5 group">
                 <div className="w-7 h-7 rounded-md flex items-center justify-center text-xs shrink-0" style={{ background: C.panel2, color: C.primary, border: `1px solid ${C.line}`, fontFamily: MONO_FONT }}>
                   {m.author.slice(0, 2).toUpperCase()}
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: MONO_FONT }}>{m.author}</span>
-                    <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(m.createdAt)}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-baseline gap-2 mb-1">
+                    <span className="text-[13px] font-bold" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.author}</span>
+                    <span className="text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(m.createdAt)}</span>
                     {isAdmin && <button onClick={() => removeLabMessage(m.id)} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.alert }}><Trash2 size={11} /></button>}
                   </div>
-                  <p className="text-sm" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.text}</p>
+                  <div className="gowl-hub-msg-bubble">{m.text}</div>
                 </div>
               </div>
             ))}
@@ -4223,8 +4276,8 @@ function NotificationBell({ currentUser, questions, teams, labs, notifications =
 
   return (
     <div ref={ref} className="relative">
-      <button onClick={toggle} title="Boîte aux hiboux" className="relative w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-        <OwlLogo size={18} />
+      <button onClick={toggle} title="Notifications" className="relative w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+        <Mail size={17} />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold" style={{ background: C.alert, color: "#fff", fontFamily: MONO_FONT }}>
             {unreadCount > 9 ? "9+" : unreadCount}
@@ -4232,19 +4285,19 @@ function NotificationBell({ currentUser, questions, teams, labs, notifications =
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-11 w-80 max-w-[90vw] rounded-xl z-40 overflow-hidden gowl-fade-up" style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 16px 40px -12px rgba(0,0,0,0.65)" }}>
+        <div className="absolute right-0 top-11 w-80 max-w-[90vw] rounded-xl z-[9999] overflow-hidden gowl-fade-up" style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 16px 40px -12px rgba(0,0,0,0.65)" }}>
           <div className="px-3.5 py-3 flex items-center gap-2.5" style={{ borderBottom: `1px solid ${C.line}`, background: `linear-gradient(155deg, ${C.primary}14, transparent)` }}>
-            <OwlLogo size={20} />
+            <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${C.primary}1A`, color: C.primary }}><Mail size={15} /></span>
             <div className="min-w-0">
-              <span className="text-xs font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Boîte aux hiboux</span>
+              <span className="text-xs font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Notifications</span>
               <p className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>Tes notifications GowlSec</p>
             </div>
           </div>
           <div className="max-h-80 overflow-y-auto">
             {items.length === 0 ? (
               <div className="text-center py-8 px-4">
-                <OwlLogo size={26} />
-                <p className="text-xs mt-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>Le hibou n'a rien apporté pour l'instant.</p>
+                <Mail size={22} style={{ color: C.muted, opacity: 0.6, margin: "0 auto" }} />
+                <p className="text-xs mt-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>Rien de nouveau pour l'instant.</p>
               </div>
             ) : items.map((n) => (
               <button key={n.id} onClick={() => { setTab(n.tab); setOpen(false); }} className="flex items-start gap-2.5 w-full text-left px-3.5 py-2.5 transition-colors hover:opacity-90" style={{ borderBottom: `1px solid ${C.line}` }}>
@@ -4876,6 +4929,40 @@ export default function GowlSec() {
   const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
 
+  useEffect(() => {
+    const loadHubMessages = () => {
+      socket.emit("hub-messages:load", (response) => {
+        if (!response?.success || !Array.isArray(response.messages)) return;
+
+        setMessages(response.messages.map(normalizeHubMessage));
+      });
+    };
+
+    const handleNewHubMessage = (message) => {
+      const normalized = normalizeHubMessage(message);
+
+      setMessages((currentMessages) => {
+        if (currentMessages.some((item) => item.id === normalized.id)) {
+          return currentMessages;
+        }
+
+        return [...currentMessages, normalized];
+      });
+    };
+
+    socket.on("connect", loadHubMessages);
+    socket.on("hub-message:new", handleNewHubMessage);
+
+    if (socket.connected) {
+      loadHubMessages();
+    }
+
+    return () => {
+      socket.off("connect", loadHubMessages);
+      socket.off("hub-message:new", handleNewHubMessage);
+    };
+  }, []);
+
   const pseudo = currentUser?.username || guestPseudo;
 
   useEffect(() => {
@@ -4912,7 +4999,7 @@ export default function GowlSec() {
         loadCollection("gowlsec:profiles", []),
         loadCollection("gowlsec:credentials", [], false),
         loadCollection("gowlsec:questions", []),
-        loadCollection("gowlsec:chat", []),
+        Promise.resolve(null),
         loadCollection("gowlsec:trophies", []),
         loadCollection("gowlsec:news", SEED_NEWS),
         loadCollection("gowlsec:teams", []),
@@ -4926,7 +5013,7 @@ export default function GowlSec() {
         loadCollection("gowlsec:events", []),
         loadCollection("gowlsec:notifications", []),
       ]);
-      setProfiles(pr); setCredentials(cr); setQuestions(q); setMessages(m); setTrophies(t); setNews(n);
+      setProfiles(pr); setCredentials(cr); setQuestions(q); setTrophies(t); setNews(n);
       setTeams(tm); setTeamAnnouncements(ta); setOrders(ord); setLabs(lb); setLabMessages(lm); setTickets(tk); setSupportThreads(th);
       setWriteups(wu); setEvents(ev); setNotifications(nf);
 
@@ -5176,6 +5263,16 @@ export default function GowlSec() {
         .gowl-crown-float { animation: gowl-crown-float 2.4s ease-in-out infinite; filter: drop-shadow(0 0 6px ${C.gold}CC); }
         @keyframes gowl-podium-glow-1 { 0%, 100% { opacity: 0.55; transform: scale(1); } 50% { opacity: 1; transform: scale(1.15); } }
         .gowl-podium-spot { position: absolute; border-radius: 999px; filter: blur(24px); animation: gowl-podium-glow-1 3s ease-in-out infinite; pointer-events: none; }
+        @keyframes gowl-empty-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes gowl-empty-icon-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.85; } }
+        .gowl-empty-state { animation: gowl-empty-in 0.3s ease both; }
+        .gowl-empty-icon { animation: gowl-empty-icon-pulse 2.6s ease-in-out infinite; }
+        .gowl-news-card { transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease; }
+        .gowl-news-card:hover { transform: translateY(-2px); box-shadow: 0 14px 30px -18px rgba(0,0,0,0.6); }
+        .gowl-news-delete { transition: color 0.15s ease, background 0.15s ease; }
+        .gowl-news-delete:hover { color: ${C.alert}; background: ${C.alert}14; }
+        .gowl-news-filter { transition: all 0.15s ease; }
+        .gowl-news-filter:hover { color: ${C.text}; border-color: ${C.primary}77; }
         .gowl-glass { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: linear-gradient(165deg, ${C.panel}F2, ${C.panel2}D9) !important; }
         .gowl-inner-line { position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: linear-gradient(90deg, transparent, #ffffff22, transparent); pointer-events: none; }
         @keyframes gowl-bar-fill { from { width: 0; } }
@@ -5282,9 +5379,10 @@ export default function GowlSec() {
         .gowl-hub-header-icon { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .gowl-hub-header-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 999px; border: 1px solid; font-family: ${MONO_FONT}; }
         .gowl-hub-header-live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: ${C.muted}; font-family: ${MONO_FONT}; flex-shrink: 0; }
-        .gowl-hub-msg { display: flex; align-items: flex-start; gap: 10px; padding: 6px 8px; border-radius: 10px; transition: background 0.15s ease; }
-        .gowl-hub-msg:hover { background: rgba(255,255,255,0.025); }
-        .gowl-hub-msg-bubble { display: inline-block; margin-top: 3px; padding: 7px 11px; border-radius: 10px; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-size: 13.5px; line-height: 1.5; font-family: ${BODY_FONT}; max-width: 100%; word-break: break-word; }
+        .gowl-hub-msg { display: flex; align-items: flex-start; gap: 11px; padding: 8px 10px; border-radius: 12px; transition: background 0.15s ease; }
+        .gowl-hub-msg:hover { background: rgba(255,255,255,0.035); }
+        .gowl-hub-msg-author { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
+        .gowl-hub-msg-bubble { display: inline-block; padding: 9px 13px; border-radius: 4px 14px 14px 14px; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-size: 14px; line-height: 1.6; font-family: ${BODY_FONT}; max-width: min(100%, 560px); word-break: break-word; box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset; }
         .gowl-hub-reaction { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; cursor: pointer; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-family: ${MONO_FONT}; transition: all 0.15s ease; }
         .gowl-hub-reaction[data-active="true"] { background: ${C.primary}22; border-color: ${C.primary}; }
         .gowl-hub-reaction:hover { border-color: ${C.primary}88; }
@@ -5457,12 +5555,14 @@ export default function GowlSec() {
       {tab === "accueil" && (
         <footer className="max-w-7xl mx-auto px-5 lg:px-8 py-8 mt-10">
           <div aria-hidden className="gowl-footer-glow rounded-full mb-8" />
-          <div className="rounded-2xl border p-6 sm:p-7 relative overflow-hidden" style={{ background: `linear-gradient(155deg, ${C.panel} 0%, ${C.panel2} 100%)`, borderColor: C.line }}>
-            <div aria-hidden style={{ position: "absolute", top: -60, right: -60, width: 200, height: 200, borderRadius: "50%", background: `${C.primary}14`, filter: "blur(50px)", pointerEvents: "none" }} />
+          <div className="rounded-2xl border p-6 sm:p-7 relative overflow-hidden" style={{ background: `linear-gradient(155deg, ${C.bg} 0%, ${C.panel} 100%)`, borderColor: C.line, boxShadow: `0 30px 70px -30px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.03)` }}>
+            <div aria-hidden style={{ position: "absolute", inset: 0, backgroundImage: `radial-gradient(${C.line}55 1px, transparent 1px)`, backgroundSize: "26px 26px", opacity: 0.35, pointerEvents: "none" }} />
+            <div aria-hidden style={{ position: "absolute", top: -60, right: -60, width: 220, height: 220, borderRadius: "50%", background: `${C.primary}1A`, filter: "blur(56px)", pointerEvents: "none" }} />
+            <div aria-hidden style={{ position: "absolute", bottom: -70, left: -50, width: 200, height: 200, borderRadius: "50%", background: `${C.ok}12`, filter: "blur(56px)", pointerEvents: "none" }} />
             <div className="grid gap-7 md:grid-cols-[1.3fr_0.8fr_0.8fr] relative">
               <div>
                 <div className="flex items-center gap-2.5 mb-3 gowl-footer-logo w-fit">
-                  <OwlLogo size={20} />
+                  <img src={owlLogoImg} alt="Logo GowlSec" className="w-6 h-6 object-contain" />
                   <p className="text-base font-bold uppercase tracking-[0.24em]" style={{ color: C.text, fontFamily: MONO_FONT }}>GowlSec</p>
                 </div>
                 <p className="text-sm leading-6 max-w-xs mb-4" style={{ color: C.muted, fontFamily: BODY_FONT }}>{L("footer")}</p>
