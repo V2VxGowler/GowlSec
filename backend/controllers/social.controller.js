@@ -757,10 +757,173 @@ export async function updateCustomRole(req, res) {
   }
 }
 
+const CREATION_COOLDOWN_DURATIONS = {
+  question: 30 * 60 * 1000,
+  writeup: 30 * 60 * 1000,
+  trophy: 3 * 60 * 60 * 1000,
+  event: 24 * 60 * 60 * 1000,
+};
+
+export async function getProgressOverview(req, res) {
+  try {
+    const me = userId(req);
+    const [
+      user,
+      questions,
+      answers,
+      hubMessages,
+      teamsOwned,
+      teamMemberships,
+      labsOwned,
+      labMemberships,
+      labMessages,
+      writeups,
+      trophies,
+      ctfRegistrations,
+      directMessages,
+      recommendationsWritten,
+      recommendationsReceived,
+      badges,
+      teamFinderProfiles,
+      cooldownRows,
+    ] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: me },
+        select: {
+          bio: true,
+          github: true,
+          twitter: true,
+          discord: true,
+          specialties: true,
+          currentStreak: true,
+          longestStreak: true,
+        },
+      }),
+      prisma.question.count({ where: { authorId: me } }),
+      prisma.answer.count({ where: { authorId: me } }),
+      prisma.hubMessage.count({ where: { userId: me } }),
+      prisma.team.count({ where: { ownerId: me } }),
+      prisma.teamMember.count({ where: { userId: me } }),
+      prisma.lab.count({ where: { ownerId: me } }),
+      prisma.labMember.count({ where: { userId: me } }),
+      prisma.labMessage.count({ where: { authorId: me } }),
+      prisma.writeup.count({ where: { authorId: me } }),
+      prisma.trophy.count({ where: { authorId: me } }),
+      prisma.ctfRegistration.count({ where: { userId: me } }),
+      prisma.directMessage.count({ where: { senderId: me } }),
+      prisma.profileRecommendation.count({ where: { authorId: me } }),
+      prisma.profileRecommendation.count({ where: { targetId: me } }),
+      prisma.userBadge.count({ where: { userId: me } }),
+      prisma.teamFinderProfile.count({ where: { userId: me, active: true } }),
+      prisma.creationCooldown.findMany({
+        where: {
+          userId: me,
+          type: { in: Object.keys(CREATION_COOLDOWN_DURATIONS) },
+        },
+        select: { type: true, lastCreatedAt: true },
+      }),
+    ]);
+
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "Utilisateur introuvable." });
+
+    const hasSocial = Boolean(user.github || user.twitter || user.discord);
+    const profileComplete =
+      String(user.bio || "").trim().length >= 80 &&
+      (user.specialties || []).length >= 3 &&
+      hasSocial;
+    const now = Date.now();
+    const cooldowns = Object.fromEntries(
+      Object.entries(CREATION_COOLDOWN_DURATIONS).map(([type, durationMs]) => {
+        const row = cooldownRows.find((item) => item.type === type);
+        const startedAt = row ? new Date(row.lastCreatedAt).getTime() : 0;
+        const remainingMs = startedAt
+          ? Math.max(0, startedAt + durationMs - now)
+          : 0;
+        return [
+          type,
+          {
+            durationSeconds: Math.ceil(durationMs / 1000),
+            remainingSeconds: Math.ceil(remainingMs / 1000),
+            availableAt: remainingMs
+              ? new Date(now + remainingMs).toISOString()
+              : null,
+          },
+        ];
+      }),
+    );
+
+    return res.json({
+      success: true,
+      metrics: {
+        profileComplete: profileComplete ? 1 : 0,
+        currentStreak: user.currentStreak || 0,
+        longestStreak: user.longestStreak || 0,
+        questions,
+        answers,
+        hubMessages,
+        teamsOwned,
+        teamMemberships,
+        teamParticipations: teamsOwned + teamMemberships,
+        labsOwned,
+        labMemberships,
+        labParticipations: labsOwned + labMemberships,
+        labMessages,
+        writeups,
+        trophies,
+        ctfRegistrations,
+        directMessages,
+        recommendationsWritten,
+        recommendationsReceived,
+        badges,
+        teamFinderProfile: teamFinderProfiles > 0 ? 1 : 0,
+      },
+      cooldowns,
+    });
+  } catch (error) {
+    console.error("Erreur progression :", error);
+    return res.status(500).json({
+      success: false,
+      message: "Impossible de charger la progression.",
+    });
+  }
+}
+
 export async function listNotifications(req, res) {
   try {
+    const me = userId(req);
+    const now = new Date();
+    const reminderLimit = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+    const upcomingRegistrations = await prisma.ctfRegistration.findMany({
+      where: {
+        userId: me,
+        startsAt: { gt: now, lte: reminderLimit },
+      },
+      select: { eventId: true, eventTitle: true, startsAt: true },
+    });
+
+    await Promise.all(
+      upcomingRegistrations.map(async (registration) => {
+        const link = `/ctf/${registration.eventId}`;
+        const exists = await prisma.userNotification.findFirst({
+          where: { userId: me, type: "ctf-reminder", link },
+          select: { id: true },
+        });
+        if (exists) return;
+        await notify(
+          me,
+          "ctf-reminder",
+          "Un CTF approche",
+          `${registration.eventTitle} commence dans moins de 24 heures.`,
+          link,
+        );
+      }),
+    );
+
     const notifications = await prisma.userNotification.findMany({
-      where: { userId: userId(req) },
+      where: { userId: me },
       orderBy: { createdAt: "desc" },
       take: 100,
     });

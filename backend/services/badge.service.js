@@ -82,11 +82,22 @@ export async function getProfileBadgesAndPoints(userId, { persist = true } = {})
 
   if (persist && newlyUnlocked.length > 0) {
     await prisma.$transaction(
-      newlyUnlocked.map((badge) => prisma.userBadge.upsert({
-        where: { userId_key: { userId, key: badge.key } },
-        update: {},
-        create: { userId, key: badge.key },
-      }))
+      [
+        ...newlyUnlocked.map((badge) => prisma.userBadge.upsert({
+          where: { userId_key: { userId, key: badge.key } },
+          update: {},
+          create: { userId, key: badge.key },
+        })),
+        prisma.userNotification.createMany({
+          data: newlyUnlocked.map((badge) => ({
+            userId,
+            type: "badge-unlocked",
+            title: "Nouveau badge débloqué",
+            message: `Tu as obtenu le badge « ${badge.label} » !`,
+            link: "/profil",
+          })),
+        }),
+      ]
     );
   }
 

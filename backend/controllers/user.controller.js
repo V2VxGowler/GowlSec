@@ -32,6 +32,13 @@ const profileSpecialties = [
 ];
 const badgeKeys = ["first-ctf", "mentor", "web-hacker", "network", "top-10"];
 
+const TROPHY_POINTS = {
+  facile: 10,
+  moyen: 20,
+  difficile: 35,
+  insane: 50,
+};
+
 const formBoolean = (defaultValue) =>
   z.preprocess(
     (value) =>
@@ -161,7 +168,24 @@ const publicProfileSelect = {
   age: true,
   pinnedBadges: true,
   customRole: true,
+  trophies: { select: { difficulty: true } },
+  _count: {
+    select: { questions: true, answers: true, labsOwned: true },
+  },
 };
+
+function calculateProfilePoints(user) {
+  const trophyPoints = (user.trophies || []).reduce(
+    (total, trophy) => total + (TROPHY_POINTS[trophy.difficulty] || 10),
+    0,
+  );
+  return (
+    trophyPoints +
+    Number(user._count?.questions || 0) * 2 +
+    Number(user._count?.answers || 0) * 3 +
+    Number(user._count?.labsOwned || 0) * 5
+  );
+}
 
 function formatProfile(user, extras = {}, includePrivate = false) {
   const profile = {
@@ -187,6 +211,7 @@ function formatProfile(user, extras = {}, includePrivate = false) {
     age: user.age,
     pinnedBadges: (user.pinnedBadges || []).slice(0, 3),
     customRole: user.customRole || "",
+    points: extras.points ?? calculateProfilePoints(user),
     socials: {
       github: user.github,
       twitter: user.twitter,

@@ -10,6 +10,7 @@ import {
   createTeamScore,
   createWeeklyChallenge,
   getConversation,
+  getProgressOverview,
   getWeeklyChallenge,
   listConversations,
   listInvitations,
@@ -74,5 +75,6 @@ router.patch(
 
 router.get("/notifications", authMiddleware, listNotifications);
 router.patch("/notifications/read", authMiddleware, readNotifications);
+router.get("/progress", authMiddleware, getProgressOverview);
 
 export default router;
