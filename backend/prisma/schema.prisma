@@ -37,6 +37,7 @@ model User {
 
   writeups Writeup[]
   trophies Trophy[]
+  events Event[]
 }
 
 model RefreshToken {
@@ -132,7 +133,7 @@ model Team {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ownerId Int
+  ownerId Int @unique
   owner   User @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   members       TeamMember[]
@@ -250,5 +251,23 @@ model Trophy {
   author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
 
   @@index([authorId])
+  @@index([createdAt])
+}
+
+model Event {
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(150)
+  type        String   @db.VarChar(50)
+  date        DateTime
+  description String   @default("") @db.Text
+  link        String   @default("") @db.VarChar(500)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([date])
   @@index([createdAt])
 }

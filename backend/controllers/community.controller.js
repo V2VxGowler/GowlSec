@@ -820,3 +820,48 @@ export async function deleteRoom(req, res) {
     return handleError(error, res);
   }
 }
+async function getRemainingCooldown(
+  modelName,
+  userId,
+  durationMs
+) {
+  const latestItem = await prisma[modelName].findFirst({
+    where: {
+      authorId: userId,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+    select: {
+      createdAt: true,
+    },
+  });
+
+  if (!latestItem) {
+    return 0;
+  }
+
+  const elapsed =
+    Date.now() -
+    new Date(latestItem.createdAt).getTime();
+
+  return Math.max(0, durationMs - elapsed);
+}
+
+function sendCooldownError(res, remainingMs, contentName) {
+  const remainingMinutes = Math.ceil(
+    remainingMs / 60000
+  );
+
+  const duration =
+    remainingMinutes >= 60
+      ? `${Math.ceil(remainingMinutes / 60)} heure(s)`
+      : `${remainingMinutes} minute(s)`;
+
+  return res.status(429).json({
+    success: false,
+    message:
+      `Tu dois attendre encore ${duration} avant de publier ${contentName}.`,
+    retryAfterSeconds: Math.ceil(remainingMs / 1000),
+  });
+}

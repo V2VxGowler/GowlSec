@@ -148,7 +148,7 @@ io.on("connection", (socket) => {
   /*
    * Envoie les 100 derniers messages au frontend.
    */
-  socket.on("hub-messages:load", async (callback) => {
+    socket.on("hub-messages:load", async (callback) => {
     const reply =
       typeof callback === "function" ? callback : () => {};
 
@@ -161,6 +161,7 @@ io.on("connection", (socket) => {
         select: {
           id: true,
           content: true,
+          room: true,
           createdAt: true,
           user: {
             select: {
@@ -172,7 +173,7 @@ io.on("connection", (socket) => {
         },
       });
 
-      reply({
+      return reply({
         success: true,
         messages: messages.reverse(),
       });
@@ -182,16 +183,13 @@ io.on("connection", (socket) => {
         error
       );
 
-      reply({
+      return reply({
         success: false,
         message: "Impossible de charger les messages.",
       });
     }
   });
 
-  /*
-   * Enregistre un nouveau message dans PostgreSQL.
-   */
   socket.on("hub-message:send", async (payload, callback) => {
     const reply =
       typeof callback === "function" ? callback : () => {};
@@ -202,6 +200,18 @@ io.on("connection", (socket) => {
       return reply({
         success: false,
         message: "Connecte-toi pour envoyer un message.",
+      });
+    }
+
+    const room =
+      typeof payload?.room === "string"
+        ? payload.room.trim().toLowerCase()
+        : "general";
+
+    if (!/^[a-z0-9-]{1,80}$/.test(room)) {
+      return reply({
+        success: false,
+        message: "Salon invalide.",
       });
     }
 
@@ -220,7 +230,8 @@ io.on("connection", (socket) => {
     if (content.length > 1000) {
       return reply({
         success: false,
-        message: "Le message ne peut pas dépasser 1000 caractères.",
+        message:
+          "Le message ne peut pas dépasser 1000 caractères.",
       });
     }
 
@@ -229,7 +240,8 @@ io.on("connection", (socket) => {
     if (now - lastMessageAt < 1000) {
       return reply({
         success: false,
-        message: "Tu envoies des messages trop rapidement.",
+        message:
+          "Tu envoies des messages trop rapidement.",
       });
     }
 
@@ -239,11 +251,13 @@ io.on("connection", (socket) => {
       const message = await prisma.hubMessage.create({
         data: {
           content,
+          room,
           userId: numericUserId,
         },
         select: {
           id: true,
           content: true,
+          room: true,
           createdAt: true,
           user: {
             select: {
@@ -255,9 +269,6 @@ io.on("connection", (socket) => {
         },
       });
 
-      /*
-       * Envoie le message à tous les membres connectés.
-       */
       io.emit("hub-message:new", message);
 
       return reply({

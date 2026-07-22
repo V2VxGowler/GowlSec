@@ -1,10 +1,10 @@
 import express from "express";
 
 import {
-    register,
-    login,
-    logout,
-    refreshToken
+  register,
+  login,
+  logout,
+  refreshToken,
 } from "../controllers/authController.js";
 
 import { verifyEmail } from "../controllers/emailVerificationController.js";
@@ -13,66 +13,58 @@ import { forgotPassword } from "../controllers/forgotPasswordController.js";
 import { resetPassword } from "../controllers/resetPasswordController.js";
 
 import {
-    loginLimiter,
-    registerLimiter,
-    forgotPasswordLimiter
+  loginLimiter,
+  registerLimiter,
+  forgotPasswordLimiter,
 } from "../middleware/rateLimiter.js";
 
+import { verifyTurnstile } from "../middleware/turnstile.js";
 
 const router = express.Router();
 
-
 router.post(
-    "/register",
-    registerLimiter,
-    register
+  "/register",
+  registerLimiter,
+  verifyTurnstile,
+  register
 );
 
-
 router.post(
-    "/login",
-    loginLimiter,
-    login
+  "/login",
+  loginLimiter,
+  login
 );
 
-
 router.post(
-    "/logout",
-    logout
+  "/logout",
+  logout
 );
 
-
 router.post(
-    "/refresh",
-    refreshToken
+  "/refresh",
+  refreshToken
 );
 
-
-// Vérification email
 router.get(
-    "/verify-email",
-    verifyEmail
+  "/verify-email",
+  verifyEmail
 );
-
 
 router.post(
-    "/resend-verification",
-    forgotPasswordLimiter,
-    resendVerification
+  "/resend-verification",
+  forgotPasswordLimiter,
+  resendVerification
 );
-
 
 router.post(
-    "/forgot-password",
-    forgotPasswordLimiter,
-    forgotPassword
+  "/forgot-password",
+  forgotPasswordLimiter,
+  forgotPassword
 );
-
 
 router.post(
-    "/reset-password",
-    resetPassword
+  "/reset-password",
+  resetPassword
 );
-
 
 export default router;
