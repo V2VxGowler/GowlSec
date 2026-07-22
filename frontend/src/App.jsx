@@ -4116,39 +4116,123 @@ Reste concis mais suffisamment détaillé pour être utile.`,
 /* ---------------------------------------------------------------------
    Admin
 --------------------------------------------------------------------- */
-function AdminList({ title, icon, items, onDelete, accent = C.primary }) {
-  const [q, setQ] = useState("");
-  const filtered = q.trim()
-    ? items.filter((it) => `${it.primary} ${it.secondary}`.toLowerCase().includes(q.trim().toLowerCase()))
-    : items;
+function AdminList({
+  title,
+  icon,
+  items,
+  onDelete,
+}) {
+  const [deletingId, setDeletingId] = useState(null);
+
+  async function handleDelete(id) {
+    if (deletingId !== null) return;
+
+    const confirmed = window.confirm(
+      "Supprimer définitivement cet élément ?"
+    );
+
+    if (!confirmed) return;
+
+    setDeletingId(id);
+
+    try {
+      await onDelete(id);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <Panel className="p-4 mb-4">
-      <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <span style={{ color: accent }}>{icon}</span>
-        <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</span>
-        <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>({filtered.length}{filtered.length !== items.length ? `/${items.length}` : ""})</span>
-        {items.length > 4 && (
-          <div className="ml-auto relative">
-            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: C.muted }} />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrer..." className="pl-6 pr-2 py-1 rounded-md text-xs w-36" style={inputStyle} />
-          </div>
-        )}
+      <div className="flex items-center gap-2 mb-3">
+        <span style={{ color: C.primary }}>
+          {icon}
+        </span>
+
+        <span
+          className="text-sm font-semibold"
+          style={{
+            color: C.text,
+            fontFamily: DISPLAY_FONT,
+          }}
+        >
+          {title}
+        </span>
+
+        <span
+          className="text-xs"
+          style={{
+            color: C.muted,
+            fontFamily: MONO_FONT,
+          }}
+        >
+          ({items.length})
+        </span>
       </div>
+
       {items.length === 0 ? (
-        <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Rien ici.</p>
-      ) : filtered.length === 0 ? (
-        <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun résultat pour « {q} ».</p>
+        <p
+          className="text-xs"
+          style={{
+            color: C.muted,
+            fontFamily: BODY_FONT,
+          }}
+        >
+          Rien ici.
+        </p>
       ) : (
         <div className="space-y-1.5 max-h-64 overflow-y-auto">
-          {filtered.map((it) => (
-            <div key={it.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md" style={{ background: C.panel2 }}>
-              <div className="min-w-0">
-                <p className="text-xs truncate" style={{ color: C.text, fontFamily: BODY_FONT }}>{it.primary}</p>
-                <p className="text-xs truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{it.secondary}</p>
+          {items.map((item) => {
+            const deleting = deletingId === item.id;
+
+            return (
+              <div
+                key={item.id}
+                className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md"
+                style={{ background: C.panel2 }}
+              >
+                <div className="min-w-0">
+                  <p
+                    className="text-xs truncate"
+                    style={{
+                      color: C.text,
+                      fontFamily: BODY_FONT,
+                    }}
+                  >
+                    {item.primary}
+                  </p>
+
+                  <p
+                    className="text-xs"
+                    style={{
+                      color: C.muted,
+                      fontFamily: MONO_FONT,
+                    }}
+                  >
+                    {item.secondary}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleDelete(item.id)}
+                  disabled={deletingId !== null}
+                  className="shrink-0 disabled:opacity-40"
+                  style={{ color: C.alert }}
+                  aria-label="Supprimer"
+                >
+                  {deleting ? (
+                    <Loader2
+                      size={13}
+                      className="animate-spin"
+                    />
+                  ) : (
+                    <Trash2 size={13} />
+                  )}
+                </button>
               </div>
-              <button onClick={() => onDelete(it.id)} style={{ color: C.alert }} className="shrink-0"><Trash2 size={13} /></button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </Panel>
