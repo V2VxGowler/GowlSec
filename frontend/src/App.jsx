@@ -2201,9 +2201,12 @@ function ForumTab({ pseudo, questions, setQuestions, isAdmin, lang = "fr", curre
     setReplyDraft((d) => ({ ...d, [qid]: "" }));
   }
   async function removeQuestion(qid) {
-    const next = questions.filter((q) => q.id !== qid);
-    setQuestions(next);
-    saveCollection("gowlsec:questions", next);
+    try {
+      await communityRequest(`/questions/${qid}`, { method: "DELETE" });
+      setQuestions((current) => current.filter((q) => q.id !== qid));
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
 
   return (
@@ -2534,22 +2537,17 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
   async function deleteRoom() {
     if (!isOwner) return;
     const targetRoom = rooms.find((r) => r.key === room) || rooms[0] || DEFAULT_ROOMS[0];
-    const nextRooms = rooms.filter((r) => r.key !== targetRoom.key);
-    if (nextRooms.length === 0) {
-      setRooms(DEFAULT_ROOMS.map((r) => ({ ...r, owner: r.owner || "system", bannedUsers: [] })));
-      saveCollection("gowlsec:rooms", DEFAULT_ROOMS.map((r) => ({ ...r, owner: r.owner || "system", bannedUsers: [] })));
-      setRoom("general");
-      setMessages(messages.filter((m) => m.room !== targetRoom.key));
-      saveCollection("gowlsec:chat", messages.filter((m) => m.room !== targetRoom.key));
-      setRoomActionFeedback("Le salon a été supprimé.");
-      return;
+    if (!targetRoom.id) return;
+    try {
+      await communityRequest(`/rooms/${targetRoom.id}`, { method: "DELETE" });
+      const nextRooms = rooms.filter((r) => r.id !== targetRoom.id);
+      setRooms(nextRooms);
+      setMessages((current) => current.filter((m) => m.room !== targetRoom.key));
+      setRoom(nextRooms[0]?.key || "general");
+      setRoomActionFeedback(`Le salon "${targetRoom.label}" a été supprimé.`);
+    } catch (error) {
+      setRoomActionFeedback(error.message);
     }
-    setRooms(nextRooms);
-    saveCollection("gowlsec:rooms", nextRooms);
-    setMessages(messages.filter((m) => m.room !== targetRoom.key));
-    saveCollection("gowlsec:chat", messages.filter((m) => m.room !== targetRoom.key));
-    setRoom(nextRooms[0].key);
-    setRoomActionFeedback(`Le salon "${targetRoom.label}" a été supprimé.`);
   }
 
   return (
@@ -2806,13 +2804,14 @@ function TeamsTab({ pseudo, teams, setTeams, announcements, setAnnouncements, is
     await saveCollection("gowlsec:teams", next);
   }
   async function removeTeam(teamId) {
-    const next = teams.filter((t) => t.id !== teamId);
-    setTeams(next);
-    await saveCollection("gowlsec:teams", next);
-    const nextAnn = announcements.filter((a) => a.teamId !== teamId);
-    setAnnouncements(nextAnn);
-    await saveCollection("gowlsec:team_announcements", nextAnn);
-    setSelectedId(null);
+    try {
+      await communityRequest(`/teams/${teamId}`, { method: "DELETE" });
+      setTeams((current) => current.filter((t) => t.id !== teamId));
+      setAnnouncements((current) => current.filter((a) => a.teamId !== teamId));
+      setSelectedId(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function postAnnouncement(teamId) {
     if (!currentUser) return;
@@ -3082,18 +3081,14 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
     await saveCollection("gowlsec:labs", next);
   }
   async function removeLab(labId) {
-    const next = labs.filter((l) => l.id !== labId);
-    setLabs(next);
-    await saveCollection("gowlsec:labs", next);
-    const nextMsgs = labMessages.filter((m) => m.labId !== labId);
-    setLabMessages(nextMsgs);
-    await saveCollection("gowlsec:lab_messages", nextMsgs);
-    setSelectedId(null);
-  }
-  async function toggleLabFinished(labId) {
-    const next = labs.map((l) => l.id === labId ? { ...l, finished: !l.finished } : l);
-    setLabs(next);
-    await saveCollection("gowlsec:labs", next);
+    try {
+      await communityRequest(`/labs/${labId}`, { method: "DELETE" });
+      setLabs((current) => current.filter((l) => l.id !== labId));
+      setLabMessages((current) => current.filter((m) => m.labId !== labId));
+      setSelectedId(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function sendLabMessage(labId) {
     if (!currentUser) return;
@@ -3131,7 +3126,6 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
                 <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{selected.title}</h2>
                 <Chip label={isPrivate ? "Privé" : "Public"} color={isPrivate ? C.warn : C.ok} />
                 <Chip label={plat.label} color={C.primary} />
-                {selected.finished && <Chip label="Terminé" color={C.ok} />}
               </div>
               <p className="text-sm mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{selected.description || "Aucune description."}</p>
               <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -3154,11 +3148,6 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
                 </div>
               ) : (
                 <PrimaryButton onClick={() => joinLab(selected)}><Plus size={14} /> Rejoindre</PrimaryButton>
-              )}
-              {(isAdmin || selected.owner === pseudo) && (
-                <button onClick={() => toggleLabFinished(selected.id)} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: selected.finished ? `${C.ok}22` : "transparent", border: `1px solid ${selected.finished ? C.ok : C.line}`, color: selected.finished ? C.ok : C.muted, fontFamily: MONO_FONT }}>
-                  {selected.finished ? <span className="inline-flex items-center gap-1"><CheckCircle2 size={12} /> Terminé</span> : "Marquer terminé"}
-                </button>
               )}
               {(isAdmin || selected.owner === pseudo) && <GhostButton danger onClick={() => removeLab(selected.id)}><Trash2 size={12} /> Supprimer</GhostButton>}
             </div>
@@ -3280,9 +3269,6 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
               return (
                 <Panel key={l.id} className="p-4 pt-5 cursor-pointer gowl-hud-card gowl-glass relative overflow-hidden" style={{ "--gowl-accent": C.alert }} onClick={() => setSelectedId(l.id)}>
                   <div aria-hidden className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${C.alert}, transparent)` }} />
-                  {l.finished && (
-                    <span className="gowl-qcard-resolved"><CheckCircle2 size={11} /> Terminé</span>
-                  )}
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-md flex items-center justify-center shrink-0" style={{ background: `${C.alert}1A`, border: `1px solid ${C.alert}44`, color: C.alert }}><Bug size={18} /></div>
                     <div className="min-w-0 flex-1">
@@ -3310,7 +3296,6 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
         <InfoSidebar>
           <StatCardsRow vertical items={[
             { icon: <Bug size={13} />, label: "Salons ouverts", value: labs.length, accent: C.alert },
-            { icon: <CheckCircle2 size={13} />, label: "Labs terminés", value: labs.filter((l) => l.finished).length, accent: C.ok },
             { icon: <Users size={13} />, label: "Hackers connectés", value: labs.reduce((s, l) => s + l.members.length, 0), accent: C.primary },
             { icon: <Unlock size={13} />, label: "Places libres", value: labs.reduce((s, l) => s + Math.max(0, (l.maxMembers || LAB_MAX_MEMBERS) - l.members.length), 0), accent: C.ok },
           ]} />
@@ -3555,9 +3540,12 @@ function TrophyTab({ pseudo, trophies, setTrophies, isAdmin, currentUser = null 
     }
   }
   async function removeTrophy(id) {
-    const next = trophies.filter((t) => t.id !== id);
-    setTrophies(next);
-    saveCollection("gowlsec:trophies", next);
+    try {
+      await communityRequest(`/trophies/${id}`, { method: "DELETE" });
+      setTrophies((current) => current.filter((t) => t.id !== id));
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   const filtered = trophies;
 
@@ -3994,20 +3982,18 @@ function AdminTab({
       <AdminList title="Événements" icon={<Calendar size={14} />} items={events.map((e) => ({ id: e.id, primary: e.title, secondary: `${e.author} · ${new Date(e.date).toLocaleDateString("fr-FR")}` }))}
         onDelete={(id) => { const next = events.filter((e) => e.id !== id); setEvents(next); saveCollection("gowlsec:events", next); }} />
       <AdminList title="Questions" icon={<Flag size={14} />} items={questions.map((q) => ({ id: q.id, primary: q.title, secondary: `${q.author} · ${timeAgo(q.createdAt)}` }))}
-        onDelete={(id) => { const next = questions.filter((q) => q.id !== id); setQuestions(next); saveCollection("gowlsec:questions", next); }} />
+        onDelete={async (id) => { try { await communityRequest(`/questions/${id}`, { method: "DELETE" }); setQuestions((current) => current.filter((q) => q.id !== id)); } catch (error) { window.alert(error.message); } }} />
       <AdminList title="Messages des salons" icon={<MessageSquare size={14} />} items={messages.map((m) => ({ id: m.id, primary: m.text, secondary: `#${m.room || "general"} · ${m.author}` }))}
         onDelete={(id) => { const next = messages.filter((m) => m.id !== id); setMessages(next); saveCollection("gowlsec:chat", next); }} />
       <AdminList title="Trophées" icon={<Trophy size={14} />} items={trophies.map((t) => ({ id: t.id, primary: `${t.platform} — ${t.title}`, secondary: `${t.author} · ${timeAgo(t.createdAt)}` }))}
-        onDelete={(id) => { const next = trophies.filter((t) => t.id !== id); setTrophies(next); saveCollection("gowlsec:trophies", next); }} />
+        onDelete={async (id) => { try { await communityRequest(`/trophies/${id}`, { method: "DELETE" }); setTrophies((current) => current.filter((t) => t.id !== id)); } catch (error) { window.alert(error.message); } }} />
       <AdminList title="Team" icon={<Users size={14} />} items={teams.map((t) => ({ id: t.id, primary: `${t.name} (${t.visibility === "private" ? "privée" : "publique"})`, secondary: `${t.members.length}/${t.maxMembers || TEAM_MAX_MEMBERS} membre(s) · capitaine ${t.owner}` }))}
-        onDelete={(id) => {
-          const next = teams.filter((t) => t.id !== id); setTeams(next); saveCollection("gowlsec:teams", next);
-          const na = teamAnnouncements.filter((a) => a.teamId !== id); setTeamAnnouncements(na); saveCollection("gowlsec:team_announcements", na);
+        onDelete={async (id) => {
+          try { await communityRequest(`/teams/${id}`, { method: "DELETE" }); setTeams((current) => current.filter((t) => t.id !== id)); setTeamAnnouncements((current) => current.filter((a) => a.teamId !== id)); } catch (error) { window.alert(error.message); }
         }} />
       <AdminList title="Salons labs" icon={<Bug size={14} />} items={labs.map((l) => ({ id: l.id, primary: `${l.title} (${l.visibility === "private" ? "privé" : "public"})`, secondary: `${l.members.length}/${l.maxMembers || LAB_MAX_MEMBERS} membre(s) · ${l.owner}` }))}
-        onDelete={(id) => {
-          const next = labs.filter((l) => l.id !== id); setLabs(next); saveCollection("gowlsec:labs", next);
-          const nm = labMessages.filter((m) => m.labId !== id); setLabMessages(nm); saveCollection("gowlsec:lab_messages", nm);
+        onDelete={async (id) => {
+          try { await communityRequest(`/labs/${id}`, { method: "DELETE" }); setLabs((current) => current.filter((l) => l.id !== id)); setLabMessages((current) => current.filter((m) => m.labId !== id)); } catch (error) { window.alert(error.message); }
         }} />
       <AdminList title="Commandes boutique" icon={<ShoppingCart size={14} />} items={orders.map((o) => ({ id: o.id, primary: `${o.items.join(", ")} — ${o.total}€`, secondary: `${o.buyer} · ${o.email} · ${timeAgo(o.createdAt)}` }))}
         onDelete={(id) => { const next = orders.filter((o) => o.id !== id); setOrders(next); saveCollection("gowlsec:orders", next); }} />
@@ -4411,10 +4397,13 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
       window.alert(error.message);
     }
   }
-  function remove(id) {
-    const next = writeups.filter((w) => w.id !== id);
-    setWriteups(next);
-    saveCollection("gowlsec:writeups", next);
+  async function remove(id) {
+    try {
+      await communityRequest(`/writeups/${id}`, { method: "DELETE" });
+      setWriteups((current) => current.filter((w) => w.id !== id));
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
 
   return (
