@@ -669,3 +669,154 @@ export async function createTrophy(req, res) {
     return handleError(error, res);
   }
 }
+
+async function deleteOwnedResource(
+  req,
+  res,
+  modelName,
+  ownerField
+) {
+  try {
+    const userId = getUserId(req);
+    const id = Number(req.params.id);
+
+    if (!userId || !Number.isInteger(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Identifiant invalide.",
+      });
+    }
+
+    const resource = await prisma[modelName].findUnique({
+      where: { id },
+    });
+
+    if (!resource) {
+      return res.status(404).json({
+        success: false,
+        message: "Élément introuvable.",
+      });
+    }
+
+    const isOwner = resource[ownerField] === userId;
+    const isAdmin = req.user?.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Tu n’as pas la permission de supprimer cet élément.",
+      });
+    }
+
+    await prisma[modelName].delete({
+      where: { id },
+    });
+
+    return res.json({
+      success: true,
+      message: "Élément supprimé.",
+    });
+  } catch (error) {
+    return handleError(error, res);
+  }
+}
+
+export function deleteQuestion(req, res) {
+  return deleteOwnedResource(
+    req,
+    res,
+    "question",
+    "authorId"
+  );
+}
+
+export function deleteTeam(req, res) {
+  return deleteOwnedResource(
+    req,
+    res,
+    "team",
+    "ownerId"
+  );
+}
+
+export function deleteLab(req, res) {
+  return deleteOwnedResource(
+    req,
+    res,
+    "lab",
+    "ownerId"
+  );
+}
+
+export function deleteWriteup(req, res) {
+  return deleteOwnedResource(
+    req,
+    res,
+    "writeup",
+    "authorId"
+  );
+}
+
+export function deleteTrophy(req, res) {
+  return deleteOwnedResource(
+    req,
+    res,
+    "trophy",
+    "authorId"
+  );
+}
+
+export async function deleteRoom(req, res) {
+  try {
+    const userId = getUserId(req);
+    const id = Number(req.params.id);
+
+    if (!userId || !Number.isInteger(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Identifiant invalide.",
+      });
+    }
+
+    const room = await prisma.hubRoom.findUnique({
+      where: { id },
+    });
+
+    if (!room) {
+      return res.status(404).json({
+        success: false,
+        message: "Salon introuvable.",
+      });
+    }
+
+    const isOwner = room.ownerId === userId;
+    const isAdmin = req.user?.role === "admin";
+
+    if (!isOwner && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Tu n’as pas la permission de supprimer ce salon.",
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.hubMessage.deleteMany({
+        where: {
+          room: room.key,
+        },
+      }),
+      prisma.hubRoom.delete({
+        where: { id },
+      }),
+    ]);
+
+    return res.json({
+      success: true,
+      message: "Salon supprimé.",
+    });
+  } catch (error) {
+    return handleError(error, res);
+  }
+}
