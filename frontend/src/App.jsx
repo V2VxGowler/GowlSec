@@ -9,7 +9,7 @@ import {
   Rabbit, Cpu, Flame, Bird, Hash, Megaphone, User as UserIcon, Pencil,
   ShoppingCart, CreditCard, Users, Clock, Wifi, Circle,
   MessageCircle, Globe, KeyRound, Zap, TrendingUp, Radio,
-  Crown, Search, Calendar, Compass, FileText, MapPin, Terminal, Smile, Camera,
+  Crown, Search, Calendar, Compass, FileText, MapPin, Terminal, Smile, Camera, Pipette,
 } from "lucide-react";
 
 
@@ -2008,6 +2008,8 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
     formData.append("avatarKey", avatarKey || "bird");
     formData.append("bannerKey", banner || "indigo");
     formData.append("bannerColor", bannerColor.trim());
+    formData.append("removeAvatar", String(!avatarFile && !avatarImage));
+    formData.append("removeBanner", String(!bannerFile && !bannerImage));
     if (avatarFile) formData.append("avatar", avatarFile);
     if (bannerFile) formData.append("banner", bannerFile);
 
@@ -2089,28 +2091,54 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
       />
 
       <Panel className="overflow-hidden mb-4 gowl-profile-card" style={{ border: `1px solid ${levelInfo.level.color}3D`, background: "rgba(8,10,14,0.6)", backdropFilter: "blur(2px)" }}>
-        <button
-          type="button"
-          onClick={() => openProfileImagePicker("banner")}
-          className="group block h-24 sm:h-32 w-full relative overflow-hidden text-left gowl-profile-banner-picker"
-          style={{ background: "transparent" }}
-          aria-label="Modifier la bannière"
-        >
-          <div className="absolute inset-0" style={{ background: bannerCss }} />
-          <span aria-hidden className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${levelInfo.level.color}33, transparent 70%)`, filter: "blur(6px)" }} />
-          <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff1c 1px, transparent 1px)", backgroundSize: "18px 18px", opacity: 0.3, maskImage: "linear-gradient(180deg, black, transparent 88%)" }} />
-          <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(180deg, transparent 30%, rgba(8,10,14,0.6) 100%)` }} />
-          <span className="gowl-profile-banner-overlay absolute inset-0 flex items-center justify-center">
-            <span className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: "#fff", background: "rgba(5,10,16,0.78)", border: "1px solid rgba(255,255,255,0.2)", fontFamily: BODY_FONT, backdropFilter: "blur(8px)" }}>
-              <Camera size={14} /> Modifier la bannière
+        <div className="relative h-24 sm:h-32 w-full overflow-hidden">
+          <button
+            type="button"
+            onClick={() => openProfileImagePicker("banner")}
+            className="group block h-full w-full relative overflow-hidden text-left gowl-profile-banner-picker"
+            style={{ background: "transparent" }}
+            aria-label="Modifier la bannière"
+          >
+            <div className="absolute inset-0" style={{ background: bannerCss }} />
+            <span aria-hidden className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${levelInfo.level.color}33, transparent 70%)`, filter: "blur(6px)" }} />
+            <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff1c 1px, transparent 1px)", backgroundSize: "18px 18px", opacity: 0.3, maskImage: "linear-gradient(180deg, black, transparent 88%)" }} />
+            <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(180deg, transparent 30%, rgba(8,10,14,0.6) 100%)` }} />
+            <span className="gowl-profile-banner-overlay absolute inset-0 flex items-center justify-center">
+              <span className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: "#fff", background: "rgba(5,10,16,0.78)", border: "1px solid rgba(255,255,255,0.2)", fontFamily: BODY_FONT, backdropFilter: "blur(8px)" }}>
+                <Camera size={14} /> Modifier la bannière
+              </span>
             </span>
-          </span>
-          {isAdminProfile(currentUser) && (
-            <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase gowl-mono-tag" style={{ background: `${C.bg}B0`, color: C.gold, border: `1px solid ${C.gold}55` }}>
-              <Shield size={11} /> Admin
-            </span>
-          )}
-        </button>
+            {isAdminProfile(currentUser) && (
+              <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase gowl-mono-tag" style={{ background: `${C.bg}B0`, color: C.gold, border: `1px solid ${C.gold}55` }}>
+                <Shield size={11} /> Admin
+              </span>
+            )}
+          </button>
+
+          <label
+            className="group absolute z-20 bottom-2 right-2 inline-flex items-center gap-2 rounded-lg px-2.5 py-2 cursor-pointer overflow-hidden"
+            style={{ color: "#fff", background: "rgba(5,10,16,0.82)", border: "1px solid rgba(255,255,255,0.2)", fontFamily: BODY_FONT, backdropFilter: "blur(8px)" }}
+            title="Changer la couleur de la bannière"
+          >
+            <Pipette size={13} aria-hidden />
+            <span className="hidden sm:inline text-[11px] font-semibold">Couleur</span>
+            <span className="w-4 h-4 rounded-md shrink-0" style={{ background: bannerColor || "#5B6EF5", border: "1px solid rgba(255,255,255,0.35)" }} />
+            <input
+              type="color"
+              value={bannerColor || "#5B6EF5"}
+              onChange={(event) => {
+                setEditing(true);
+                setBannerColor(event.target.value);
+                setBannerImage("");
+                setBannerFile(null);
+                setBannerImgWarn("");
+                setSaveStatus({ type: "idle", message: "" });
+              }}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              aria-label="Choisir la couleur de la bannière"
+            />
+          </label>
+        </div>
 
         <div className="px-4 sm:px-5 pb-4">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 -mt-8">
@@ -2118,7 +2146,8 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
               <button
                 type="button"
                 onClick={() => openProfileImagePicker("avatar")}
-                className="group relative shrink-0 rounded-full gowl-profile-avatar-picker"
+                className="group relative shrink-0 rounded-full flex items-center justify-center gowl-profile-avatar-picker"
+                style={{ width: 64, height: 64, padding: 0, border: 0, background: "transparent", lineHeight: 1 }}
                 aria-label="Modifier la photo de profil"
               >
                 <div className="rounded-full p-[2px]" style={{ background: `conic-gradient(${levelInfo.level.color} ${levelInfo.pct * 3.6}deg, ${C.line} 0deg)`, boxShadow: `0 6px 16px -8px ${levelInfo.level.color}CC` }}>
@@ -2126,7 +2155,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
                     <Avatar profile={{ avatarKey, avatarImage }} size={56} />
                   </div>
                 </div>
-                <span className="gowl-profile-avatar-overlay absolute inset-[4px] rounded-full flex flex-col items-center justify-center" style={{ color: "#fff", background: "rgba(5,10,16,0.78)" }}>
+                <span className="gowl-profile-avatar-overlay absolute inset-[4px] rounded-full flex flex-col items-center justify-center text-center pointer-events-none" style={{ color: "#fff", background: "rgba(5,10,16,0.78)", lineHeight: 1 }}>
                   <Camera size={14} />
                   <span className="text-[8px] font-bold uppercase mt-0.5" style={{ fontFamily: MONO_FONT }}>Modifier</span>
                 </span>
@@ -2274,77 +2303,12 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
               />
             </section>
 
-            <section>
-              <div className="mb-3">
-                <h4 className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.text, fontFamily: MONO_FONT }}>Identité visuelle</h4>
-                <p className="text-[11px] mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>Clique sur un aperçu pour choisir une image PNG, JPG ou WebP de 5 Mo maximum.</p>
+            {(avatarImgWarn || bannerImgWarn) && (
+              <div className="rounded-lg px-3 py-2 flex items-start gap-2" style={{ color: C.alert, background: `${C.alert}0F`, border: `1px solid ${C.alert}33` }}>
+                <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                <p className="text-[11px]" style={{ fontFamily: BODY_FONT }}>{avatarImgWarn || bannerImgWarn}</p>
               </div>
-              <div className="grid sm:grid-cols-2 gap-3">
-                <button type="button" onClick={() => openProfileImagePicker("avatar")} className="group rounded-xl p-3 text-left gowl-profile-upload-card" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${avatarImgWarn ? C.alert : C.line}` }}>
-                  <span className="flex items-center justify-between gap-2 mb-3">
-                    <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>Photo de profil</span>
-                    <Camera size={14} style={{ color: C.primary }} />
-                  </span>
-                  <span className="flex items-center gap-3">
-                    <span className="rounded-full overflow-hidden shrink-0" style={{ border: `2px solid ${C.primary}66` }}><Avatar profile={{ avatarKey, avatarImage }} size={54} /></span>
-                    <span className="min-w-0">
-                      <span className="block text-xs font-semibold" style={{ color: C.primary, fontFamily: BODY_FONT }}>Choisir un fichier</span>
-                      <span className="block text-[10px] mt-1 truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{avatarFile?.name || "Aucun nouveau fichier"}</span>
-                    </span>
-                  </span>
-                </button>
-
-                <button type="button" onClick={() => openProfileImagePicker("banner")} className="group rounded-xl p-3 text-left gowl-profile-upload-card" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${bannerImgWarn ? C.alert : C.line}` }}>
-                  <span className="flex items-center justify-between gap-2 mb-3">
-                    <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>Bannière</span>
-                    <Camera size={14} style={{ color: C.ok }} />
-                  </span>
-                  <span className="block h-[54px] rounded-lg overflow-hidden relative" style={{ background: bannerCss, border: `1px solid ${C.line}` }}>
-                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "#fff", background: "rgba(5,10,16,0.68)", fontFamily: BODY_FONT }}>Choisir un fichier</span>
-                  </span>
-                  <span className="block text-[10px] mt-2 truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{bannerFile?.name || "Aucun nouveau fichier"}</span>
-                </button>
-              </div>
-              {(avatarImgWarn || bannerImgWarn) && (
-                <div className="mt-3 rounded-lg px-3 py-2 flex items-start gap-2" style={{ color: C.alert, background: `${C.alert}0F`, border: `1px solid ${C.alert}33` }}>
-                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
-                  <p className="text-[11px]" style={{ fontFamily: BODY_FONT }}>{avatarImgWarn || bannerImgWarn}</p>
-                </div>
-              )}
-
-              <div className="grid sm:grid-cols-[1fr_auto] gap-3 mt-3 items-start">
-                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${C.line}` }}>
-                  <p className="text-[10px] uppercase tracking-wider mb-2.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>Avatars GowlSec</p>
-                  <div className="flex flex-wrap gap-2">
-                    {AVATAR_OPTIONS.map((avatarOption) => {
-                      const AvatarIcon = avatarOption.icon;
-                      const active = avatarKey === avatarOption.key && !avatarImage;
-                      return (
-                        <button
-                          type="button"
-                          key={avatarOption.key}
-                          onClick={() => { setAvatarKey(avatarOption.key); setAvatarImage(""); setAvatarFile(null); setAvatarImgWarn(""); }}
-                          className="relative w-9 h-9 rounded-full flex items-center justify-center gowl-avatar-swatch"
-                          style={{ background: avatarOption.color, outline: active ? `2px solid ${C.ok}` : "none", outlineOffset: 2 }}
-                          title="Utiliser cet avatar"
-                        >
-                          <AvatarIcon size={16} color="#fff" />
-                          {active && <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: C.ok, border: `2px solid ${C.panel}` }}><CheckCircle2 size={9} color="#fff" /></span>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <label className="rounded-xl p-3 cursor-pointer min-w-[132px]" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${C.line}` }}>
-                  <span className="block text-[10px] uppercase tracking-wider mb-2" style={{ color: C.muted, fontFamily: MONO_FONT }}>Couleur bannière</span>
-                  <span className="flex items-center gap-2">
-                    <span className="w-8 h-8 rounded-lg" style={{ background: bannerColor || "#5B6EF5", border: "1px solid rgba(255,255,255,0.18)" }} />
-                    <span className="text-xs" style={{ color: C.text, fontFamily: MONO_FONT }}>{bannerColor || "#5B6EF5"}</span>
-                  </span>
-                  <input type="color" value={bannerColor || "#5B6EF5"} onChange={(event) => { setBannerColor(event.target.value); setBannerImage(""); setBannerFile(null); setBannerImgWarn(""); }} className="sr-only" />
-                </label>
-              </div>
-            </section>
+            )}
 
             <section>
               <div className="mb-3">
