@@ -7754,9 +7754,16 @@ function ForumTab({
     setReplyDraft((d) => ({ ...d, [qid]: "" }));
   }
   async function removeQuestion(qid) {
-    const next = questions.filter((q) => q.id !== qid);
-    setQuestions(next);
-    saveCollection("gowlsec:questions", next);
+    try {
+      await communityRequest(`/questions/${qid}`, { method: "DELETE" });
+      const next = questions.filter((q) => q.id !== qid);
+      setQuestions(next);
+      saveCollection("gowlsec:questions", next);
+      setQuestionFeedback("Question supprimée définitivement.");
+      if (openId === qid) setOpenId(null);
+    } catch (error) {
+      setQuestionFeedback(error.message);
+    }
   }
 
   return (
@@ -9511,13 +9518,18 @@ function TeamsTab({
     await saveCollection("gowlsec:teams", next);
   }
   async function removeTeam(teamId) {
-    const next = teams.filter((t) => t.id !== teamId);
-    setTeams(next);
-    await saveCollection("gowlsec:teams", next);
-    const nextAnn = announcements.filter((a) => a.teamId !== teamId);
-    setAnnouncements(nextAnn);
-    await saveCollection("gowlsec:team_announcements", nextAnn);
-    setSelectedId(null);
+    try {
+      await communityRequest(`/teams/${teamId}`, { method: "DELETE" });
+      const next = teams.filter((t) => t.id !== teamId);
+      setTeams(next);
+      await saveCollection("gowlsec:teams", next);
+      const nextAnn = announcements.filter((a) => a.teamId !== teamId);
+      setAnnouncements(nextAnn);
+      await saveCollection("gowlsec:team_announcements", nextAnn);
+      setSelectedId(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function postAnnouncement(teamId) {
     if (!currentUser) return;
@@ -10124,13 +10136,18 @@ function LabsTab({
     await saveCollection("gowlsec:labs", next);
   }
   async function removeLab(labId) {
-    const next = labs.filter((l) => l.id !== labId);
-    setLabs(next);
-    await saveCollection("gowlsec:labs", next);
-    const nextMsgs = labMessages.filter((m) => m.labId !== labId);
-    setLabMessages(nextMsgs);
-    await saveCollection("gowlsec:lab_messages", nextMsgs);
-    setSelectedId(null);
+    try {
+      await communityRequest(`/labs/${labId}`, { method: "DELETE" });
+      const next = labs.filter((l) => l.id !== labId);
+      setLabs(next);
+      await saveCollection("gowlsec:labs", next);
+      const nextMsgs = labMessages.filter((m) => m.labId !== labId);
+      setLabMessages(nextMsgs);
+      await saveCollection("gowlsec:lab_messages", nextMsgs);
+      setSelectedId(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function toggleLabFinished(labId) {
     const next = labs.map((l) =>
@@ -10777,8 +10794,16 @@ function LeaderboardTab({
   profiles,
   currentUser = null,
 }) {
-  const rows = useMemo(() => {
+  const [period, setPeriod] = useState("all");
+  const [search, setSearch] = useState("");
+  const rankedRows = useMemo(() => {
     const scores = {};
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+    const isIncluded = (date) =>
+      period === "all" ||
+      (date && new Date(date).getTime() >= monthStart.getTime());
     function add(author, points, kind) {
       if (!author) return;
       if (!scores[author])
@@ -10786,31 +10811,72 @@ function LeaderboardTab({
       scores[author].total += points;
       scores[author][kind] += points;
     }
+    profiles.forEach((profile) => {
+      if (!profile.username) return;
+      scores[profile.username] = {
+        author: profile.username,
+        total: 0,
+        trophies: 0,
+        forum: 0,
+        labs: 0,
+      };
+    });
     trophies.forEach((t) => {
-      if (!currentUser || (t.author || "") !== currentUser.username)
+      if (isIncluded(t.createdAt))
         add(t.author, TROPHY_POINTS[t.difficulty] || 10, "trophies");
     });
     questions.forEach((q) => {
-      add(q.author, 2, "forum");
-      (q.answers || []).forEach((a) => add(a.author, 3, "forum"));
+      if (isIncluded(q.createdAt)) add(q.author, 2, "forum");
+      (q.answers || []).forEach((a) => {
+        if (isIncluded(a.createdAt)) add(a.author, 3, "forum");
+      });
     });
     labs.forEach((l) => {
-      if (!currentUser || (l.owner || "") !== currentUser.username)
-        add(l.owner, 5, "labs");
+      if (isIncluded(l.createdAt)) add(l.owner, 5, "labs");
     });
-    return Object.values(scores).sort((a, b) => b.total - a.total);
-  }, [questions, trophies, labs]);
+    if (period === "all") {
+      profiles.forEach((profile) => {
+        const row = scores[profile.username];
+        if (row && Number(profile.points || 0) > row.total)
+          row.total = Number(profile.points);
+      });
+    }
+    return Object.values(scores)
+      .filter((row) => row.total > 0)
+      .sort(
+        (a, b) =>
+          b.total - a.total ||
+          b.trophies - a.trophies ||
+          b.forum - a.forum ||
+          a.author.localeCompare(b.author),
+      );
+  }, [questions, trophies, labs, profiles, period]);
 
-  const podium = rows.slice(0, 3);
-  const rest = rows.slice(3);
+  const rows = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return rankedRows;
+    return rankedRows.filter((row) =>
+      row.author.toLowerCase().includes(query),
+    );
+  }, [rankedRows, search]);
+
+  const podium = search.trim() ? [] : rows.slice(0, 3);
+  const rest = search.trim() ? rows : rows.slice(3);
   const podiumOrder = podium.length === 3 ? [1, 0, 2] : podium.map((_, i) => i);
   const podiumStyle = [
     { h: 148, color: C.gold, label: "1ER", size: 64 },
     { h: 112, color: "#C7CCD6", label: "2E", size: 50 },
     { h: 90, color: "#D48A4C", label: "3E", size: 46 },
   ];
-  const totalCommunityPoints = rows.reduce((s, r) => s + r.total, 0);
-  const maxTotal = rows[0]?.total || 1;
+  const totalCommunityPoints = rankedRows.reduce((s, r) => s + r.total, 0);
+  const maxTotal = rankedRows[0]?.total || 1;
+  const currentUserRank = currentUser
+    ? rankedRows.findIndex((row) => row.author === currentUser.username) + 1
+    : 0;
+  const currentUserRow = currentUserRank
+    ? rankedRows[currentUserRank - 1]
+    : null;
+  const currentUserLevel = getLevelInfo(currentUserRow?.total || 0);
 
   function Breakdown({ r, height = 5 }) {
     const parts = [
@@ -10845,14 +10911,117 @@ function LeaderboardTab({
               eyebrow="Live ranking"
               title="Classement"
               accent={C.gold}
-              subtitle="Points cumulés : trophées (10 à 50 pts), participation au forum (2 à 3 pts), salons labs créés (5 pts)."
+              subtitle="Compare ta progression, découvre les membres les plus actifs et suis ton prochain niveau."
             />
           </div>
+          <Panel
+            className="p-3 mb-4"
+            style={{
+              background: `linear-gradient(135deg, ${C.gold}0D, ${C.panel})`,
+              borderColor: `${C.gold}30`,
+            }}
+          >
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                {[
+                  { key: "all", label: "Classement général" },
+                  { key: "month", label: "Ce mois" },
+                ].map((item) => (
+                  <button
+                    type="button"
+                    key={item.key}
+                    onClick={() => setPeriod(item.key)}
+                    className="px-3 py-2 rounded-lg text-[11px] font-bold transition-colors"
+                    style={{
+                      color: period === item.key ? C.bg : C.muted,
+                      background: period === item.key ? C.gold : C.panel2,
+                      border: `1px solid ${period === item.key ? C.gold : C.line}`,
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+              <div className="relative flex-1 sm:max-w-xs sm:ml-auto">
+                <Search
+                  size={14}
+                  className="absolute left-3 top-1/2 -translate-y-1/2"
+                  style={{ color: C.muted }}
+                />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Rechercher un membre"
+                  className="w-full h-9 pl-9 pr-3 rounded-lg text-xs"
+                  style={{ ...inputStyle, background: C.panel2 }}
+                />
+              </div>
+            </div>
+          </Panel>
+          {currentUser && (
+            <Panel
+              className="p-4 mb-5 overflow-hidden relative"
+              style={{
+                background: `linear-gradient(115deg, ${currentUserLevel.level.color}18, ${C.panel} 58%)`,
+                borderColor: `${currentUserLevel.level.color}45`,
+              }}
+            >
+              <div className="relative flex items-center gap-3">
+                <Avatar
+                  profile={{ ...currentUser, points: currentUserRow?.total || 0 }}
+                  size={46}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold" style={{ color: C.text }}>
+                      Ton classement
+                    </p>
+                    <Chip
+                      label={currentUserLevel.level.label}
+                      color={currentUserLevel.level.color}
+                    />
+                  </div>
+                  <p className="text-[11px] mt-1" style={{ color: C.muted }}>
+                    {currentUserRank
+                      ? `Tu es #${currentUserRank} avec ${currentUserRow.total} points.`
+                      : "Effectue une première action pour entrer au classement."}
+                    {currentUserLevel.next && currentUserRow
+                      ? ` Encore ${currentUserLevel.pointsToNext} points avant ${currentUserLevel.next.label}.`
+                      : ""}
+                  </p>
+                  <div
+                    className="h-1.5 rounded-full overflow-hidden mt-2 max-w-md"
+                    style={{ background: C.panel2 }}
+                  >
+                    <div
+                      className="h-full rounded-full gowl-bar-fill"
+                      style={{
+                        width: `${currentUserLevel.pct}%`,
+                        background: `linear-gradient(90deg, ${currentUserLevel.level.color}, ${C.gold})`,
+                      }}
+                    />
+                  </div>
+                </div>
+                <span
+                  className="text-2xl font-black shrink-0"
+                  style={{ color: C.gold, fontFamily: DISPLAY_FONT }}
+                >
+                  {currentUserRank ? `#${currentUserRank}` : "—"}
+                </span>
+              </div>
+            </Panel>
+          )}
           {rows.length === 0 ? (
             <EmptyState
               icon={<Trophy size={20} />}
               accent={C.gold}
-              text="Personne au classement pour l'instant. Ajoute un trophée, pose une question ou ouvre un salon lab pour décrocher la première place !"
+              text={
+                search.trim()
+                  ? "Aucun membre ne correspond à cette recherche."
+                  : period === "month"
+                    ? "Aucun point gagné ce mois-ci pour le moment."
+                    : "Personne au classement pour l'instant. Ajoute un trophée, pose une question ou ouvre un salon lab pour décrocher la première place !"
+              }
             />
           ) : (
             <>
@@ -10909,19 +11078,14 @@ function LeaderboardTab({
                             className="gowl-rank-ring"
                             style={{ "--gowl-accent": ps.color }}
                           >
-                            {profile ? (
-                              <Avatar profile={profile} size={ps.size} />
-                            ) : (
-                              <div
-                                className="rounded-full shrink-0"
-                                style={{
-                                  width: ps.size,
-                                  height: ps.size,
-                                  background: C.panel2,
-                                  border: `1px solid ${C.line}`,
-                                }}
-                              />
-                            )}
+                            <Avatar
+                              profile={{
+                                ...(profile || {}),
+                                username: r.author,
+                                points: r.total,
+                              }}
+                              size={ps.size}
+                            />
                           </span>
                           <p
                             className="text-xs font-bold mt-2.5 truncate max-w-full"
@@ -10944,6 +11108,15 @@ function LeaderboardTab({
                               pts
                             </span>
                           </p>
+                          <span
+                            className="text-[9px] font-bold uppercase"
+                            style={{
+                              color: getLevelInfo(r.total).level.color,
+                              fontFamily: MONO_FONT,
+                            }}
+                          >
+                            {getLevelInfo(r.total).level.label}
+                          </span>
                           <div className="w-16 mt-1.5 mb-1">
                             <Breakdown r={r} height={4} />
                           </div>
@@ -10983,9 +11156,11 @@ function LeaderboardTab({
                 </Panel>
               )}
               <div className="space-y-2">
-                {rest.map((r, i) => {
-                  const rank = i + 3;
+                {rest.map((r) => {
+                  const rank =
+                    rankedRows.findIndex((row) => row.author === r.author) + 1;
                   const profile = profiles.find((p) => p.username === r.author);
+                  const memberLevel = getLevelInfo(r.total);
                   const pct = Math.max(
                     6,
                     Math.round((r.total / maxTotal) * 100),
@@ -11018,7 +11193,7 @@ function LeaderboardTab({
                             fontFamily: MONO_FONT,
                           }}
                         >
-                          #{rank + 1}
+                          #{rank}
                         </span>
                         <span
                           className="gowl-rank-ring"
@@ -11026,17 +11201,14 @@ function LeaderboardTab({
                             "--gowl-accent": rank < 10 ? C.primary : C.line,
                           }}
                         >
-                          {profile ? (
-                            <Avatar profile={profile} size={34} />
-                          ) : (
-                            <div
-                              className="w-[34px] h-[34px] rounded-full shrink-0"
-                              style={{
-                                background: C.panel2,
-                                border: `1px solid ${C.line}`,
-                              }}
-                            />
-                          )}
+                          <Avatar
+                            profile={{
+                              ...(profile || {}),
+                              username: r.author,
+                              points: r.total,
+                            }}
+                            size={34}
+                          />
                         </span>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
@@ -11046,6 +11218,10 @@ function LeaderboardTab({
                             >
                               {r.author}
                             </p>
+                            <Chip
+                              label={memberLevel.level.label}
+                              color={memberLevel.level.color}
+                            />
                             {r.trophies > 0 && (
                               <span
                                 className="text-[10px] flex items-center gap-1"
@@ -11096,7 +11272,7 @@ function LeaderboardTab({
           )}
         </div>
         <InfoSidebar>
-          {rows.length > 0 && (
+          {rankedRows.length > 0 && (
             <StatCardsRow
               vertical
               items={[
@@ -11109,13 +11285,13 @@ function LeaderboardTab({
                 {
                   icon: <Users size={13} />,
                   label: "Joueurs classés",
-                  value: rows.length,
+                  value: rankedRows.length,
                   accent: C.primary,
                 },
                 {
                   icon: <Crown size={13} />,
                   label: "En tête",
-                  value: rows[0]?.author || "—",
+                  value: rankedRows[0]?.author || "—",
                   accent: C.ok,
                 },
               ]}
@@ -11324,9 +11500,15 @@ function TrophyTab({
     }
   }
   async function removeTrophy(id) {
-    const next = trophies.filter((t) => t.id !== id);
-    setTrophies(next);
-    saveCollection("gowlsec:trophies", next);
+    try {
+      await communityRequest(`/trophies/${id}`, { method: "DELETE" });
+      const next = trophies.filter((t) => t.id !== id);
+      setTrophies(next);
+      saveCollection("gowlsec:trophies", next);
+      setTrophyFeedback("Trophée supprimé définitivement.");
+    } catch (error) {
+      setTrophyFeedback(error.message);
+    }
   }
   const filtered = trophies;
 
@@ -14360,12 +14542,17 @@ function WriteupsTab({
       window.alert(error.message);
     }
   }
-  function remove(id) {
+  async function remove(id) {
     const target = writeups.find((w) => w.id === id);
     if (!target || (!isAdmin && target.author !== pseudo)) return;
-    const next = writeups.filter((w) => w.id !== id);
-    setWriteups(next);
-    saveCollection("gowlsec:writeups", next);
+    try {
+      await communityRequest(`/writeups/${id}`, { method: "DELETE" });
+      const next = writeups.filter((w) => w.id !== id);
+      setWriteups(next);
+      saveCollection("gowlsec:writeups", next);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
 
   return (
