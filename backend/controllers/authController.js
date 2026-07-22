@@ -28,6 +28,7 @@ const registerSchema = z.object({
                 "protonmail.com",
                 "icloud.com",
                 "yahoo.com"
+                "tutamail.com"
             ];
 
             return allowedDomains.includes(domain);
