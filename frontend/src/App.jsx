@@ -3072,13 +3072,22 @@ function TeamsTab({ pseudo, teams, setTeams, announcements, setAnnouncements, is
     await saveCollection("gowlsec:teams", next);
   }
   async function removeTeam(teamId) {
-    const next = teams.filter((t) => t.id !== teamId);
-    setTeams(next);
-    await saveCollection("gowlsec:teams", next);
-    const nextAnn = announcements.filter((a) => a.teamId !== teamId);
-    setAnnouncements(nextAnn);
-    await saveCollection("gowlsec:team_announcements", nextAnn);
-    setSelectedId(null);
+    try {
+      await communityRequest(`/teams/${teamId}`, {
+        method: "DELETE",
+      });
+      setTeams((current) =>
+        current.filter((team) => team.id !== teamId)
+      );
+      setAnnouncements((current) =>
+        current.filter(
+          (announcement) => announcement.teamId !== teamId
+        )
+      );
+      setSelectedId(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function postAnnouncement(teamId) {
     if (!currentUser) return;
@@ -3348,13 +3357,20 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
     await saveCollection("gowlsec:labs", next);
   }
   async function removeLab(labId) {
-    const next = labs.filter((l) => l.id !== labId);
-    setLabs(next);
-    await saveCollection("gowlsec:labs", next);
-    const nextMsgs = labMessages.filter((m) => m.labId !== labId);
-    setLabMessages(nextMsgs);
-    await saveCollection("gowlsec:lab_messages", nextMsgs);
-    setSelectedId(null);
+    try {
+      await communityRequest(`/labs/${labId}`, {
+        method: "DELETE",
+      });
+      setLabs((current) =>
+        current.filter((lab) => lab.id !== labId)
+      );
+      setLabMessages((current) =>
+        current.filter((message) => message.labId !== labId)
+      );
+      setSelectedId(null);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function toggleLabFinished(labId) {
     const next = labs.map((l) => l.id === labId ? { ...l, finished: !l.finished } : l);
@@ -3837,9 +3853,16 @@ function TrophyTab({ pseudo, trophies, setTrophies, isAdmin, currentUser = null 
     }
   }
   async function removeTrophy(id) {
-    const next = trophies.filter((t) => t.id !== id);
-    setTrophies(next);
-    saveCollection("gowlsec:trophies", next);
+    try {
+      await communityRequest(`/trophies/${id}`, {
+        method: "DELETE",
+      });
+      setTrophies((current) =>
+        current.filter((trophy) => trophy.id !== id)
+      );
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   const filtered = trophies;
 
@@ -4459,16 +4482,33 @@ function AdminTab({
               });
             }} />
           <AdminList title="Trophées" icon={<Trophy size={14} />} accent={C.gold} items={trophies.map((t) => ({ id: t.id, primary: `${t.platform} — ${t.title}`, secondary: `${t.author} · ${timeAgo(t.createdAt)}` }))}
-            onDelete={(id) => { const next = trophies.filter((t) => t.id !== id); setTrophies(next); saveCollection("gowlsec:trophies", next); }} />
+            onDelete={async (id) => {
+              try {
+                await communityRequest(`/trophies/${id}`, { method: "DELETE" });
+                setTrophies((current) => current.filter((trophy) => trophy.id !== id));
+              } catch (error) {
+                window.alert(error.message);
+              }
+            }} />
           <AdminList title="Team" icon={<Users size={14} />} accent={C.warn} items={teams.map((t) => ({ id: t.id, primary: `${t.name} (${t.visibility === "private" ? "privée" : "publique"})`, secondary: `${t.members.length}/${t.maxMembers || TEAM_MAX_MEMBERS} membre(s) · capitaine ${t.owner}` }))}
-            onDelete={(id) => {
-              const next = teams.filter((t) => t.id !== id); setTeams(next); saveCollection("gowlsec:teams", next);
-              const na = teamAnnouncements.filter((a) => a.teamId !== id); setTeamAnnouncements(na); saveCollection("gowlsec:team_announcements", na);
+            onDelete={async (id) => {
+              try {
+                await communityRequest(`/teams/${id}`, { method: "DELETE" });
+                setTeams((current) => current.filter((team) => team.id !== id));
+                setTeamAnnouncements((current) => current.filter((announcement) => announcement.teamId !== id));
+              } catch (error) {
+                window.alert(error.message);
+              }
             }} />
           <AdminList title="Salons labs" icon={<Bug size={14} />} accent={C.alert} items={labs.map((l) => ({ id: l.id, primary: `${l.title}${l.finished ? " · Terminé" : ""} (${l.visibility === "private" ? "privé" : "public"})`, secondary: `${l.members.length}/${l.maxMembers || LAB_MAX_MEMBERS} membre(s) · ${l.owner}` }))}
-            onDelete={(id) => {
-              const next = labs.filter((l) => l.id !== id); setLabs(next); saveCollection("gowlsec:labs", next);
-              const nm = labMessages.filter((m) => m.labId !== id); setLabMessages(nm); saveCollection("gowlsec:lab_messages", nm);
+            onDelete={async (id) => {
+              try {
+                await communityRequest(`/labs/${id}`, { method: "DELETE" });
+                setLabs((current) => current.filter((lab) => lab.id !== id));
+                setLabMessages((current) => current.filter((message) => message.labId !== id));
+              } catch (error) {
+                window.alert(error.message);
+              }
             }} />
         </div>
       )}
@@ -4934,10 +4974,17 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
       window.alert(error.message);
     }
   }
-  function remove(id) {
-    const next = writeups.filter((w) => w.id !== id);
-    setWriteups(next);
-    saveCollection("gowlsec:writeups", next);
+  async function remove(id) {
+    try {
+      await communityRequest(`/writeups/${id}`, {
+        method: "DELETE",
+      });
+      setWriteups((current) =>
+        current.filter((writeup) => writeup.id !== id)
+      );
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
 
   return (
