@@ -27,7 +27,7 @@ const registerSchema = z.object({
                 "proton.me",
                 "protonmail.com",
                 "icloud.com",
-                "yahoo.com"
+                "yahoo.com",
                 "tutamail.com"
             ];
 
