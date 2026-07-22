@@ -196,9 +196,13 @@ async function communityRequest(path = "", options = {}) {
   const data = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new Error(
+    const error = new Error(
       data?.message || "Erreur de communication avec le serveur.",
     );
+    error.status = response.status;
+    error.retryAfterSeconds = Number(data?.retryAfterSeconds || 0);
+    error.data = data;
+    throw error;
   }
 
   return data;
@@ -682,271 +686,321 @@ const EVENT_TYPES = [
 const LEARNING_PATHS = [
   {
     key: "fondations",
-    title: "Fondations cyber",
+    title: "Prise en main de GowlSec",
     accent: C.primary,
     level: "Débutant",
-    duration: "7 à 10 jours",
+    duration: "Premiers objectifs",
     objective:
-      "Comprendre Linux, les réseaux et construire un environnement de travail propre.",
+      "Construire un profil crédible, découvrir l’entraide et commencer à contribuer réellement.",
     challenge:
-      "Cartographier une petite machine de lab et expliquer chaque service découvert.",
-    skills: ["Linux", "TCP/IP", "Bash", "Nmap"],
+      "Toutes les étapes sont validées automatiquement à partir de tes actions sur GowlSec.",
+    skills: ["Profil", "Hub", "Questions", "Entraide"],
     steps: [
       {
         id: "f1",
-        label: "Préparer Kali ou Parrot",
-        desc: "VM, snapshots et terminal",
-        tab: "labs",
-        duration: "45 min",
-        xp: 20,
+        label: "Construire un profil complet",
+        desc: "Bio de 80 caractères, 3 spécialités et au moins un réseau renseigné.",
+        tab: "profil",
+        duration: "Profil",
+        xp: 40,
+        metric: "profileComplete",
+        target: 1,
       },
       {
         id: "f2",
-        label: "Réviser Linux et Bash",
-        desc: "Fichiers, droits, processus et pipes",
-        tab: "parcours",
-        duration: "2 h",
-        xp: 35,
+        label: "Créer une streak de 3 jours",
+        desc: "Reviens et reste actif trois jours consécutifs.",
+        tab: "profil",
+        duration: "3 jours",
+        xp: 60,
+        metric: "currentStreak",
+        target: 3,
       },
       {
         id: "f3",
-        label: "Comprendre TCP/IP",
-        desc: "Ports, DNS, HTTP, routage et modèle OSI",
-        tab: "forum",
-        duration: "2 h",
-        xp: 35,
+        label: "Participer au Hub",
+        desc: "Publie 5 messages utiles dans les salons communautaires.",
+        tab: "salons",
+        duration: "5 messages",
+        xp: 50,
+        metric: "hubMessages",
+        target: 5,
       },
       {
         id: "f4",
-        label: "Scanner un lab légal",
-        desc: "Découverte, Nmap et lecture des services",
-        tab: "labs",
-        duration: "1 h",
-        xp: 45,
+        label: "Poser une première question",
+        desc: "Explique ton contexte, tes essais et ton blocage.",
+        tab: "forum",
+        duration: "1 question",
+        xp: 70,
+        metric: "questions",
+        target: 1,
       },
       {
         id: "f5",
-        label: "Valider le checkpoint",
-        desc: "Partager tes notes et demander une revue",
-        tab: "salons",
-        duration: "30 min",
-        xp: 65,
+        label: "Aider deux membres",
+        desc: "Publie 2 réponses constructives dans la section Questions.",
+        tab: "forum",
+        duration: "2 réponses",
+        xp: 90,
+        metric: "answers",
+        target: 2,
       },
     ],
   },
   {
     key: "web",
-    title: "Pentest Web",
+    title: "Membre actif",
     accent: C.ok,
-    level: "Débutant → Intermédiaire",
-    duration: "2 à 3 semaines",
+    level: "Régulier",
+    duration: "Plusieurs semaines",
     objective:
-      "Auditer une application web en suivant une méthodologie reproductible et légale.",
+      "Devenir un membre identifiable, utile et fiable dans les échanges communautaires.",
     challenge:
-      "Résoudre un challenge web puis produire un write-up clair avec impact et correction.",
-    skills: ["HTTP", "Burp Suite", "OWASP", "API"],
+      "La quantité seule ne suffit pas : les recommandations reçues récompensent aussi la qualité.",
+    skills: ["Communication", "Mentorat", "Réseau", "Confiance"],
     steps: [
       {
         id: "w1",
-        label: "Maîtriser HTTP",
-        desc: "Requêtes, réponses, cookies et sessions",
-        tab: "forum",
-        duration: "1 h 30",
-        xp: 30,
+        label: "Faire vivre les salons",
+        desc: "Atteins 25 messages publiés sur le Hub.",
+        tab: "salons",
+        duration: "25 messages",
+        xp: 100,
+        metric: "hubMessages",
+        target: 25,
       },
       {
         id: "w2",
-        label: "Configurer Burp Suite",
-        desc: "Proxy, Repeater, Decoder et scope",
-        tab: "labs",
-        duration: "45 min",
-        xp: 30,
+        label: "Répondre régulièrement",
+        desc: "Apporte 10 réponses aux questions de la communauté.",
+        tab: "forum",
+        duration: "10 réponses",
+        xp: 140,
+        metric: "answers",
+        target: 10,
       },
       {
         id: "w3",
-        label: "Tester l’authentification",
-        desc: "Contrôles d’accès, IDOR et sessions",
-        tab: "labs",
-        duration: "2 h",
-        xp: 50,
+        label: "Recommander deux membres",
+        desc: "Remercie un mentor ou confirme une compétence avec sincérité.",
+        tab: "profil",
+        duration: "2 recommandations",
+        xp: 120,
+        metric: "recommendationsWritten",
+        target: 2,
       },
       {
         id: "w4",
-        label: "Explorer injections et XSS",
-        desc: "Uniquement sur environnements autorisés",
-        tab: "labs",
-        duration: "3 h",
-        xp: 60,
+        label: "Créer des échanges privés",
+        desc: "Envoie 5 messages privés utiles à d’autres membres.",
+        tab: "messages",
+        duration: "5 messages",
+        xp: 100,
+        metric: "directMessages",
+        target: 5,
       },
       {
         id: "w5",
-        label: "Publier un write-up",
-        desc: "Preuve, risque, reproduction et remédiation",
-        tab: "writeups",
-        duration: "1 h",
-        xp: 80,
+        label: "Gagner la confiance",
+        desc: "Reçois 2 recommandations de membres différents.",
+        tab: "profil",
+        duration: "2 recommandations",
+        xp: 180,
+        metric: "recommendationsReceived",
+        target: 2,
       },
     ],
   },
   {
     key: "infra",
-    title: "Réseau & Active Directory",
+    title: "Pratique en labs",
     accent: C.alert,
     level: "Intermédiaire",
-    duration: "3 à 4 semaines",
+    duration: "Progression pratique",
     objective:
-      "Comprendre une infrastructure Windows et raisonner en chaînes d’attaque/défense.",
+      "Transformer l’apprentissage en preuves concrètes grâce aux labs, trophées et write-ups.",
     challenge:
-      "Documenter le chemin d’attaque d’un lab AD et proposer trois mesures défensives.",
-    skills: ["Windows", "SMB", "AD", "Pivoting"],
+      "Travaille uniquement sur des environnements légaux et documente ce que tu apprends.",
+    skills: ["Labs", "Méthodologie", "Compte rendu", "Preuves"],
     steps: [
       {
         id: "i1",
-        label: "Énumérer le réseau",
-        desc: "Services, partages et relations de confiance",
+        label: "Rejoindre un lab",
+        desc: "Crée ou rejoins une première session de lab GowlSec.",
         tab: "labs",
-        duration: "2 h",
-        xp: 45,
+        duration: "1 participation",
+        xp: 120,
+        metric: "labParticipations",
+        target: 1,
       },
       {
         id: "i2",
-        label: "Réviser Windows & PowerShell",
-        desc: "Utilisateurs, groupes, services et journaux",
-        tab: "forum",
-        duration: "2 h",
-        xp: 45,
+        label: "Collaborer dans les labs",
+        desc: "Publie 10 messages dans les discussions de lab.",
+        tab: "labs",
+        duration: "10 messages",
+        xp: 140,
+        metric: "labMessages",
+        target: 10,
       },
       {
         id: "i3",
-        label: "Comprendre Active Directory",
-        desc: "Domaines, Kerberos, LDAP et GPO",
-        tab: "parcours",
-        duration: "3 h",
-        xp: 60,
+        label: "Organiser une session",
+        desc: "Crée ton propre salon lab avec un objectif précis.",
+        tab: "labs",
+        duration: "1 lab créé",
+        xp: 180,
+        metric: "labsOwned",
+        target: 1,
       },
       {
         id: "i4",
-        label: "Travailler le pivoting",
-        desc: "Segmentation et circulation contrôlée",
-        tab: "labs",
-        duration: "2 h",
-        xp: 70,
+        label: "Accumuler des preuves",
+        desc: "Ajoute 2 trophées ou réussites vérifiables à ton profil.",
+        tab: "trophies",
+        duration: "2 trophées",
+        xp: 220,
+        metric: "trophies",
+        target: 2,
       },
       {
         id: "i5",
-        label: "Présenter un rapport",
-        desc: "Chemin, impact et recommandations",
+        label: "Partager un write-up",
+        desc: "Publie une résolution claire, légale et reproductible.",
         tab: "writeups",
-        duration: "1 h",
-        xp: 90,
+        duration: "1 write-up",
+        xp: 260,
+        metric: "writeups",
+        target: 1,
       },
     ],
   },
   {
     key: "team",
-    title: "CTF en équipe",
+    title: "Compétiteur CTF",
     accent: C.warn,
-    level: "Tous niveaux",
-    duration: "1 semaine de préparation",
+    level: "Confirmé",
+    duration: "Plusieurs compétitions",
     objective:
-      "Trouver ton rôle, communiquer efficacement et participer à un CTF GowlSec.",
+      "Trouver une équipe stable, participer à plusieurs CTF et transmettre les enseignements.",
     challenge:
-      "Participer à un CTF et faire un débrief collectif avec réussites et axes d’amélioration.",
-    skills: ["Communication", "Triage", "CTF", "Write-up"],
+      "Une inscription ne suffit pas : ce module demande de la régularité et des comptes rendus.",
+    skills: ["Matchmaking", "Équipe", "CTF", "Débrief"],
     steps: [
       {
         id: "t1",
-        label: "Trouver des coéquipiers",
-        desc: "Compléter ton mini-CV et matcher les compétences",
+        label: "Publier ton CV CTF",
+        desc: "Indique tes spécialités, disponibilités et compétences recherchées.",
         tab: "coequipiers",
-        duration: "20 min",
-        xp: 20,
+        duration: "CV actif",
+        xp: 140,
+        metric: "teamFinderProfile",
+        target: 1,
       },
       {
         id: "t2",
-        label: "Définir les rôles",
-        desc: "Web, Pwn, Crypto, Forensics et capitaine",
+        label: "Rejoindre une équipe",
+        desc: "Crée ou rejoins une team GowlSec.",
         tab: "equipes",
-        duration: "30 min",
-        xp: 25,
+        duration: "1 équipe",
+        xp: 180,
+        metric: "teamParticipations",
+        target: 1,
       },
       {
         id: "t3",
-        label: "Choisir un CTF",
-        desc: "Vérifier format, durée et difficulté",
+        label: "Participer à 3 CTF",
+        desc: "Inscris-toi depuis CTFNews et joue réellement avec la communauté.",
         tab: "actus",
-        duration: "15 min",
-        xp: 25,
+        duration: "3 CTF",
+        xp: 260,
+        metric: "ctfRegistrations",
+        target: 3,
       },
       {
         id: "t4",
-        label: "Faire une session d’échauffement",
-        desc: "Un lab commun avec chronomètre",
-        tab: "labs",
-        duration: "2 h",
-        xp: 55,
+        label: "Devenir un habitué",
+        desc: "Atteins 7 participations CTF enregistrées.",
+        tab: "actus",
+        duration: "7 CTF",
+        xp: 360,
+        metric: "ctfRegistrations",
+        target: 7,
       },
       {
         id: "t5",
-        label: "Débriefer la participation",
-        desc: "Classement, meilleurs moments et leçons",
-        tab: "equipes",
-        duration: "45 min",
-        xp: 75,
+        label: "Transmettre les méthodes",
+        desc: "Publie 3 write-ups issus de tes entraînements ou compétitions.",
+        tab: "writeups",
+        duration: "3 write-ups",
+        xp: 420,
+        metric: "writeups",
+        target: 3,
       },
     ],
   },
   {
     key: "certif",
-    title: "Portfolio & certification",
+    title: "Référence GowlSec",
     accent: C.gold,
-    level: "Intermédiaire → Avancé",
-    duration: "Continu",
+    level: "Expert",
+    duration: "Objectif long terme",
     objective:
-      "Transformer tes exercices en preuves de progression et préparer une certification adaptée.",
+      "Prouver une contribution durable et devenir une personne de confiance pour la communauté.",
     challenge:
-      "Construire un portfolio propre avec trois write-ups, un plan de révision et une simulation d’examen.",
-    skills: ["Reporting", "Méthodologie", "Portfolio", "Certification"],
+      "Ce rang est volontairement difficile : il récompense la constance, pas le spam.",
+    skills: ["Mentorat", "Régularité", "Expertise", "Réputation"],
     steps: [
       {
         id: "c1",
-        label: "Choisir un objectif réaliste",
-        desc: "eJPT, CPTS, PNPT, OSCP ou autre",
+        label: "Devenir mentor actif",
+        desc: "Publie 30 réponses utiles dans la section Questions.",
         tab: "forum",
-        duration: "30 min",
-        xp: 20,
+        duration: "30 réponses",
+        xp: 500,
+        metric: "answers",
+        target: 30,
       },
       {
         id: "c2",
-        label: "Créer un plan de révision",
-        desc: "Compétences, semaines et checkpoints",
-        tab: "parcours",
-        duration: "1 h",
-        xp: 35,
+        label: "Animer durablement le Hub",
+        desc: "Atteins 150 messages publiés sans enfreindre les règles.",
+        tab: "salons",
+        duration: "150 messages",
+        xp: 600,
+        metric: "hubMessages",
+        target: 150,
       },
       {
         id: "c3",
-        label: "Consolider trois write-ups",
-        desc: "Clairs, légaux et sans secrets exposés",
+        label: "Construire un vrai portfolio",
+        desc: "Publie 8 write-ups complets et pédagogiques.",
         tab: "writeups",
-        duration: "3 h",
-        xp: 70,
+        duration: "8 write-ups",
+        xp: 750,
+        metric: "writeups",
+        target: 8,
       },
       {
         id: "c4",
-        label: "Faire une simulation",
-        desc: "Temps limité, notes et rapport final",
-        tab: "labs",
-        duration: "4 h",
-        xp: 90,
+        label: "Tenir une streak majeure",
+        desc: "Atteins une meilleure streak de 30 jours.",
+        tab: "profil",
+        duration: "30 jours",
+        xp: 850,
+        metric: "longestStreak",
+        target: 30,
       },
       {
         id: "c5",
-        label: "Valoriser la réussite",
-        desc: "Ajouter le trophée et mettre à jour ton profil",
-        tab: "trophies",
-        duration: "20 min",
-        xp: 100,
+        label: "Collectionner les distinctions",
+        desc: "Débloque au moins 4 badges officiels GowlSec.",
+        tab: "profil",
+        duration: "4 badges",
+        xp: 1000,
+        metric: "badges",
+        target: 4,
       },
     ],
   },
@@ -1880,6 +1934,17 @@ const ACTIVITY_META = {
 
 function Avatar({ profile, size = 32 }) {
   const canOpenProfile = Boolean(profile?.username);
+  const points = Math.max(0, Number(profile?.points || 0));
+  const levelInfo = getLevelInfo(points);
+  const levelIndex = Math.max(
+    0,
+    LEVELS.findIndex((level) => level.key === levelInfo.level.key),
+  );
+  const levelColor = levelInfo.level.color || C.muted;
+  const framePadding = levelIndex > 0 ? Math.max(1.5, size * 0.055) : 0;
+  const badgeSize = Math.max(12, Math.round(size * 0.36));
+  const EvolutionIcon =
+    levelIndex >= 5 ? Crown : levelIndex >= 3 ? Sparkles : Zap;
   const openProfile = (event) => {
     if (!canOpenProfile) return;
     event.stopPropagation();
@@ -1898,30 +1963,73 @@ function Avatar({ profile, size = 32 }) {
         },
       }
     : {};
-  if (profile?.avatarImage) {
-    return (
+  return (
+    <div
+      {...interactiveProps}
+      className={`gowl-avatar-frame gowl-avatar-level-${levelInfo.level.key} relative rounded-full shrink-0 ${canOpenProfile ? "gowl-avatar-clickable" : ""}`}
+      style={{
+        width: size,
+        height: size,
+        padding: framePadding,
+        background:
+          levelIndex >= 4
+            ? `conic-gradient(from 35deg, ${levelColor}, ${C.primary}, ${C.ok}, ${levelColor})`
+            : levelIndex > 0
+              ? `linear-gradient(145deg, ${levelColor}, ${levelColor}66)`
+              : "transparent",
+        boxShadow:
+          levelIndex >= 5
+            ? `0 0 ${Math.max(12, size * 0.38)}px ${C.gold}66`
+            : levelIndex >= 3
+              ? `0 0 ${Math.max(8, size * 0.28)}px ${levelColor}45`
+              : levelIndex > 0
+                ? `0 0 0 1px ${levelColor}28`
+                : "none",
+      }}
+      aria-label={`${profile?.username || "Profil"} · niveau ${levelInfo.level.label}`}
+    >
       <div
-        {...interactiveProps}
-        className={`rounded-full overflow-hidden shrink-0 ${canOpenProfile ? "gowl-avatar-clickable" : ""}`}
-        style={{ width: size, height: size }}
+        className="w-full h-full rounded-full overflow-hidden flex items-center justify-center"
+        style={{
+          background: profile?.avatarImage
+            ? C.panel
+            : (AVATAR_MAP[profile?.avatarKey] || AVATAR_OPTIONS[0]).color,
+          border: levelIndex > 0 ? `1px solid ${C.bg}` : "none",
+        }}
       >
+        {profile?.avatarImage ? (
         <img
           src={resolveProfileImageUrl(profile.avatarImage)}
           alt="avatar"
           className="w-full h-full object-cover"
         />
+        ) : (
+          (() => {
+            const selectedAvatar =
+              AVATAR_MAP[profile?.avatarKey] || AVATAR_OPTIONS[0];
+            const Icon = selectedAvatar.icon;
+            return <Icon size={Math.round(size * 0.55)} color="#fff" />;
+          })()
+        )}
       </div>
-    );
-  }
-  const a = AVATAR_MAP[profile?.avatarKey] || AVATAR_OPTIONS[0];
-  const Icon = a.icon;
-  return (
-    <div
-      {...interactiveProps}
-      className={`rounded-full flex items-center justify-center shrink-0 ${canOpenProfile ? "gowl-avatar-clickable" : ""}`}
-      style={{ width: size, height: size, background: a.color }}
-    >
-      <Icon size={Math.round(size * 0.55)} color="#fff" />
+      {levelIndex >= 2 && (
+        <span
+          className="gowl-avatar-evolution-badge absolute rounded-full flex items-center justify-center"
+          style={{
+            width: badgeSize,
+            height: badgeSize,
+            right: -Math.max(2, size * 0.04),
+            top: -Math.max(2, size * 0.04),
+            color: levelColor,
+            background: C.panel,
+            border: `1px solid ${levelColor}99`,
+            boxShadow: `0 2px 8px ${C.bg}`,
+          }}
+          title={`${levelInfo.level.label} · ${points} points`}
+        >
+          <EvolutionIcon size={Math.max(7, Math.round(badgeSize * 0.55))} />
+        </span>
+      )}
     </div>
   );
 }
@@ -7465,6 +7573,53 @@ function ForumTab({
   const [openId, setOpenId] = useState(null);
   const [replyDraft, setReplyDraft] = useState({});
   const [filter, setFilter] = useState("all");
+  const [cooldownNow, setCooldownNow] = useState(Date.now());
+  const [questionCooldown, setQuestionCooldown] = useState({
+    durationSeconds: 30 * 60,
+    availableAt: null,
+  });
+  const [questionFeedback, setQuestionFeedback] = useState("");
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCooldownNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    apiRequest("/api/social/progress")
+      .then((data) => {
+        if (!active || !data.cooldowns?.question) return;
+        setQuestionCooldown(data.cooldowns.question);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [currentUser?.id, questions.length]);
+
+  const questionRemainingSeconds = questionCooldown.availableAt
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(questionCooldown.availableAt).getTime() - cooldownNow) /
+            1000,
+        ),
+      )
+    : 0;
+  const questionCooldownPct = Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(
+        (questionRemainingSeconds /
+          Math.max(1, questionCooldown.durationSeconds || 1800)) *
+          100,
+      ),
+    ),
+  );
+  const cooldownClock = `${String(Math.floor(questionRemainingSeconds / 60)).padStart(2, "0")}:${String(questionRemainingSeconds % 60).padStart(2, "0")}`;
 
   const findProfile = (username) =>
     profiles.find((p) => p.username === username);
@@ -7490,8 +7645,24 @@ function ForumTab({
       setType(QUESTION_TYPES[3].key);
       setShowForm(false);
       setOpenId(result.question.id);
+      setQuestionCooldown({
+        durationSeconds: 30 * 60,
+        availableAt: new Date(Date.now() + 30 * 60 * 1000).toISOString(),
+      });
+      setQuestionFeedback(
+        "Question publiée. Le cooldown protège le forum contre le spam.",
+      );
     } catch (error) {
-      window.alert(error.message);
+      if (error.retryAfterSeconds) {
+        setQuestionCooldown({
+          durationSeconds: 30 * 60,
+          availableAt: new Date(
+            Date.now() + error.retryAfterSeconds * 1000,
+          ).toISOString(),
+        });
+      }
+      setQuestionFeedback(error.message);
+      setShowForm(false);
     }
   }
   async function toggleQuestion(qid) {
@@ -7567,12 +7738,99 @@ function ForumTab({
                 Connexion
               </PrimaryButton>
             ) : (
-              <PrimaryButton onClick={() => setShowForm((s) => !s)}>
-                {showForm ? <X size={15} /> : <Plus size={15} />}{" "}
-                {showForm ? t(lang, "cancel") : t(lang, "newQuestion")}
+              <PrimaryButton
+                disabled={questionRemainingSeconds > 0}
+                onClick={() => setShowForm((s) => !s)}
+              >
+                {questionRemainingSeconds > 0 ? (
+                  <Clock size={15} />
+                ) : showForm ? (
+                  <X size={15} />
+                ) : (
+                  <Plus size={15} />
+                )}{" "}
+                {questionRemainingSeconds > 0
+                  ? `Disponible dans ${cooldownClock}`
+                  : showForm
+                    ? t(lang, "cancel")
+                    : t(lang, "newQuestion")}
               </PrimaryButton>
             )}
           </div>
+          {currentUser && (
+            <Panel
+              className="mb-4 overflow-hidden"
+              style={{
+                background: questionRemainingSeconds
+                  ? `linear-gradient(135deg, ${C.warn}12, ${C.panel})`
+                  : `linear-gradient(135deg, ${C.ok}10, ${C.panel})`,
+                borderColor: questionRemainingSeconds
+                  ? `${C.warn}40`
+                  : `${C.ok}35`,
+              }}
+            >
+              <div className="p-3.5 flex items-center gap-3">
+                <span
+                  className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                  style={{
+                    color: questionRemainingSeconds ? C.warn : C.ok,
+                    background: questionRemainingSeconds
+                      ? `${C.warn}16`
+                      : `${C.ok}14`,
+                    border: `1px solid ${questionRemainingSeconds ? `${C.warn}3D` : `${C.ok}35`}`,
+                  }}
+                >
+                  {questionRemainingSeconds ? (
+                    <Clock size={18} />
+                  ) : (
+                    <CheckCircle2 size={18} />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: C.text }}>
+                        {questionRemainingSeconds
+                          ? "Cooldown de publication actif"
+                          : "Tu peux publier une question"}
+                      </p>
+                      <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>
+                        {questionRemainingSeconds
+                          ? "Une question toutes les 30 minutes pour préserver la qualité du forum."
+                          : "Décris précisément ton contexte pour recevoir une réponse utile."}
+                      </p>
+                    </div>
+                    <span
+                      className="text-lg font-extrabold shrink-0"
+                      style={{
+                        color: questionRemainingSeconds ? C.warn : C.ok,
+                        fontFamily: MONO_FONT,
+                      }}
+                    >
+                      {questionRemainingSeconds ? cooldownClock : "PRÊT"}
+                    </span>
+                  </div>
+                  <div
+                    className="h-1.5 rounded-full overflow-hidden mt-2.5"
+                    style={{ background: C.panel2 }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-[width] duration-1000"
+                      style={{
+                        width: `${questionRemainingSeconds ? questionCooldownPct : 100}%`,
+                        background: questionRemainingSeconds ? C.warn : C.ok,
+                      }}
+                    />
+                  </div>
+                  {questionFeedback && (
+                    <p className="text-[10px] mt-2" style={{ color: C.muted }}>
+                      {questionFeedback}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </Panel>
+          )}
           {!currentUser && (
             <GuestGate
               text="Connecte-toi pour poser des questions, répondre et participer à la communauté."
@@ -7929,6 +8187,9 @@ function RoomsTab({
   const [text, setText] = useState("");
   const [rooms, setRooms] = useState(DEFAULT_ROOMS);
   const [newRoomName, setNewRoomName] = useState("");
+  const [showRoomCreator, setShowRoomCreator] = useState(false);
+  const [roomSearch, setRoomSearch] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [newRoomType, setNewRoomType] = useState("public");
   const [newRoomIcon, setNewRoomIcon] = useState("hash");
   const [newRoomPassword, setNewRoomPassword] = useState("");
@@ -7945,6 +8206,11 @@ function RoomsTab({
   const roomMessages = messages.filter((m) => (m.room || "general") === room);
   const current =
     rooms.find((r) => r.key === room) || rooms[0] || DEFAULT_ROOMS[0];
+  const visibleRooms = rooms.filter((item) =>
+    `${item.label} ${item.desc || ""} ${item.key}`
+      .toLowerCase()
+      .includes(roomSearch.trim().toLowerCase()),
+  );
   const isOwner = current.owner === pseudo;
   const isBanned = (current.bannedUsers || []).includes(pseudo);
   const accessLocked =
@@ -8020,6 +8286,7 @@ function RoomsTab({
       }
 
       setText("");
+      setShowEmojiPicker(false);
       setRoomActionFeedback("");
     });
   }
@@ -8126,6 +8393,7 @@ function RoomsTab({
       setNewRoomPassword("");
       setNewRoomType("public");
       setNewRoomIcon("hash");
+      setShowRoomCreator(false);
     } catch (error) {
       setRoomActionFeedback(error.message);
     }
@@ -8306,15 +8574,37 @@ function RoomsTab({
                 text="Connecte-toi pour créer un salon."
                 accent={C.ok}
               />
-            ) : (
+            ) : showRoomCreator ? (
               <form
                 onSubmit={createRoom}
-                className="rounded-lg border p-3 mb-3"
+                className="rounded-xl border p-4 gowl-fade-up"
                 style={{
-                  background: "rgba(255,255,255,0.03)",
+                  background: C.panel2,
                   borderColor: C.line,
                 }}
               >
+                <div className="flex items-center justify-between gap-3 mb-3">
+                  <div>
+                    <span
+                      className="text-[9px] uppercase tracking-widest"
+                      style={{ color: C.ok, fontFamily: MONO_FONT }}
+                    >
+                      Nouveau salon
+                    </span>
+                    <p className="text-xs mt-0.5" style={{ color: C.muted }}>
+                      Configure un espace public ou privé.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowRoomCreator(false)}
+                    className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{ color: C.muted, border: `1px solid ${C.line}` }}
+                    aria-label="Fermer la création"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
                 <div className="mb-3">
                   <label
                     className="block text-[11px] uppercase tracking-wide mb-1.5"
@@ -8423,14 +8713,37 @@ function RoomsTab({
                   </div>
                 )}
               </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowRoomCreator(true)}
+                className="w-full min-h-[132px] rounded-xl flex flex-col items-center justify-center gap-2 text-center p-5 gowl-hud-card"
+                style={{
+                  color: C.text,
+                  background: `linear-gradient(145deg, ${C.ok}12, ${C.panel2})`,
+                  border: `1px dashed ${C.ok}55`,
+                  "--gowl-accent": C.ok,
+                }}
+              >
+                <span
+                  className="w-10 h-10 rounded-xl flex items-center justify-center"
+                  style={{ color: C.ok, background: `${C.ok}18` }}
+                >
+                  <Plus size={18} />
+                </span>
+                <span className="text-sm font-bold">Créer un salon</span>
+                <span className="text-[10px]" style={{ color: C.muted }}>
+                  Choisis son thème, sa visibilité et son identité.
+                </span>
+              </button>
             )}
           </div>
         </div>
       </Panel>
-      <div className="grid md:grid-cols-[240px_1fr] gap-4">
+      <div className="grid md:grid-cols-[270px_1fr] gap-4">
         <Panel
           className="p-2.5 h-fit md:sticky md:top-20"
-          style={{ borderColor: C.line, background: "rgba(255,255,255,0.02)" }}
+          style={{ borderColor: C.line, background: C.panel }}
         >
           <div className="px-2 pt-1 pb-2.5 flex items-center justify-between">
             <span
@@ -8439,9 +8752,28 @@ function RoomsTab({
             >
               Salons · {rooms.length}
             </span>
+            <span
+              className="w-2 h-2 rounded-full"
+              style={{ background: C.ok, boxShadow: `0 0 8px ${C.ok}` }}
+              title="Hub en ligne"
+            />
+          </div>
+          <div className="relative mb-2">
+            <Search
+              size={12}
+              className="absolute left-3 top-2.5"
+              style={{ color: C.muted }}
+            />
+            <input
+              value={roomSearch}
+              onChange={(event) => setRoomSearch(event.target.value)}
+              placeholder="Rechercher un salon"
+              className="w-full pl-8 pr-3 py-2 rounded-lg text-[11px]"
+              style={{ ...inputStyle, background: C.panel2 }}
+            />
           </div>
           <div className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
-            {rooms.map((r) => {
+            {visibleRooms.map((r) => {
               const active = r.key === room;
               const roomMsgCount = messages.filter(
                 (m) => (m.room || "general") === r.key,
@@ -8476,14 +8808,19 @@ function RoomsTab({
                 </button>
               );
             })}
+            {visibleRooms.length === 0 && (
+              <p className="text-[10px] p-3 text-center" style={{ color: C.muted }}>
+                Aucun salon trouvé.
+              </p>
+            )}
           </div>
         </Panel>
         <Panel
           className="flex flex-col overflow-hidden"
           style={{
-            height: 520,
+            height: 620,
             borderColor: C.line,
-            background: "rgba(255,255,255,0.02)",
+            background: C.panel,
           }}
         >
           <div className="gowl-hub-header">
@@ -8534,7 +8871,9 @@ function RoomsTab({
           </div>
           <div
             className="flex-1 overflow-y-auto px-4 py-3"
-            style={{ background: "rgba(255,255,255,0.02)" }}
+            style={{
+              background: `radial-gradient(circle at 90% 0%, ${C.primary}0B, transparent 32%), ${C.panel2}66`,
+            }}
           >
             {isOwner && (
               <div
@@ -8703,6 +9042,7 @@ function RoomsTab({
                       key={m.id}
                       className="gowl-hub-msg group"
                       data-grouped={grouped}
+                      data-self={isSelf}
                     >
                       <div className="gowl-hub-msg-gutter">
                         {grouped ? (
@@ -8936,20 +9276,28 @@ function RoomsTab({
               >
                 <button
                   type="button"
-                  title="Joindre un fichier"
+                  title="Mentionner un membre"
                   className="gowl-hub-composer-icon"
-                  tabIndex={-1}
+                  onClick={() =>
+                    setText((current) => `${current}${current ? " " : ""}@`)
+                  }
                 >
-                  <Plus size={16} />
+                  <UserIcon size={15} />
                 </button>
-                <input
+                <textarea
                   value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && send()}
+                  onChange={(e) => setText(e.target.value.slice(0, 1000))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      send();
+                    }
+                  }}
                   onFocus={() => {
                     if (!currentUser)
                       window.dispatchEvent(new CustomEvent("open-auth-login"));
                   }}
+                  rows={1}
                   disabled={!currentUser}
                   readOnly={!currentUser}
                   placeholder={
@@ -8960,14 +9308,48 @@ function RoomsTab({
                   className="gowl-hub-composer-input disabled:cursor-not-allowed"
                   style={inputStyle}
                 />
+                <span
+                  className="hidden sm:inline text-[9px] shrink-0"
+                  style={{
+                    color: text.length > 900 ? C.warn : C.muted,
+                    fontFamily: MONO_FONT,
+                  }}
+                >
+                  {text.length}/1000
+                </span>
                 <button
                   type="button"
                   title="Emoji"
                   className="gowl-hub-composer-icon"
-                  tabIndex={-1}
+                  onClick={() => setShowEmojiPicker((value) => !value)}
                 >
                   <Smile size={16} />
                 </button>
+                {showEmojiPicker && (
+                  <div
+                    className="absolute bottom-[52px] right-10 rounded-xl p-2 flex gap-1 z-20 gowl-fade-up"
+                    style={{
+                      background: C.panel2,
+                      border: `1px solid ${C.line}`,
+                      boxShadow: "0 16px 35px -15px rgba(0,0,0,0.8)",
+                    }}
+                  >
+                    {REACTION_EMOJIS.map((emoji) => (
+                      <button
+                        type="button"
+                        key={emoji}
+                        onClick={() => {
+                          setText((current) => `${current}${emoji}`);
+                          setShowEmojiPicker(false);
+                        }}
+                        className="w-8 h-8 rounded-lg hover:scale-110 transition-transform"
+                        style={{ background: C.panel }}
+                      >
+                        {emoji}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() =>
@@ -10319,11 +10701,11 @@ function computeUserPoints(username, questions, trophies, labs) {
 /* Niveaux/XP — paliers construits sur les mêmes points que le classement */
 const LEVELS = [
   { key: "debutant", label: "Débutant", min: 0, color: C.muted },
-  { key: "initie", label: "Initié", min: 50, color: C.primary },
-  { key: "operateur", label: "Opérateur", min: 150, color: C.ok },
-  { key: "expert", label: "Expert", min: 350, color: C.warn },
-  { key: "elite", label: "Elite", min: 700, color: C.alert },
-  { key: "legende", label: "Légende", min: 1500, color: C.gold },
+  { key: "initie", label: "Initié", min: 100, color: C.primary },
+  { key: "operateur", label: "Opérateur", min: 350, color: C.ok },
+  { key: "expert", label: "Expert", min: 900, color: C.warn },
+  { key: "elite", label: "Élite", min: 2000, color: C.alert },
+  { key: "legende", label: "Légende", min: 5000, color: C.gold },
 ];
 function getLevelInfo(points) {
   let idx = 0;
@@ -13266,6 +13648,7 @@ function NotificationBell({
 }) {
   const [open, setOpen] = useState(false);
   const [lastSeen, setLastSeen] = useState(null);
+  const [serverNotifications, setServerNotifications] = useState([]);
   const btnRef = useRef(null);
   const [pos, setPos] = useState({ top: 0, right: 0 });
 
@@ -13290,6 +13673,31 @@ function NotificationBell({
       setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
     }
   }, [open]);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setServerNotifications([]);
+      return;
+    }
+    let active = true;
+    async function refreshNotifications() {
+      try {
+        const data = await apiRequest("/api/social/notifications");
+        if (active)
+          setServerNotifications(
+            Array.isArray(data.notifications) ? data.notifications : [],
+          );
+      } catch {
+        /* Les notifications locales restent disponibles hors ligne. */
+      }
+    }
+    refreshNotifications();
+    const interval = window.setInterval(refreshNotifications, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [currentUser?.id]);
 
   const items = useMemo(() => {
     if (!currentUser) return [];
@@ -13359,29 +13767,88 @@ function NotificationBell({
           accent: cat.color,
         });
       });
+    serverNotifications.forEach((notification) => {
+      const meta = {
+        mention: { icon: <Hash size={13} />, accent: C.primary, tab: "salons" },
+        "team-invitation": {
+          icon: <Users size={13} />,
+          accent: C.warn,
+          tab: "messages",
+        },
+        "direct-message": {
+          icon: <MessageCircle size={13} />,
+          accent: C.ok,
+          tab: "messages",
+        },
+        "ctf-reminder": {
+          icon: <Flag size={13} />,
+          accent: C.alert,
+          tab: "actus",
+        },
+        "badge-unlocked": {
+          icon: <Award size={13} />,
+          accent: C.gold,
+          tab: "profil",
+        },
+        recommendation: {
+          icon: <Pin size={13} />,
+          accent: C.primary,
+          tab: "profil",
+        },
+      }[notification.type] || {
+        icon: <Mail size={13} />,
+        accent: C.primary,
+        tab: "accueil",
+      };
+      out.push({
+        id: `server-${notification.id}`,
+        text: notification.title,
+        sub: notification.message,
+        createdAt: notification.createdAt,
+        tab: meta.tab,
+        icon: meta.icon,
+        accent: meta.accent,
+        source: "server",
+        readAt: notification.readAt,
+      });
+    });
     return out
       .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
       .slice(0, 30);
-  }, [currentUser, questions, teams, labs, notifications]);
+  }, [
+    currentUser,
+    questions,
+    teams,
+    labs,
+    notifications,
+    serverNotifications,
+  ]);
 
   const unreadCount = useMemo(() => {
-    if (!lastSeen) return items.length;
-    return items.filter((n) => new Date(n.createdAt) > new Date(lastSeen))
-      .length;
+    return items.filter((item) =>
+      item.source === "server"
+        ? !item.readAt
+        : !lastSeen || new Date(item.createdAt) > new Date(lastSeen),
+    ).length;
   }, [items, lastSeen]);
 
   const unreadItems = useMemo(
     () =>
-      lastSeen
-        ? items.filter((n) => new Date(n.createdAt) > new Date(lastSeen))
-        : items,
+      items.filter((item) =>
+        item.source === "server"
+          ? !item.readAt
+          : !lastSeen || new Date(item.createdAt) > new Date(lastSeen),
+      ),
     [items, lastSeen],
   );
   const readItems = useMemo(
     () =>
-      lastSeen
-        ? items.filter((n) => new Date(n.createdAt) <= new Date(lastSeen))
-        : [],
+      items.filter((item) =>
+        item.source === "server"
+          ? Boolean(item.readAt)
+          : Boolean(lastSeen) &&
+            new Date(item.createdAt) <= new Date(lastSeen),
+      ),
     [items, lastSeen],
   );
 
@@ -13394,6 +13861,12 @@ function NotificationBell({
     if (!currentUser) return;
     const now = new Date().toISOString();
     setLastSeen(now);
+    setServerNotifications((items) =>
+      items.map((item) => ({ ...item, readAt: item.readAt || now })),
+    );
+    apiRequest("/api/social/notifications/read", { method: "PATCH" }).catch(
+      () => {},
+    );
     try {
       await window.storage.set(
         `gowlsec:notif_seen:${currentUser.id}`,
@@ -13495,20 +13968,20 @@ function NotificationBell({
               onClick={() => setOpen(false)}
             />
             <div
-              className="fixed w-64 max-w-[85vw] rounded-xl z-[9999] overflow-hidden gowl-fade-up"
+              className="fixed w-[360px] max-w-[92vw] rounded-2xl z-[9999] overflow-hidden gowl-fade-up"
               style={{
                 top: pos.top,
                 right: pos.right,
-                background: "#0A0C10",
+                background: C.panel,
                 border: `1px solid ${C.line}`,
-                boxShadow: "0 16px 40px -12px rgba(0,0,0,0.75)",
+                boxShadow: `0 22px 55px -20px rgba(0,0,0,0.82), 0 0 0 1px ${C.primary}12`,
               }}
             >
               <div
                 className="px-3 py-2.5 flex items-center gap-2.5"
                 style={{
                   borderBottom: `1px solid ${C.line}`,
-                  background: "#0A0C10",
+                  background: C.panel2,
                 }}
               >
                 <span
@@ -13542,7 +14015,7 @@ function NotificationBell({
                       border: `1px solid ${C.primary}44`,
                     }}
                   >
-                    Tout marquer lu
+                    Tout marquer comme lu
                   </button>
                 )}
               </div>
@@ -14219,7 +14692,11 @@ const LEARNING_PATH_ICONS = {
 };
 
 function LearningPathsTab({ currentUser, setTab }) {
-  const [progress, setProgress] = useState({});
+  const [progressData, setProgressData] = useState({
+    metrics: {},
+    loading: Boolean(currentUser),
+    error: "",
+  });
   const [idx, setIdx] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [dragX, setDragX] = useState(0);
@@ -14227,25 +14704,45 @@ function LearningPathsTab({ currentUser, setTab }) {
 
   useEffect(() => {
     if (!currentUser) return;
-    (async () => {
+    let active = true;
+    async function refreshProgress() {
       try {
-        const res = await window.storage.get(
-          `gowlsec:paths_progress:${currentUser.id}`,
-          false,
-        );
-        if (res?.value) setProgress(JSON.parse(res.value));
-      } catch {
-        /* best effort */
+        const data = await apiRequest("/api/social/progress");
+        if (active)
+          setProgressData({
+            metrics: data.metrics || {},
+            loading: false,
+            error: "",
+          });
+      } catch (error) {
+        if (active)
+          setProgressData((current) => ({
+            ...current,
+            loading: false,
+            error: error.message,
+          }));
       }
-    })();
+    }
+    refreshProgress();
+    const interval = window.setInterval(refreshProgress, 15000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
   }, [currentUser?.id]);
 
-  async function toggleStep(stepId) {
-    if (!currentUser) return;
-    const next = { ...progress, [stepId]: !progress[stepId] };
-    setProgress(next);
-    saveCollection(`gowlsec:paths_progress:${currentUser.id}`, next, false);
-  }
+  const progress = useMemo(
+    () =>
+      Object.fromEntries(
+        LEARNING_PATHS.flatMap((path) =>
+          path.steps.map((step) => [
+            step.id,
+            Number(progressData.metrics?.[step.metric] || 0) >= step.target,
+          ]),
+        ),
+      ),
+    [progressData.metrics],
+  );
 
   const pathStats = LEARNING_PATHS.map((path) => {
     const done = path.steps.filter((s) => progress[s.id]).length;
@@ -14322,8 +14819,8 @@ function LearningPathsTab({ currentUser, setTab }) {
       <SectionHeader
         icon={<Compass size={19} />}
         eyebrow="GowlSec Academy"
-        title="Ta roadmap cybersécurité"
-        subtitle="Un itinéraire concret, des checkpoints et des défis pratiques pour passer des fondations au portfolio professionnel."
+        title="Ta progression dans GowlSec"
+        subtitle="Chaque objectif correspond à une action réelle du site et se valide automatiquement. Aucun bouton ne permet de tricher."
         accent={C.ok}
       />
       {!currentUser && (
@@ -14331,6 +14828,37 @@ function LearningPathsTab({ currentUser, setTab }) {
           text="Connecte-toi pour suivre ta progression sur les parcours."
           accent={C.ok}
         />
+      )}
+      {currentUser && (
+        <div
+          className="mt-4 rounded-xl px-4 py-3 flex items-center gap-3"
+          style={{
+            color: progressData.error ? C.alert : C.ok,
+            background: progressData.error ? `${C.alert}0E` : `${C.ok}0D`,
+            border: `1px solid ${progressData.error ? `${C.alert}38` : `${C.ok}32`}`,
+          }}
+        >
+          {progressData.loading ? (
+            <Loader2 size={16} className="animate-spin shrink-0" />
+          ) : progressData.error ? (
+            <AlertTriangle size={16} className="shrink-0" />
+          ) : (
+            <CheckCircle2 size={16} className="shrink-0" />
+          )}
+          <div className="min-w-0">
+            <p className="text-xs font-bold">
+              {progressData.loading
+                ? "Synchronisation de tes actions…"
+                : progressData.error
+                  ? "Progression temporairement indisponible"
+                  : "Progression automatique activée"}
+            </p>
+            <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>
+              {progressData.error ||
+                "Les données sont revérifiées toutes les 15 secondes et à chaque ouverture du parcours."}
+            </p>
+          </div>
+        </div>
       )}
 
       <style>{`
@@ -14625,6 +15153,14 @@ function LearningPathsTab({ currentUser, setTab }) {
                 {activePath.steps.map((step, stepIndex) => {
                   const done = Boolean(progress[step.id]);
                   const isNext = nextStep?.id === step.id && !done;
+                  const currentValue = Math.max(
+                    0,
+                    Number(progressData.metrics?.[step.metric] || 0),
+                  );
+                  const requirementPct = Math.min(
+                    100,
+                    Math.round((currentValue / step.target) * 100),
+                  );
                   return (
                     <div
                       key={step.id}
@@ -14634,11 +15170,8 @@ function LearningPathsTab({ currentUser, setTab }) {
                         border: `1px solid ${isNext ? `${activePath.accent}60` : done ? `${activePath.accent}30` : C.line}`,
                       }}
                     >
-                      <button
-                        type="button"
-                        onClick={() => toggleStep(step.id)}
-                        disabled={!currentUser}
-                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 disabled:opacity-50"
+                      <span
+                        className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
                         style={{
                           color: done
                             ? "#06110D"
@@ -14661,7 +15194,7 @@ function LearningPathsTab({ currentUser, setTab }) {
                             {stepIndex + 1}
                           </span>
                         )}
-                      </button>
+                      </span>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <h3
@@ -14693,7 +15226,7 @@ function LearningPathsTab({ currentUser, setTab }) {
                           {step.desc}
                         </p>
                         <div
-                          className="flex items-center gap-3 mt-2 text-[9px]"
+                          className="flex items-center gap-3 mt-2 text-[9px] flex-wrap"
                           style={{ color: C.muted, fontFamily: MONO_FONT }}
                         >
                           <span>
@@ -14701,6 +15234,30 @@ function LearningPathsTab({ currentUser, setTab }) {
                             {step.duration}
                           </span>
                           <span style={{ color: C.gold }}>+{step.xp} XP</span>
+                          <span
+                            className="ml-auto px-2 py-0.5 rounded-full"
+                            style={{
+                              color: done ? C.ok : activePath.accent,
+                              background: done
+                                ? `${C.ok}12`
+                                : `${activePath.accent}10`,
+                              border: `1px solid ${done ? `${C.ok}35` : `${activePath.accent}28`}`,
+                            }}
+                          >
+                            {Math.min(currentValue, step.target)}/{step.target}
+                          </span>
+                        </div>
+                        <div
+                          className="h-1 rounded-full overflow-hidden mt-2"
+                          style={{ background: C.bg }}
+                        >
+                          <div
+                            className="h-full rounded-full"
+                            style={{
+                              width: `${requirementPct}%`,
+                              background: done ? C.ok : activePath.accent,
+                            }}
+                          />
                         </div>
                       </div>
                       <button
@@ -17545,6 +18102,10 @@ export default function GowlSec() {
         .gowl-profile-badge.is-locked .gowl-profile-badge-icon { color: ${C.muted}; }
         .gowl-avatar-clickable { cursor: pointer; transition: transform 0.16s ease, box-shadow 0.16s ease; }
         .gowl-avatar-clickable:hover { transform: translateY(-1px) scale(1.04); box-shadow: 0 0 0 2px ${C.primary}66; }
+        .gowl-avatar-frame { isolation: isolate; transition: transform .18s ease, box-shadow .18s ease, filter .18s ease; }
+        .gowl-avatar-level-elite, .gowl-avatar-level-legende { animation: gowl-avatar-aura 5s linear infinite; }
+        .gowl-avatar-evolution-badge { z-index: 3; }
+        @keyframes gowl-avatar-aura { 0% { filter: hue-rotate(0deg) brightness(1); } 50% { filter: hue-rotate(16deg) brightness(1.12); } 100% { filter: hue-rotate(0deg) brightness(1); } }
         @keyframes gowl-streak-flame { 0%, 100% { filter: drop-shadow(0 0 2px ${C.warn}88); transform: translateY(0); } 50% { filter: drop-shadow(0 0 7px ${C.warn}); transform: translateY(-1px); } }
         .gowl-streak svg { animation: gowl-streak-flame 1.7s ease-in-out infinite; }
         @media (hover: none) {
@@ -17661,20 +18222,21 @@ export default function GowlSec() {
         .gowl-hub-roomitem-icon { display: inline-flex; opacity: 0.85; }
         .gowl-hub-roomitem-label { flex: 1; overflow: hidden; text-overflow: ellipsis; text-align: left; }
         .gowl-hub-roomitem-count { font-family: ${MONO_FONT}; font-size: 10.5px; padding: 1px 6px; border-radius: 999px; background: ${C.bg}88; color: ${C.muted}; }
-        .gowl-hub-header { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid ${C.line}; background: rgba(255,255,255,0.03); }
+        .gowl-hub-header { display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-bottom: 1px solid ${C.line}; background: linear-gradient(135deg, ${C.primary}10, ${C.panel2}); }
         .gowl-hub-header-icon { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .gowl-hub-header-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 999px; border: 1px solid; font-family: ${MONO_FONT}; }
         .gowl-hub-header-live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: ${C.muted}; font-family: ${MONO_FONT}; flex-shrink: 0; }
         @keyframes gowl-msg-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-        .gowl-hub-msg { display: flex; align-items: flex-start; gap: 15px; padding: 2px 16px; border-radius: 4px; position: relative; transition: background 0.1s ease; animation: gowl-msg-in 0.15s ease; }
-        .gowl-hub-msg:hover { background: rgba(255,255,255,0.035); }
+        .gowl-hub-msg { display: flex; align-items: flex-start; gap: 12px; padding: 3px 14px; border-radius: 10px; position: relative; transition: background 0.1s ease; animation: gowl-msg-in 0.15s ease; }
+        .gowl-hub-msg:hover { background: ${C.panel2}75; }
         .gowl-hub-msg[data-grouped="false"] { margin-top: 14px; }
         .gowl-hub-msg[data-grouped="true"] { margin-top: 0; }
         .gowl-hub-msg-gutter { width: 30px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 2px; }
         .gowl-hub-msg-hovertime { display: block; width: 100%; text-align: center; font-size: 9.5px; line-height: 1.4; color: ${C.muted}; font-family: ${MONO_FONT}; opacity: 0; padding-top: 2px; }
         .gowl-hub-msg:hover .gowl-hub-msg-hovertime { opacity: 1; }
         .gowl-hub-msg-author { display: flex; align-items: baseline; gap: 7px; margin-bottom: 2px; }
-        .gowl-hub-msg-bubble { display: block; padding: 0; margin: 0; background: transparent; border: none; border-radius: 0; box-shadow: none; color: ${C.text}; font-size: 15px; line-height: 1.375; font-family: ${BODY_FONT}; max-width: 100%; word-break: break-word; white-space: pre-wrap; }
+        .gowl-hub-msg-bubble { display: block; width: fit-content; padding: 7px 10px; margin: 0; background: ${C.panel2}; border: 1px solid ${C.line}; border-radius: 4px 12px 12px 12px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.025); color: ${C.text}; font-size: 14px; line-height: 1.45; font-family: ${BODY_FONT}; max-width: min(100%, 720px); word-break: break-word; white-space: pre-wrap; }
+        .gowl-hub-msg[data-self="true"] .gowl-hub-msg-bubble { background: ${C.primary}14; border-color: ${C.primary}35; box-shadow: inset 2px 0 0 ${C.primary}88; }
         .gowl-hub-msg-hoveractions { position: absolute; top: -14px; right: 14px; display: inline-flex; gap: 2px; background: ${C.panel2}; border: 1px solid ${C.line}; border-radius: 8px; padding: 3px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 1; }
         .gowl-hub-msg-action { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
         .gowl-hub-msg-action:hover { background: ${C.bg}88; }
@@ -17687,11 +18249,11 @@ export default function GowlSec() {
         .gowl-hub-reaction-add:hover { opacity: 1; background: ${C.panel2}; transform: scale(1.08); }
 
         /* --- Hub : barre de saisie dans le style du site --- */
-        .gowl-hub-composer { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: ${C.panel2}CC; border: 1px solid ${C.line}; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+        .gowl-hub-composer { position: relative; display: flex; align-items: flex-end; gap: 6px; padding: 7px 8px; border-radius: 13px; background: ${C.panel2}; border: 1px solid ${C.line}; box-shadow: inset 0 1px 0 rgba(255,255,255,0.03); transition: border-color 0.15s ease, box-shadow 0.15s ease; }
         .gowl-hub-composer:focus-within { border-color: ${C.primary}77; box-shadow: 0 0 0 3px ${C.primary}1A; }
         .gowl-hub-composer-icon { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; color: ${C.muted}; cursor: pointer; flex-shrink: 0; transition: background 0.15s ease, color 0.15s ease; }
         .gowl-hub-composer-icon:hover { background: ${C.bg}66; color: ${C.text}; }
-        .gowl-hub-composer-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; box-shadow: none; color: ${C.text}; font-size: 14px; font-family: ${BODY_FONT}; padding: 7px 3px; }
+        .gowl-hub-composer-input { flex: 1; min-width: 0; min-height: 34px; max-height: 110px; resize: none; background: transparent !important; border: none !important; outline: none; box-shadow: none !important; color: ${C.text}; font-size: 14px; line-height: 1.4; font-family: ${BODY_FONT}; padding: 7px 3px; }
         .gowl-hub-composer-input::placeholder { color: ${C.muted}; }
         .gowl-hub-composer-input:disabled { cursor: not-allowed; }
         .gowl-hub-composer-send { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: ${C.primary}; color: #fff; cursor: pointer; flex-shrink: 0; opacity: 0.4; transition: opacity 0.15s ease, transform 0.1s ease; }
