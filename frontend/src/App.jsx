@@ -3090,6 +3090,11 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
     await saveCollection("gowlsec:lab_messages", nextMsgs);
     setSelectedId(null);
   }
+  async function toggleLabFinished(labId) {
+    const next = labs.map((l) => l.id === labId ? { ...l, finished: !l.finished } : l);
+    setLabs(next);
+    await saveCollection("gowlsec:labs", next);
+  }
   async function sendLabMessage(labId) {
     if (!currentUser) return;
     const text = chatText.trim();
@@ -3126,6 +3131,7 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
                 <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{selected.title}</h2>
                 <Chip label={isPrivate ? "Privé" : "Public"} color={isPrivate ? C.warn : C.ok} />
                 <Chip label={plat.label} color={C.primary} />
+                {selected.finished && <Chip label="Terminé" color={C.ok} />}
               </div>
               <p className="text-sm mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{selected.description || "Aucune description."}</p>
               <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -3148,6 +3154,11 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
                 </div>
               ) : (
                 <PrimaryButton onClick={() => joinLab(selected)}><Plus size={14} /> Rejoindre</PrimaryButton>
+              )}
+              {(isAdmin || selected.owner === pseudo) && (
+                <button onClick={() => toggleLabFinished(selected.id)} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: selected.finished ? `${C.ok}22` : "transparent", border: `1px solid ${selected.finished ? C.ok : C.line}`, color: selected.finished ? C.ok : C.muted, fontFamily: MONO_FONT }}>
+                  {selected.finished ? <span className="inline-flex items-center gap-1"><CheckCircle2 size={12} /> Terminé</span> : "Marquer terminé"}
+                </button>
               )}
               {(isAdmin || selected.owner === pseudo) && <GhostButton danger onClick={() => removeLab(selected.id)}><Trash2 size={12} /> Supprimer</GhostButton>}
             </div>
@@ -3269,6 +3280,9 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
               return (
                 <Panel key={l.id} className="p-4 pt-5 cursor-pointer gowl-hud-card gowl-glass relative overflow-hidden" style={{ "--gowl-accent": C.alert }} onClick={() => setSelectedId(l.id)}>
                   <div aria-hidden className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${C.alert}, transparent)` }} />
+                  {l.finished && (
+                    <span className="gowl-qcard-resolved"><CheckCircle2 size={11} /> Terminé</span>
+                  )}
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-md flex items-center justify-center shrink-0" style={{ background: `${C.alert}1A`, border: `1px solid ${C.alert}44`, color: C.alert }}><Bug size={18} /></div>
                     <div className="min-w-0 flex-1">
@@ -3296,6 +3310,7 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
         <InfoSidebar>
           <StatCardsRow vertical items={[
             { icon: <Bug size={13} />, label: "Salons ouverts", value: labs.length, accent: C.alert },
+            { icon: <CheckCircle2 size={13} />, label: "Labs terminés", value: labs.filter((l) => l.finished).length, accent: C.ok },
             { icon: <Users size={13} />, label: "Hackers connectés", value: labs.reduce((s, l) => s + l.members.length, 0), accent: C.primary },
             { icon: <Unlock size={13} />, label: "Places libres", value: labs.reduce((s, l) => s + Math.max(0, (l.maxMembers || LAB_MAX_MEMBERS) - l.members.length), 0), accent: C.ok },
           ]} />
