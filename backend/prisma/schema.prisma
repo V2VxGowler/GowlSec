@@ -43,11 +43,12 @@ model RefreshToken {
 model HubMessage {
   id        Int      @id @default(autoincrement())
   content   String   @db.VarChar(1000)
+  room      String   @default("general") @db.VarChar(80)
   createdAt DateTime @default(now())
 
   userId Int
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@index([createdAt])
+  @@index([room, createdAt])
   @@index([userId])
 }
