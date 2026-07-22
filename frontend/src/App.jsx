@@ -54,6 +54,33 @@ function normalizeHubMessage(message) {
   };
 }
 
+const COMMUNITY_API_URL = (
+  import.meta.env.VITE_API_URL || "http://localhost:8080"
+).replace(/\/$/, "");
+
+async function communityRequest(path = "", options = {}) {
+  const token = localStorage.getItem("gowlsec_token");
+  const response = await fetch(
+    `${COMMUNITY_API_URL}/api/community${path}`,
+    {
+      method: options.method || "GET",
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    }
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Erreur de communication avec le serveur.");
+  }
+
+  return data;
+}
+
 const SEED_NEWS = [
   {
     id: 1,
@@ -2137,12 +2164,17 @@ function ForumTab({ pseudo, questions, setQuestions, isAdmin, lang = "fr", curre
     e.preventDefault();
     if (!currentUser) return;
     if (!title.trim() || !body.trim()) return;
-    const q = { id: uid(), author: pseudo, title: title.trim(), body: body.trim(), type, createdAt: new Date().toISOString(), answers: [], views: 0, resolved: false };
-    const next = [q, ...questions];
-    setQuestions(next);
-    saveCollection("gowlsec:questions", next);
-    setTitle(""); setBody(""); setType(QUESTION_TYPES[3].key); setShowForm(false);
-    setOpenId(q.id);
+    try {
+      const result = await communityRequest("/questions", {
+        method: "POST",
+        body: { title: title.trim(), body: body.trim(), type },
+      });
+      setQuestions((current) => [result.question, ...current]);
+      setTitle(""); setBody(""); setType(QUESTION_TYPES[3].key); setShowForm(false);
+      setOpenId(result.question.id);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function toggleQuestion(qid) {
     if (openId === qid) {
@@ -2345,18 +2377,26 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
   useEffect(() => {
     let active = true;
     (async () => {
-      const saved = await loadCollection("gowlsec:rooms", DEFAULT_ROOMS);
-      if (!active) return;
-      const normalized = (Array.isArray(saved) && saved.length > 0 ? saved : DEFAULT_ROOMS).map((room) => ({
+      try {
+        const result = await communityRequest();
+        if (!active) return;
+        const remoteRooms = Array.isArray(result.rooms) ? result.rooms : [];
+        const saved = [
+          ...DEFAULT_ROOMS,
+          ...remoteRooms.filter((remote) => !DEFAULT_ROOMS.some((room) => room.key === remote.key)),
+        ];
+        const normalized = saved.map((room) => ({
         ...room,
         owner: room.owner || "system",
         passwordHash: room.passwordHash || null,
         bannedUsers: Array.isArray(room.bannedUsers) ? room.bannedUsers : [],
         icon: room.icon || (room.key === "general" ? "web" : "hash"),
-      }));
-      setRooms(normalized);
-      setRoomAccess((prev) => ({ ...prev, general: true, ...Object.fromEntries(normalized.filter((r) => r.isPublic !== false).map((r) => [r.key, true])) }));
-      if (!Array.isArray(saved) || saved.length === 0) saveCollection("gowlsec:rooms", normalized);
+        }));
+        setRooms(normalized);
+        setRoomAccess((prev) => ({ ...prev, general: true, ...Object.fromEntries(normalized.filter((r) => r.isPublic !== false).map((r) => [r.key, true])) }));
+      } catch (error) {
+        console.error("Chargement des salons impossible :", error);
+      }
     })();
     return () => { active = false; };
   }, []);
@@ -2409,23 +2449,27 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
     const name = newRoomName.trim();
     if (!name) return;
     if (newRoomType === "private" && !newRoomPassword.trim()) return;
-    const base = name.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "") || "salon";
-    let slug = base;
-    let counter = 2;
-    while (rooms.some((r) => r.key === slug)) {
-      slug = `${base}-${counter}`;
-      counter += 1;
+    try {
+      const result = await communityRequest("/rooms", {
+        method: "POST",
+        body: {
+          label: name,
+          description: newRoomType === "public" ? "Salon public" : "Salon privé",
+          icon: newRoomIcon,
+          isPublic: newRoomType === "public",
+          password: newRoomPassword.trim(),
+        },
+      });
+      setRooms((currentRooms) => [...currentRooms, result.room]);
+      setRoom(result.room.key);
+      setRoomAccess((prev) => ({ ...prev, [result.room.key]: true }));
+      setNewRoomName("");
+      setNewRoomPassword("");
+      setNewRoomType("public");
+      setNewRoomIcon("hash");
+    } catch (error) {
+      setRoomActionFeedback(error.message);
     }
-    const passwordHash = newRoomType === "private" ? await hashText(newRoomPassword.trim()) : null;
-    const nextRooms = [...rooms, { key: slug, label: name.trim(), desc: newRoomType === "public" ? "Salon public" : "Salon privé", isPublic: newRoomType === "public", owner: pseudo, bannedUsers: [], passwordHash, icon: newRoomIcon }];
-    setRooms(nextRooms);
-    saveCollection("gowlsec:rooms", nextRooms);
-    setRoom(slug);
-    setRoomAccess((prev) => ({ ...prev, [slug]: newRoomType === "public" || newRoomType === "private" && pseudo === pseudo }));
-    setNewRoomName("");
-    setNewRoomPassword("");
-    setNewRoomType("public");
-    setNewRoomIcon("hash");
   }
 
   async function openRoom(targetRoom) {
@@ -2716,19 +2760,26 @@ function TeamsTab({ pseudo, teams, setTeams, announcements, setAnnouncements, is
     if (!currentUser) return;
     if (!name.trim()) return;
     if (visibility === "private" && !password.trim()) return;
-    const passwordHash = visibility === "private" ? await hashText(password.trim()) : null;
-    const t = {
-      id: uid(), name: name.trim(), description: description.trim(),
-      logoType, logoValue: logoType === "emoji" ? logoValue : logoValue.trim(),
-      owner: pseudo, members: [pseudo], maxMembers: TEAM_MAX_MEMBERS,
-      visibility, passwordHash, createdAt: new Date().toISOString(),
-    };
-    const next = [t, ...teams];
-    setTeams(next);
-    await saveCollection("gowlsec:teams", next);
-    setName(""); setDescription(""); setLogoType("emoji"); setLogoValue(TEAM_EMOJIS[0]); setVisibility("public"); setPassword("");
-    setShowCreate(false);
-    setSelectedId(t.id);
+    try {
+      const result = await communityRequest("/teams", {
+        method: "POST",
+        body: {
+          name: name.trim(),
+          description: description.trim(),
+          logoType,
+          logoValue: logoType === "emoji" ? logoValue : logoValue.trim(),
+          visibility,
+          password: password.trim(),
+          maxMembers: TEAM_MAX_MEMBERS,
+        },
+      });
+      setTeams((current) => [result.team, ...current]);
+      setName(""); setDescription(""); setLogoType("emoji"); setLogoValue(TEAM_EMOJIS[0]); setVisibility("public"); setPassword("");
+      setShowCreate(false);
+      setSelectedId(result.team.id);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function joinTeam(team) {
     if (!currentUser) return;
@@ -2986,18 +3037,25 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
     if (!currentUser) return;
     if (!title.trim()) return;
     if (visibility === "private" && !password.trim()) return;
-    const passwordHash = visibility === "private" ? await hashText(password.trim()) : null;
-    const lab = {
-      id: uid(), title: title.trim(), platform, description: description.trim(),
-      owner: pseudo, members: [pseudo], maxMembers: LAB_MAX_MEMBERS,
-      visibility, passwordHash, createdAt: new Date().toISOString(),
-    };
-    const next = [lab, ...labs];
-    setLabs(next);
-    await saveCollection("gowlsec:labs", next);
-    setTitle(""); setPlatform(LAB_PLATFORMS[0].key); setDescription(""); setVisibility("public"); setPassword("");
-    setShowCreate(false);
-    setSelectedId(lab.id);
+    try {
+      const result = await communityRequest("/labs", {
+        method: "POST",
+        body: {
+          title: title.trim(),
+          platform,
+          description: description.trim(),
+          visibility,
+          password: password.trim(),
+          maxMembers: LAB_MAX_MEMBERS,
+        },
+      });
+      setLabs((current) => [result.lab, ...current]);
+      setTitle(""); setPlatform(LAB_PLATFORMS[0].key); setDescription(""); setVisibility("public"); setPassword("");
+      setShowCreate(false);
+      setSelectedId(result.lab.id);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function joinLab(lab) {
     if (!currentUser) return;
@@ -3470,21 +3528,16 @@ function TrophyTab({ pseudo, trophies, setTrophies, isAdmin, currentUser = null 
     e.preventDefault();
     if (!currentUser) return;
     if (!title.trim()) return;
-    const t = {
-      id: uid(),
-      author: pseudo,
-      platform,
-      title: title.trim(),
-      difficulty,
-      note: note.trim(),
-      certification: certification.trim(),
-      imageUrl: imageUrl || "",
-      createdAt: new Date().toISOString(),
-    };
-    const next = [t, ...trophies];
-    setTrophies(next);
-    saveCollection("gowlsec:trophies", next);
-    setTitle(""); setNote(""); setCertification(""); setImageUrl(""); setImageName(""); setDifficulty(DIFFICULTIES[0].key); setShowForm(false);
+    try {
+      const result = await communityRequest("/trophies", {
+        method: "POST",
+        body: { platform, title: title.trim(), difficulty, note: note.trim(), certification: certification.trim(), imageUrl: imageUrl || "" },
+      });
+      setTrophies((current) => [result.trophy, ...current]);
+      setTitle(""); setNote(""); setCertification(""); setImageUrl(""); setImageName(""); setDifficulty(DIFFICULTIES[0].key); setShowForm(false);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   async function removeTrophy(id) {
     const next = trophies.filter((t) => t.id !== id);
@@ -4332,11 +4385,16 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
   async function submit(e) {
     e.preventDefault();
     if (!currentUser || !title.trim() || !content.trim()) return;
-    const w = { id: uid(), author: pseudo, platform, title: title.trim(), difficulty, summary: summary.trim(), content: content.trim(), link: link.trim(), createdAt: new Date().toISOString() };
-    const next = [w, ...writeups];
-    setWriteups(next);
-    saveCollection("gowlsec:writeups", next);
-    setTitle(""); setSummary(""); setContent(""); setLink(""); setDifficulty(DIFFICULTIES[0].key); setShowForm(false);
+    try {
+      const result = await communityRequest("/writeups", {
+        method: "POST",
+        body: { platform, title: title.trim(), difficulty, summary: summary.trim(), content: content.trim(), link: link.trim() },
+      });
+      setWriteups((current) => [result.writeup, ...current]);
+      setTitle(""); setSummary(""); setContent(""); setLink(""); setDifficulty(DIFFICULTIES[0].key); setShowForm(false);
+    } catch (error) {
+      window.alert(error.message);
+    }
   }
   function remove(id) {
     const next = writeups.filter((w) => w.id !== id);
@@ -4998,24 +5056,37 @@ export default function GowlSec() {
       const [pr, cr, q, m, t, n, tm, ta, ord, lb, lm, tk, th, wu, ev, nf] = await Promise.all([
         loadCollection("gowlsec:profiles", []),
         loadCollection("gowlsec:credentials", [], false),
-        loadCollection("gowlsec:questions", []),
+        Promise.resolve([]),
         Promise.resolve(null),
-        loadCollection("gowlsec:trophies", []),
+        Promise.resolve([]),
         loadCollection("gowlsec:news", SEED_NEWS),
-        loadCollection("gowlsec:teams", []),
-        loadCollection("gowlsec:team_announcements", []),
+        Promise.resolve([]),
+        Promise.resolve([]),
         loadCollection("gowlsec:orders", []),
-        loadCollection("gowlsec:labs", []),
-        loadCollection("gowlsec:lab_messages", []),
+        Promise.resolve([]),
+        Promise.resolve([]),
         loadCollection("gowlsec:tickets", []),
         loadCollection("gowlsec:support_threads", []),
-        loadCollection("gowlsec:writeups", []),
+        Promise.resolve([]),
         loadCollection("gowlsec:events", []),
         loadCollection("gowlsec:notifications", []),
       ]);
       setProfiles(pr); setCredentials(cr); setQuestions(q); setTrophies(t); setNews(n);
       setTeams(tm); setTeamAnnouncements(ta); setOrders(ord); setLabs(lb); setLabMessages(lm); setTickets(tk); setSupportThreads(th);
       setWriteups(wu); setEvents(ev); setNotifications(nf);
+
+      try {
+        const community = await communityRequest();
+        setQuestions(Array.isArray(community.questions) ? community.questions : []);
+        setTrophies(Array.isArray(community.trophies) ? community.trophies : []);
+        setTeams(Array.isArray(community.teams) ? community.teams : []);
+        setTeamAnnouncements(Array.isArray(community.teamAnnouncements) ? community.teamAnnouncements : []);
+        setLabs(Array.isArray(community.labs) ? community.labs : []);
+        setLabMessages(Array.isArray(community.labMessages) ? community.labMessages : []);
+        setWriteups(Array.isArray(community.writeups) ? community.writeups : []);
+      } catch (error) {
+        console.error("Chargement de la communauté impossible :", error);
+      }
 
       try {
         const sessionRes = await window.storage.get("gowlsec:session", false);
