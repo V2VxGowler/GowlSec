@@ -9,7 +9,7 @@ import {
   Rabbit, Cpu, Flame, Bird, Hash, Megaphone, User as UserIcon, Pencil,
   ShoppingCart, CreditCard, Users, Clock, Wifi, Circle,
   MessageCircle, Globe, KeyRound, Zap, TrendingUp, Radio,
-  Crown, Search, Calendar, Compass, FileText, MapPin, Terminal,
+  Crown, Search, Calendar, Compass, FileText, MapPin, Terminal, Smile, Camera,
 } from "lucide-react";
 
 
@@ -79,6 +79,37 @@ async function communityRequest(path = "", options = {}) {
   }
 
   return data;
+}
+
+const PROFILE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const PROFILE_IMAGE_MAX_SIZE = 5 * 1024 * 1024;
+
+function resolveProfileImageUrl(value) {
+  if (!value) return "";
+  if (/^(https?:|data:|blob:)/i.test(value)) return value;
+  return `${COMMUNITY_API_URL}${value.startsWith("/") ? value : `/${value}`}`;
+}
+
+async function updateProfileRequest(formData) {
+  const token = localStorage.getItem("gowlsec_token");
+  const response = await fetch(`${COMMUNITY_API_URL}/api/users/me`, {
+    method: "PATCH",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    credentials: "include",
+    body: formData,
+  });
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    throw new Error(
+      data?.message || "Impossible d’enregistrer les modifications du profil."
+    );
+  }
+
+  return data?.user || data?.profile || data;
 }
 
 const SEED_NEWS = [
@@ -873,7 +904,7 @@ function Avatar({ profile, size = 32 }) {
   if (profile?.avatarImage) {
     return (
       <div className="rounded-full overflow-hidden shrink-0" style={{ width: size, height: size }}>
-        <img src={profile.avatarImage} alt="avatar" className="w-full h-full object-cover" />
+        <img src={resolveProfileImageUrl(profile.avatarImage)} alt="avatar" className="w-full h-full object-cover" />
       </div>
     );
   }
@@ -1831,19 +1862,105 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
   const [editing, setEditing] = useState(false);
   const [avatarKey, setAvatarKey] = useState(currentUser?.avatarKey);
   const [avatarImage, setAvatarImage] = useState(currentUser?.avatarImage || "");
+  const [avatarFile, setAvatarFile] = useState(null);
   const [avatarImgWarn, setAvatarImgWarn] = useState("");
   const [banner, setBanner] = useState(currentUser?.banner);
   const [bannerImage, setBannerImage] = useState(currentUser?.bannerImage || "");
+  const [bannerFile, setBannerFile] = useState(null);
   const [bannerImgWarn, setBannerImgWarn] = useState("");
   const [bannerColor, setBannerColor] = useState(currentUser?.bannerColor || "");
   const [github, setGithub] = useState(currentUser?.socials?.github || "");
   const [twitter, setTwitter] = useState(currentUser?.socials?.twitter || "");
   const [discord, setDiscord] = useState(currentUser?.socials?.discord || "");
-  const [bio, setBio] = useState(currentUser?.bio || "");
+  const [bio, setBio] = useState((currentUser?.bio || "").slice(0, 300));
+  const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState({ type: "idle", message: "" });
+  const avatarInputRef = useRef(null);
+  const bannerInputRef = useRef(null);
 
-  function isGifUrl(u) {
-    const clean = (u || "").split("?")[0].split("#")[0].trim().toLowerCase();
-    return clean.endsWith(".gif");
+  function normalizeSocialUsername(value, provider) {
+    let username = (value || "").trim();
+
+    if (provider === "github") {
+      username = username.replace(/^https?:\/\/(?:www\.)?github\.com\//i, "");
+    }
+
+    if (provider === "twitter") {
+      username = username.replace(
+        /^https?:\/\/(?:www\.)?(?:x\.com|twitter\.com)\//i,
+        ""
+      );
+    }
+
+    return username.replace(/^@+/, "").split(/[/?#]/)[0].trim();
+  }
+
+  function resetProfileDraft() {
+    setAvatarKey(currentUser?.avatarKey);
+    setAvatarImage(currentUser?.avatarImage || "");
+    setAvatarFile(null);
+    setAvatarImgWarn("");
+    setBanner(currentUser?.banner);
+    setBannerImage(currentUser?.bannerImage || "");
+    setBannerFile(null);
+    setBannerImgWarn("");
+    setBannerColor(currentUser?.bannerColor || "");
+    setGithub(currentUser?.socials?.github || "");
+    setTwitter(currentUser?.socials?.twitter || "");
+    setDiscord(currentUser?.socials?.discord || "");
+    setBio((currentUser?.bio || "").slice(0, 300));
+    setSaveStatus({ type: "idle", message: "" });
+  }
+
+  function toggleProfileEditor() {
+    if (editing) resetProfileDraft();
+    setEditing((isEditing) => !isEditing);
+  }
+
+  function openProfileImagePicker(type) {
+    setEditing(true);
+    setSaveStatus({ type: "idle", message: "" });
+    const input = type === "avatar" ? avatarInputRef.current : bannerInputRef.current;
+    input?.click();
+  }
+
+  function handleProfileImage(event, type) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const setWarning = type === "avatar" ? setAvatarImgWarn : setBannerImgWarn;
+
+    if (!PROFILE_IMAGE_TYPES.includes(file.type)) {
+      setWarning("Format refusé. Utilise une image PNG, JPG ou WebP.");
+      event.target.value = "";
+      return;
+    }
+
+    if (file.size > PROFILE_IMAGE_MAX_SIZE) {
+      setWarning("Cette image dépasse la limite de 5 Mo.");
+      event.target.value = "";
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const preview = typeof reader.result === "string" ? reader.result : "";
+
+      if (type === "avatar") {
+        setAvatarFile(file);
+        setAvatarImage(preview);
+        setAvatarImgWarn("");
+      } else {
+        setBannerFile(file);
+        setBannerImage(preview);
+        setBannerColor("");
+        setBannerImgWarn("");
+      }
+
+      setSaveStatus({ type: "idle", message: "" });
+    };
+    reader.onerror = () => setWarning("Impossible de lire cette image.");
+    reader.readAsDataURL(file);
   }
 
   if (!currentUser) {
@@ -1858,7 +1975,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
 
   const myQuestions = questions.filter((q) => q.author === currentUser.username).length;
   const myTrophies = trophies.filter((t) => t.author === currentUser.username).length;
-  const bannerCss = bannerImage ? `url(${bannerImage}) center/cover no-repeat` : bannerColor ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})` : BANNER_MAP[banner] || "transparent";
+  const bannerCss = bannerImage ? `url(${resolveProfileImageUrl(bannerImage)}) center/cover no-repeat` : bannerColor ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})` : BANNER_MAP[banner] || "transparent";
   const socials = currentUser.socials || {};
 
   const myPoints = useMemo(() => computeUserPoints(currentUser.username, questions, trophies, labs), [currentUser.username, questions, trophies, labs]);
@@ -1877,58 +1994,149 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
   }, [currentUser.username, questions, trophies, teams, labs, messages]);
 
   async function save() {
-    if (isGifUrl(avatarImage) || isGifUrl(bannerImage)) return;
-    const updated = {
-      ...currentUser,
-      avatarKey,
-      avatarImage: avatarImage.trim(),
-      banner,
-      bannerImage: bannerImage.trim(),
-      bannerColor: bannerColor.trim(),
-      bio: bio.trim().slice(0, 160),
-      socials: { github: github.trim(), twitter: twitter.trim(), discord: discord.trim() },
-    };
-    const next = profiles.map((p) => (p.id === currentUser.id ? updated : p));
-    setProfiles(next);
-    setCurrentUser(updated);
-    await saveCollection("gowlsec:profiles", next);
-    setEditing(false);
+    if (saving || avatarImgWarn || bannerImgWarn) return;
+
+    const githubUsername = normalizeSocialUsername(github, "github");
+    const twitterUsername = normalizeSocialUsername(twitter, "twitter");
+    const cleanBio = bio.trim().slice(0, 300);
+    const formData = new FormData();
+
+    formData.append("bio", cleanBio);
+    formData.append("github", githubUsername);
+    formData.append("twitter", twitterUsername);
+    formData.append("discord", discord.trim());
+    formData.append("avatarKey", avatarKey || "bird");
+    formData.append("bannerKey", banner || "indigo");
+    formData.append("bannerColor", bannerColor.trim());
+    if (avatarFile) formData.append("avatar", avatarFile);
+    if (bannerFile) formData.append("banner", bannerFile);
+
+    setSaving(true);
+    setSaveStatus({ type: "loading", message: "Enregistrement en cours..." });
+
+    try {
+      const savedProfile = await updateProfileRequest(formData);
+      const updated = {
+        ...currentUser,
+        ...(savedProfile || {}),
+        avatarKey: savedProfile?.avatarKey || avatarKey,
+        avatarImage:
+          savedProfile?.avatarImage ||
+          savedProfile?.avatarUrl ||
+          avatarImage,
+        banner: savedProfile?.banner || savedProfile?.bannerKey || banner,
+        bannerImage:
+          savedProfile?.bannerImage ||
+          savedProfile?.bannerUrl ||
+          bannerImage,
+        bannerColor: savedProfile?.bannerColor ?? bannerColor.trim(),
+        bio: savedProfile?.bio ?? cleanBio,
+        socials: savedProfile?.socials || {
+          github: githubUsername,
+          twitter: twitterUsername,
+          discord: discord.trim(),
+        },
+      };
+      const profileExists = profiles.some((profile) => profile.id === currentUser.id);
+      const next = profileExists
+        ? profiles.map((profile) =>
+            profile.id === currentUser.id ? updated : profile
+          )
+        : [...profiles, updated];
+
+      setGithub(updated.socials?.github || "");
+      setTwitter(updated.socials?.twitter || "");
+      setDiscord(updated.socials?.discord || "");
+      setAvatarImage(updated.avatarImage || "");
+      setBannerImage(updated.bannerImage || "");
+      setAvatarFile(null);
+      setBannerFile(null);
+      setProfiles(next);
+      setCurrentUser(updated);
+      await saveCollection("gowlsec:profiles", next);
+      setSaveStatus({ type: "success", message: "Profil mis à jour avec succès." });
+      setEditing(false);
+    } catch (error) {
+      setSaveStatus({
+        type: "error",
+        message: error.message || "Impossible d’enregistrer le profil.",
+      });
+    } finally {
+      setSaving(false);
+    }
   }
 
   const joinedValid = currentUser.joinedAt && !Number.isNaN(new Date(currentUser.joinedAt).getTime());
   const badgeCount = [isAdminProfile(currentUser), currentUser.isPremium, isMaxLevel].filter(Boolean).length;
 
   return (
-    <div className="max-w-xl mx-auto">
+    <div className="max-w-2xl mx-auto">
+      <input
+        ref={avatarInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onClick={(event) => { event.currentTarget.value = ""; }}
+        onChange={(event) => handleProfileImage(event, "avatar")}
+      />
+      <input
+        ref={bannerInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/webp"
+        className="hidden"
+        onClick={(event) => { event.currentTarget.value = ""; }}
+        onChange={(event) => handleProfileImage(event, "banner")}
+      />
+
       <Panel className="overflow-hidden mb-4 gowl-profile-card" style={{ border: `1px solid ${levelInfo.level.color}3D`, background: "rgba(8,10,14,0.6)", backdropFilter: "blur(2px)" }}>
-        <div className="h-20 sm:h-24 relative overflow-hidden" style={{ background: "transparent" }}>
+        <button
+          type="button"
+          onClick={() => openProfileImagePicker("banner")}
+          className="group block h-24 sm:h-32 w-full relative overflow-hidden text-left gowl-profile-banner-picker"
+          style={{ background: "transparent" }}
+          aria-label="Modifier la bannière"
+        >
           <div className="absolute inset-0" style={{ background: bannerCss }} />
           <span aria-hidden className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${levelInfo.level.color}33, transparent 70%)`, filter: "blur(6px)" }} />
           <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff1c 1px, transparent 1px)", backgroundSize: "18px 18px", opacity: 0.3, maskImage: "linear-gradient(180deg, black, transparent 88%)" }} />
           <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(180deg, transparent 30%, rgba(8,10,14,0.6) 100%)` }} />
+          <span className="gowl-profile-banner-overlay absolute inset-0 flex items-center justify-center">
+            <span className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ color: "#fff", background: "rgba(5,10,16,0.78)", border: "1px solid rgba(255,255,255,0.2)", fontFamily: BODY_FONT, backdropFilter: "blur(8px)" }}>
+              <Camera size={14} /> Modifier la bannière
+            </span>
+          </span>
           {isAdminProfile(currentUser) && (
             <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase gowl-mono-tag" style={{ background: `${C.bg}B0`, color: C.gold, border: `1px solid ${C.gold}55` }}>
               <Shield size={11} /> Admin
             </span>
           )}
-        </div>
+        </button>
 
         <div className="px-4 sm:px-5 pb-4">
           <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 -mt-8">
             <div className="flex items-end gap-3">
-              <div className="relative shrink-0">
+              <button
+                type="button"
+                onClick={() => openProfileImagePicker("avatar")}
+                className="group relative shrink-0 rounded-full gowl-profile-avatar-picker"
+                aria-label="Modifier la photo de profil"
+              >
                 <div className="rounded-full p-[2px]" style={{ background: `conic-gradient(${levelInfo.level.color} ${levelInfo.pct * 3.6}deg, ${C.line} 0deg)`, boxShadow: `0 6px 16px -8px ${levelInfo.level.color}CC` }}>
                   <div className="rounded-full p-[2px]" style={{ background: "#0A0C10" }}>
                     <Avatar profile={{ avatarKey, avatarImage }} size={56} />
                   </div>
                 </div>
+                <span className="gowl-profile-avatar-overlay absolute inset-[4px] rounded-full flex flex-col items-center justify-center" style={{ color: "#fff", background: "rgba(5,10,16,0.78)" }}>
+                  <Camera size={14} />
+                  <span className="text-[8px] font-bold uppercase mt-0.5" style={{ fontFamily: MONO_FONT }}>Modifier</span>
+                </span>
                 <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full gowl-live-dot" style={{ background: C.ok, border: `2px solid #0A0C10` }} title="En ligne" />
                 {isMaxLevel && (
                   <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center gowl-count-pop" style={{ background: "#0A0C10", border: `1.5px solid ${levelInfo.level.color}`, color: levelInfo.level.color, boxShadow: `0 4px 10px -3px ${levelInfo.level.color}AA` }} title="Niveau maximum">
                     <Crown size={10} />
                   </span>
                 )}
-              </div>
+              </button>
               <div className="pb-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h2 className="text-lg font-extrabold leading-tight gowl-profile-name" style={{ fontFamily: DISPLAY_FONT, backgroundImage: `linear-gradient(90deg, ${C.text}, ${levelInfo.level.color})` }}>{currentUser.username}</h2>
@@ -1939,7 +2147,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
                 </p>
               </div>
             </div>
-            <GhostButton onClick={() => setEditing((e) => !e)}><Pencil size={12} /> {editing ? "Annuler" : "Modifier le profil"}</GhostButton>
+            <GhostButton onClick={toggleProfileEditor}><Pencil size={12} /> {editing ? "Annuler" : "Modifier le profil"}</GhostButton>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap mt-2.5">
@@ -1988,7 +2196,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
               </a>
             ) : !editing && <GhostButton onClick={() => setEditing(true)}><GitHubIcon size={12} /> Ajouter GitHub</GhostButton>}
             {socials.twitter ? (
-              <a href={socials.twitter.startsWith("http") ? socials.twitter : `https://twitter.com/${socials.twitter.replace(/^@/, "")}`} target="_blank" rel="noreferrer"
+              <a href={socials.twitter.startsWith("http") ? socials.twitter : `https://x.com/${socials.twitter.replace(/^@/, "")}`} target="_blank" rel="noreferrer"
                 className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs gowl-social-link" style={{ border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
                 <XIcon size={13} /> X (Twitter)
               </a>
@@ -2001,6 +2209,13 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
           </div>
         </div>
       </Panel>
+
+      {!editing && saveStatus.type === "success" && (
+        <div className="mb-4 rounded-xl px-3.5 py-3 flex items-center gap-2.5 gowl-fade-in" style={{ color: C.ok, background: `${C.ok}0F`, border: `1px solid ${C.ok}33` }}>
+          <CheckCircle2 size={14} />
+          <span className="text-xs" style={{ fontFamily: BODY_FONT }}>{saveStatus.message}</span>
+        </div>
+      )}
 
       <Panel className="p-4 mb-6 gowl-glass">
         <div className="flex items-center gap-2 mb-3">
@@ -2029,78 +2244,160 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
       </Panel>
 
       {editing && (
-        <Panel className="overflow-hidden mb-6">
-          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}`, background: `linear-gradient(155deg, ${C.primary}14, transparent)` }}>
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${C.primary}1A`, color: C.primary }}><Pencil size={13} /></span>
-            <div>
-              <span className="text-xs font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Modifier le profil</span>
-              <p className="text-[10px] gowl-mono-tag" style={{ color: C.muted }}>Visible par toute la communauté</p>
+        <Panel className="overflow-hidden mb-6 gowl-profile-editor" style={{ borderColor: `${C.primary}3D`, background: "rgba(8,12,18,0.92)" }}>
+          <div className="px-4 sm:px-5 py-4 flex items-center justify-between gap-3" style={{ borderBottom: `1px solid ${C.line}`, background: `linear-gradient(135deg, ${C.primary}18, ${C.ok}08 58%, transparent)` }}>
+            <div className="flex items-center gap-3">
+              <span className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${C.primary}1F`, color: C.primary, border: `1px solid ${C.primary}33` }}><Pencil size={15} /></span>
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Personnaliser mon profil</h3>
+                <p className="text-[11px] mt-0.5" style={{ color: C.muted, fontFamily: BODY_FONT }}>Les informations enregistrées seront visibles par la communauté.</p>
+              </div>
             </div>
+            <button type="button" onClick={toggleProfileEditor} className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ color: C.muted, background: C.panel2, border: `1px solid ${C.line}` }} aria-label="Fermer"><X size={14} /></button>
           </div>
-          <div className="p-4">
-          <Field label="Bio (160 caractères max)">
-            <textarea value={bio} onChange={(e) => setBio(e.target.value.slice(0, 160))} rows={2} placeholder="Une courte présentation, ta spécialité, tes objectifs..." className="w-full px-3 py-2 rounded-md text-sm resize-none" style={inputStyle} />
-            <span className="block mt-1 text-xs text-right" style={{ color: C.muted, fontFamily: MONO_FONT }}>{bio.length}/160</span>
-          </Field>
-          <Field label="Photo de profil">
-            <div className="flex flex-wrap gap-2 mb-2">
-              {AVATAR_OPTIONS.map((a) => {
-                const Icon = a.icon;
-                const active = avatarKey === a.key && !avatarImage;
-                return (
-                  <button key={a.key} onClick={() => { setAvatarKey(a.key); setAvatarImage(""); }} className="relative w-11 h-11 rounded-full flex items-center justify-center gowl-avatar-swatch"
-                    style={{ background: a.color, outline: active ? `2px solid ${C.text}` : "none", outlineOffset: 2 }}>
-                    <Icon size={19} color="#fff" />
-                    {active && <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: C.ok, border: `2px solid ${C.panel}` }}><CheckCircle2 size={9} color="#fff" /></span>}
-                  </button>
-                );
-              })}
-            </div>
-            <input value={avatarImage} onChange={(e) => { const v = e.target.value; setAvatarImage(v); setAvatarImgWarn(isGifUrl(v) ? "Les GIF ne sont pas autorisés — utilise un JPG, PNG ou WebP." : ""); }} placeholder="Photo de profil — colle une URL d'image (pas de GIF)..."
-              className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            {avatarImgWarn ? (
-              <p className="mt-1 text-[11px]" style={{ color: C.alert, fontFamily: BODY_FONT }}>{avatarImgWarn}</p>
-            ) : (
-              <p className="mt-1 text-[11px]" style={{ color: C.muted, fontFamily: BODY_FONT }}>Format image uniquement (JPG, PNG, WebP...) — les GIF ne sont pas acceptés.</p>
+
+          <div className="p-4 sm:p-5 space-y-5">
+            <section>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <label htmlFor="profile-bio" className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.text, fontFamily: MONO_FONT }}>À propos de moi</label>
+                <span className="text-[10px]" style={{ color: bio.length >= 280 ? C.warn : C.muted, fontFamily: MONO_FONT }}>{bio.length}/300</span>
+              </div>
+              <textarea
+                id="profile-bio"
+                value={bio}
+                onChange={(event) => { setBio(event.target.value.slice(0, 300)); setSaveStatus({ type: "idle", message: "" }); }}
+                rows={4}
+                maxLength={300}
+                placeholder="Présente ton parcours, tes spécialités, les CTF que tu pratiques ou tes objectifs..."
+                className="w-full px-3.5 py-3 rounded-xl text-sm resize-none gowl-profile-input"
+                style={{ ...inputStyle, lineHeight: 1.6, background: "rgba(5,10,16,0.82)" }}
+              />
+            </section>
+
+            <section>
+              <div className="mb-3">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.text, fontFamily: MONO_FONT }}>Identité visuelle</h4>
+                <p className="text-[11px] mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>Clique sur un aperçu pour choisir une image PNG, JPG ou WebP de 5 Mo maximum.</p>
+              </div>
+              <div className="grid sm:grid-cols-2 gap-3">
+                <button type="button" onClick={() => openProfileImagePicker("avatar")} className="group rounded-xl p-3 text-left gowl-profile-upload-card" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${avatarImgWarn ? C.alert : C.line}` }}>
+                  <span className="flex items-center justify-between gap-2 mb-3">
+                    <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>Photo de profil</span>
+                    <Camera size={14} style={{ color: C.primary }} />
+                  </span>
+                  <span className="flex items-center gap-3">
+                    <span className="rounded-full overflow-hidden shrink-0" style={{ border: `2px solid ${C.primary}66` }}><Avatar profile={{ avatarKey, avatarImage }} size={54} /></span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-semibold" style={{ color: C.primary, fontFamily: BODY_FONT }}>Choisir un fichier</span>
+                      <span className="block text-[10px] mt-1 truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{avatarFile?.name || "Aucun nouveau fichier"}</span>
+                    </span>
+                  </span>
+                </button>
+
+                <button type="button" onClick={() => openProfileImagePicker("banner")} className="group rounded-xl p-3 text-left gowl-profile-upload-card" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${bannerImgWarn ? C.alert : C.line}` }}>
+                  <span className="flex items-center justify-between gap-2 mb-3">
+                    <span className="text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>Bannière</span>
+                    <Camera size={14} style={{ color: C.ok }} />
+                  </span>
+                  <span className="block h-[54px] rounded-lg overflow-hidden relative" style={{ background: bannerCss, border: `1px solid ${C.line}` }}>
+                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-semibold opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: "#fff", background: "rgba(5,10,16,0.68)", fontFamily: BODY_FONT }}>Choisir un fichier</span>
+                  </span>
+                  <span className="block text-[10px] mt-2 truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{bannerFile?.name || "Aucun nouveau fichier"}</span>
+                </button>
+              </div>
+              {(avatarImgWarn || bannerImgWarn) && (
+                <div className="mt-3 rounded-lg px-3 py-2 flex items-start gap-2" style={{ color: C.alert, background: `${C.alert}0F`, border: `1px solid ${C.alert}33` }}>
+                  <AlertTriangle size={13} className="mt-0.5 shrink-0" />
+                  <p className="text-[11px]" style={{ fontFamily: BODY_FONT }}>{avatarImgWarn || bannerImgWarn}</p>
+                </div>
+              )}
+
+              <div className="grid sm:grid-cols-[1fr_auto] gap-3 mt-3 items-start">
+                <div className="rounded-xl p-3" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${C.line}` }}>
+                  <p className="text-[10px] uppercase tracking-wider mb-2.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>Avatars GowlSec</p>
+                  <div className="flex flex-wrap gap-2">
+                    {AVATAR_OPTIONS.map((avatarOption) => {
+                      const AvatarIcon = avatarOption.icon;
+                      const active = avatarKey === avatarOption.key && !avatarImage;
+                      return (
+                        <button
+                          type="button"
+                          key={avatarOption.key}
+                          onClick={() => { setAvatarKey(avatarOption.key); setAvatarImage(""); setAvatarFile(null); setAvatarImgWarn(""); }}
+                          className="relative w-9 h-9 rounded-full flex items-center justify-center gowl-avatar-swatch"
+                          style={{ background: avatarOption.color, outline: active ? `2px solid ${C.ok}` : "none", outlineOffset: 2 }}
+                          title="Utiliser cet avatar"
+                        >
+                          <AvatarIcon size={16} color="#fff" />
+                          {active && <span className="absolute -bottom-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: C.ok, border: `2px solid ${C.panel}` }}><CheckCircle2 size={9} color="#fff" /></span>}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+                <label className="rounded-xl p-3 cursor-pointer min-w-[132px]" style={{ background: "rgba(255,255,255,0.02)", border: `1px solid ${C.line}` }}>
+                  <span className="block text-[10px] uppercase tracking-wider mb-2" style={{ color: C.muted, fontFamily: MONO_FONT }}>Couleur bannière</span>
+                  <span className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-lg" style={{ background: bannerColor || "#5B6EF5", border: "1px solid rgba(255,255,255,0.18)" }} />
+                    <span className="text-xs" style={{ color: C.text, fontFamily: MONO_FONT }}>{bannerColor || "#5B6EF5"}</span>
+                  </span>
+                  <input type="color" value={bannerColor || "#5B6EF5"} onChange={(event) => { setBannerColor(event.target.value); setBannerImage(""); setBannerFile(null); setBannerImgWarn(""); }} className="sr-only" />
+                </label>
+              </div>
+            </section>
+
+            <section>
+              <div className="mb-3">
+                <h4 className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.text, fontFamily: MONO_FONT }}>Présence en ligne</h4>
+                <p className="text-[11px] mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>Indique uniquement tes noms d’utilisateur. Les liens sont générés automatiquement.</p>
+              </div>
+              <div className="grid gap-3">
+                <label className="gowl-profile-social-field rounded-xl p-3" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${C.line}` }}>
+                  <span className="flex items-center gap-2 mb-2">
+                    <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ color: C.text, background: "rgba(255,255,255,0.06)" }}><GitHubIcon size={14} /></span>
+                    <span><span className="block text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>GitHub</span><span className="block text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>github.com/ton-pseudo</span></span>
+                  </span>
+                  <div className="flex items-center rounded-lg overflow-hidden" style={{ background: "rgba(5,10,16,0.82)", border: `1px solid ${C.line}` }}>
+                    <span className="hidden sm:block px-3 text-[11px] shrink-0" style={{ color: C.muted, fontFamily: MONO_FONT }}>github.com/</span>
+                    <input value={github} onChange={(event) => { setGithub(event.target.value); setSaveStatus({ type: "idle", message: "" }); }} placeholder="ton-pseudo" className="w-full min-w-0 px-3 py-2.5 text-sm bg-transparent outline-none" style={{ color: C.text, fontFamily: BODY_FONT }} />
+                  </div>
+                </label>
+
+                <label className="gowl-profile-social-field rounded-xl p-3" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${C.line}` }}>
+                  <span className="flex items-center gap-2 mb-2">
+                    <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ color: C.text, background: "rgba(255,255,255,0.06)" }}><XIcon size={14} /></span>
+                    <span><span className="block text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>X / Twitter</span><span className="block text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>x.com/ton-pseudo</span></span>
+                  </span>
+                  <div className="flex items-center rounded-lg overflow-hidden" style={{ background: "rgba(5,10,16,0.82)", border: `1px solid ${C.line}` }}>
+                    <span className="px-3 text-[11px] shrink-0" style={{ color: C.muted, fontFamily: MONO_FONT }}>@</span>
+                    <input value={twitter} onChange={(event) => { setTwitter(event.target.value); setSaveStatus({ type: "idle", message: "" }); }} placeholder="ton-pseudo" className="w-full min-w-0 px-1 pr-3 py-2.5 text-sm bg-transparent outline-none" style={{ color: C.text, fontFamily: BODY_FONT }} />
+                  </div>
+                </label>
+
+                <label className="gowl-profile-social-field rounded-xl p-3" style={{ background: "rgba(255,255,255,0.025)", border: `1px solid ${C.discord}33` }}>
+                  <span className="flex items-center gap-2 mb-2">
+                    <span className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ color: C.discord, background: `${C.discord}18` }}><DiscordLogo size={14} /></span>
+                    <span><span className="block text-xs font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>Discord</span><span className="block text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>Nom affiché uniquement, sans faux lien</span></span>
+                  </span>
+                  <input value={discord} onChange={(event) => { setDiscord(event.target.value.slice(0, 80)); setSaveStatus({ type: "idle", message: "" }); }} maxLength={80} placeholder="ton nom d’utilisateur Discord" className="w-full px-3 py-2.5 rounded-lg text-sm outline-none" style={{ ...inputStyle, background: "rgba(5,10,16,0.82)" }} />
+                </label>
+              </div>
+            </section>
+
+            {saveStatus.type !== "idle" && (
+              <div className="rounded-xl px-3.5 py-3 flex items-center gap-2.5" style={{ color: saveStatus.type === "error" ? C.alert : saveStatus.type === "success" ? C.ok : C.primary, background: saveStatus.type === "error" ? `${C.alert}0F` : saveStatus.type === "success" ? `${C.ok}0F` : `${C.primary}0F`, border: `1px solid ${saveStatus.type === "error" ? C.alert : saveStatus.type === "success" ? C.ok : C.primary}33` }}>
+                {saveStatus.type === "loading" ? <Loader2 size={14} className="animate-spin" /> : saveStatus.type === "success" ? <CheckCircle2 size={14} /> : <AlertTriangle size={14} />}
+                <span className="text-xs" style={{ fontFamily: BODY_FONT }}>{saveStatus.message}</span>
+              </div>
             )}
-          </Field>
-          <Field label="Bannière">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              <label className="relative w-20 h-11 rounded-md flex items-center justify-center cursor-pointer overflow-hidden gowl-avatar-swatch"
-                style={{ background: bannerColor ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})` : BANNER_MAP.indigo, outline: `2px solid ${C.text}`, outlineOffset: 2 }}
-                title="Choisir ma propre couleur">
-                <span className="text-[10px] font-semibold" style={{ color: "#fff", fontFamily: MONO_FONT }}>Pipette</span>
-                <input type="color" value={bannerColor || "#5B6EF5"} onChange={(e) => { setBannerColor(e.target.value); setBannerImage(""); }}
-                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
-              </label>
+
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-1">
+              <button type="button" onClick={toggleProfileEditor} disabled={saving} className="px-4 py-2.5 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ color: C.muted, background: C.panel2, border: `1px solid ${C.line}`, fontFamily: BODY_FONT }}>Annuler</button>
+              <button type="button" onClick={save} disabled={saving || !!avatarImgWarn || !!bannerImgWarn} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed gowl-profile-save" style={{ color: "#04120D", background: C.ok, border: `1px solid ${C.ok}`, boxShadow: `0 10px 24px -12px ${C.ok}CC`, fontFamily: BODY_FONT }}>
+                {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                {saving ? "Enregistrement..." : "Enregistrer les modifications"}
+              </button>
             </div>
-            <input value={bannerImage} onChange={(e) => { const v = e.target.value; setBannerImage(v); setBannerColor(""); setBannerImgWarn(isGifUrl(v) ? "Les GIF ne sont pas autorisés — utilise un JPG, PNG ou WebP." : ""); }} placeholder="Bannière — colle une URL d'image (pas de GIF)..."
-              className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            {bannerImgWarn ? (
-              <p className="mt-1 text-[11px]" style={{ color: C.alert, fontFamily: BODY_FONT }}>{bannerImgWarn}</p>
-            ) : (
-              <p className="mt-1 text-[11px]" style={{ color: C.muted, fontFamily: BODY_FONT }}>Format image uniquement (JPG, PNG, WebP...) — les GIF ne sont pas acceptés.</p>
-            )}
-          </Field>
-          <Field label="GitHub">
-            <div className="flex items-center gap-2">
-              <GitHubIcon size={15} style={{ color: C.muted }} />
-              <input value={github} onChange={(e) => setGithub(e.target.value)} placeholder="pseudo ou lien github.com/..." className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            </div>
-          </Field>
-          <Field label="Twitter / X">
-            <div className="flex items-center gap-2">
-              <XIcon size={15} style={{ color: C.muted }} />
-              <input value={twitter} onChange={(e) => setTwitter(e.target.value)} placeholder="@pseudo ou lien" className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            </div>
-          </Field>
-          <Field label="Discord">
-            <div className="flex items-center gap-2">
-              <MessageCircle size={15} style={{ color: C.muted }} />
-              <input value={discord} onChange={(e) => setDiscord(e.target.value)} placeholder="pseudo#0000 ou pseudo" className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            </div>
-          </Field>
-          <PrimaryButton onClick={save}><CheckCircle2 size={14} /> Enregistrer</PrimaryButton>
           </div>
         </Panel>
       )}
@@ -2802,10 +3099,10 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
                   <input value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder="Ex. CTF juniors" className="w-full px-3 py-2 rounded-md text-sm" style={{ ...inputStyle, background: "rgba(5,10,16,0.75)", border: `1px solid ${C.line}` }} />
                 </div>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setNewRoomType("public")} className="px-3 py-2 rounded-md text-sm" style={{ background: newRoomType === "public" ? C.primary : "transparent", color: newRoomType === "public" ? "#fff" : C.muted, border: `1px solid ${newRoomType === "public" ? C.primary : C.line}` }}><Globe size={14} className="inline mr-1.5" />Public</button>
-                  <button type="button" onClick={() => setNewRoomType("private")} className="px-3 py-2 rounded-md text-sm" style={{ background: newRoomType === "private" ? C.warn : "transparent", color: newRoomType === "private" ? "#fff" : C.muted, border: `1px solid ${newRoomType === "private" ? C.warn : C.line}` }}><KeyRound size={14} className="inline mr-1.5" />Privé</button>
+                  <button type="button" onClick={() => setNewRoomType("public")} className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold transition-opacity" style={{ background: newRoomType === "public" ? `${C.primary}22` : C.panel2, color: newRoomType === "public" ? C.primary : C.muted, border: `1px solid ${newRoomType === "public" ? C.primary : "transparent"}`, fontFamily: BODY_FONT }}><Globe size={14} />Public</button>
+                  <button type="button" onClick={() => setNewRoomType("private")} className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md text-sm font-semibold transition-opacity" style={{ background: newRoomType === "private" ? `${C.alert}22` : C.panel2, color: newRoomType === "private" ? C.alert : C.muted, border: `1px solid ${newRoomType === "private" ? C.alert : "transparent"}`, fontFamily: BODY_FONT }}><KeyRound size={14} />Privé</button>
                 </div>
-                <PrimaryButton type="submit">Créer</PrimaryButton>
+                <PrimaryButton type="submit" style={{ background: C.ok }}><CheckCircle2 size={14} /> Créer</PrimaryButton>
               </div>
               {newRoomType === "private" && (
                 <div className="mt-2">
@@ -2854,7 +3151,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
             </div>
             <span className="gowl-hub-header-live"><span className="gowl-live-dot" style={{ background: C.ok }} /> En direct</span>
           </div>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4" style={{ background: "rgba(255,255,255,0.02)" }}>
+          <div className="flex-1 overflow-y-auto px-4 py-3" style={{ background: "rgba(255,255,255,0.02)" }}>
             {isOwner && (
               <div className="rounded-xl border p-3 mb-3" style={{ borderColor: C.line, background: "rgba(255,255,255,0.03)" }}>
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
@@ -2892,29 +3189,36 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
                     <p className="gowl-hub-empty-sub">Envoie le premier message pour lancer la discussion.</p>
                   </div>
                 )}
-                {roomMessages.map((m) => {
+                {roomMessages.map((m, idx) => {
               const reactions = m.reactions || {};
               const authorProfile = profiles.find((p) => p.username === m.author);
               const isSelf = !!pseudo && m.author === pseudo;
               const isEditing = editingId === m.id;
+              const prevMsg = roomMessages[idx - 1];
+              const grouped = !!prevMsg && prevMsg.author === m.author && (new Date(m.createdAt).getTime() - new Date(prevMsg.createdAt).getTime()) < 5 * 60 * 1000;
+              const hhmm = new Date(m.createdAt).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
               return (
-                <div key={m.id} className="gowl-hub-msg group">
-                  <Avatar profile={authorProfile} size={30} />
-                  <div className="flex-1 min-w-0">
-                    <div className="gowl-hub-msg-author">
-                      <span className="text-[13px] font-bold" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.author}</span>
-                      {isAdminProfile(authorProfile) && <AdminBadge />}
-                      <span className="text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(m.createdAt)}</span>
-                      {m.edited && <span className="text-[10px] italic" style={{ color: C.muted, fontFamily: BODY_FONT }}>(modifié)</span>}
-                      {!isEditing && (isSelf || isAdmin) && (
-                        <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          {isSelf && (
-                            <button onClick={() => startEditMsg(m)} title="Modifier" className="gowl-hub-msg-action" style={{ color: C.muted }}><Pencil size={11} /></button>
-                          )}
-                          <button onClick={() => removeMsg(m.id)} title="Supprimer" className="gowl-hub-msg-action" style={{ color: C.alert }}><Trash2 size={11} /></button>
-                        </span>
-                      )}
-                    </div>
+                <div key={m.id} className="gowl-hub-msg group" data-grouped={grouped}>
+                  <div className="gowl-hub-msg-gutter">
+                    {grouped ? <span className="gowl-hub-msg-hovertime">{hhmm}</span> : <Avatar profile={authorProfile} size={30} />}
+                  </div>
+                  <div className="flex-1 min-w-0 relative">
+                    {!isEditing && (isSelf || isAdmin) && (
+                      <span className="gowl-hub-msg-hoveractions opacity-0 group-hover:opacity-100 transition-opacity">
+                        {isSelf && (
+                          <button onClick={() => startEditMsg(m)} title="Modifier" className="gowl-hub-msg-action" style={{ color: C.muted }}><Pencil size={11} /></button>
+                        )}
+                        <button onClick={() => removeMsg(m.id)} title="Supprimer" className="gowl-hub-msg-action" style={{ color: C.alert }}><Trash2 size={11} /></button>
+                      </span>
+                    )}
+                    {!grouped && (
+                      <div className="gowl-hub-msg-author">
+                        <span className="text-[13px] font-bold" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.author}</span>
+                        {isAdminProfile(authorProfile) && <AdminBadge />}
+                        <span className="text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(m.createdAt)}</span>
+                        {m.edited && <span className="text-[10px] italic" style={{ color: C.muted, fontFamily: BODY_FONT }}>(modifié)</span>}
+                      </div>
+                    )}
                     {isEditing ? (
                       <div className="gowl-hub-msg-edit">
                         <textarea
@@ -2936,7 +3240,7 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
                         </div>
                       </div>
                     ) : (
-                      <div className="gowl-hub-msg-bubble">{m.text}</div>
+                      <div className="gowl-hub-msg-bubble">{m.text} {grouped && m.edited && <span className="text-[10px] italic ml-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>(modifié)</span>}</div>
                     )}
                     <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                       {Object.entries(reactions).map(([em, users]) => (
@@ -2972,12 +3276,14 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
                 Vous avez été banni de ce salon.
               </div>
             ) : (
-              <div className="flex items-center gap-2 rounded-xl p-2" style={{ background: `${C.panel}CC`, border: `1px solid ${C.line}`, opacity: currentUser ? 1 : 0.6 }}>
+              <div className="gowl-hub-composer" style={{ opacity: currentUser ? 1 : 0.6 }}>
+                <button type="button" title="Joindre un fichier" className="gowl-hub-composer-icon" tabIndex={-1}><Plus size={16} /></button>
                 <input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && send()}
                   onFocus={() => { if (!currentUser) window.dispatchEvent(new CustomEvent("open-auth-login")); }}
                   disabled={!currentUser} readOnly={!currentUser}
-                  placeholder={currentUser ? `Écrire dans #${current.label}...` : "Connecte-toi pour écrire..."} className="flex-1 px-3 py-2 rounded-md text-sm disabled:cursor-not-allowed" style={{ ...inputStyle, background: "transparent", border: "none", boxShadow: "none" }} />
-                <PrimaryButton onClick={() => currentUser ? send() : window.dispatchEvent(new CustomEvent("open-auth-login"))}><Send size={14} /></PrimaryButton>
+                  placeholder={currentUser ? `Écrire dans #${current.label}...` : "Connecte-toi pour écrire..."} className="gowl-hub-composer-input disabled:cursor-not-allowed" style={inputStyle} />
+                <button type="button" title="Emoji" className="gowl-hub-composer-icon" tabIndex={-1}><Smile size={16} /></button>
+                <button type="button" onClick={() => currentUser ? send() : window.dispatchEvent(new CustomEvent("open-auth-login"))} title="Envoyer" className="gowl-hub-composer-send" data-active={text.trim().length > 0} style={{ fontFamily: BODY_FONT }}><Send size={14} /></button>
               </div>
             )}
           </div>
@@ -4869,6 +5175,7 @@ function NotificationBell({ currentUser, questions, teams, labs, notifications =
 --------------------------------------------------------------------- */
 function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = null }) {
   const [showForm, setShowForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [platform, setPlatform] = useState(PLATFORMS[0]);
   const [title, setTitle] = useState("");
   const [difficulty, setDifficulty] = useState(DIFFICULTIES[0].key);
@@ -4877,21 +5184,46 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
   const [link, setLink] = useState("");
   const [expanded, setExpanded] = useState({});
 
+  function resetForm() {
+    setEditingId(null);
+    setPlatform(PLATFORMS[0]); setTitle(""); setDifficulty(DIFFICULTIES[0].key);
+    setSummary(""); setContent(""); setLink(""); setShowForm(false);
+  }
+  function startEdit(w) {
+    if (!currentUser || (!isAdmin && w.author !== pseudo)) return;
+    setEditingId(w.id);
+    setPlatform(w.platform); setTitle(w.title); setDifficulty(w.difficulty);
+    setSummary(w.summary || ""); setContent(w.content); setLink(w.link || "");
+    setShowForm(true);
+  }
   async function submit(e) {
     e.preventDefault();
     if (!currentUser || !title.trim() || !content.trim()) return;
+    if (editingId) {
+      const target = writeups.find((w) => w.id === editingId);
+      if (!target || (!isAdmin && target.author !== pseudo)) return;
+      const next = writeups.map((w) => (w.id === editingId
+        ? { ...w, platform, title: title.trim(), difficulty, summary: summary.trim(), content: content.trim(), link: link.trim(), edited: true, editedAt: new Date().toISOString() }
+        : w));
+      setWriteups(next);
+      saveCollection("gowlsec:writeups", next);
+      resetForm();
+      return;
+    }
     try {
       const result = await communityRequest("/writeups", {
         method: "POST",
         body: { platform, title: title.trim(), difficulty, summary: summary.trim(), content: content.trim(), link: link.trim() },
       });
       setWriteups((current) => [result.writeup, ...current]);
-      setTitle(""); setSummary(""); setContent(""); setLink(""); setDifficulty(DIFFICULTIES[0].key); setShowForm(false);
+      resetForm();
     } catch (error) {
       window.alert(error.message);
     }
   }
   function remove(id) {
+    const target = writeups.find((w) => w.id === id);
+    if (!target || (!isAdmin && target.author !== pseudo)) return;
     const next = writeups.filter((w) => w.id !== id);
     setWriteups(next);
     saveCollection("gowlsec:writeups", next);
@@ -4904,13 +5236,13 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
         {!currentUser ? (
           <PrimaryButton onClick={() => window.dispatchEvent(new CustomEvent("open-auth-login"))}>Connexion</PrimaryButton>
         ) : (
-          <PrimaryButton onClick={() => setShowForm((s) => !s)}>{showForm ? <X size={15} /> : <Plus size={15} />} {showForm ? "Annuler" : "Publier un write-up"}</PrimaryButton>
+          <PrimaryButton onClick={() => (showForm ? resetForm() : (setEditingId(null), setShowForm(true)))}>{showForm ? <X size={15} /> : <Plus size={15} />} {showForm ? "Annuler" : "Publier un write-up"}</PrimaryButton>
         )}
       </div>
       {!currentUser && <GuestGate text="Connecte-toi pour publier un write-up." accent={C.primary} />}
       {showForm && (
-        <ModalOverlay onClose={() => setShowForm(false)}>
-          <CreationHero scene={<LabScene />} accent={C.primary} eyebrow="Nouveau write-up" title="Partage ta résolution" subtitle="Détaille ta méthodologie une fois le lab validé : ça aide toute la communauté à progresser." onClose={() => setShowForm(false)}>
+        <ModalOverlay onClose={resetForm}>
+          <CreationHero scene={<LabScene />} accent={C.primary} eyebrow={editingId ? "Modifier le write-up" : "Nouveau write-up"} title={editingId ? "Mets à jour ta résolution" : "Partage ta résolution"} subtitle="Détaille ta méthodologie une fois le lab validé : ça aide toute la communauté à progresser." onClose={resetForm}>
             <form onSubmit={submit} className="space-y-3">
               <div className="grid sm:grid-cols-2 gap-2.5">
                 <Field label="Plateforme">
@@ -4934,7 +5266,7 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
               <Field label="Résumé (1-2 lignes)"><input value={summary} onChange={(e) => setSummary(e.target.value)} className="w-full px-2.5 py-1.75 rounded-md text-sm" style={inputStyle} /></Field>
               <Field label="Méthodologie / write-up complet"><textarea value={content} onChange={(e) => setContent(e.target.value)} rows={6} placeholder="Reconnaissance, énumération, exploitation, élévation de privilèges..." className="w-full px-2.5 py-1.75 rounded-md text-sm resize-none" style={inputStyle} /></Field>
               <Field label="Lien externe (optionnel)"><input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." className="w-full px-2.5 py-1.75 rounded-md text-sm" style={inputStyle} /></Field>
-              <PrimaryButton type="submit"><CheckCircle2 size={14} /> Publier</PrimaryButton>
+              <PrimaryButton type="submit"><CheckCircle2 size={14} /> {editingId ? "Enregistrer" : "Publier"}</PrimaryButton>
             </form>
           </CreationHero>
         </ModalOverlay>
@@ -4944,15 +5276,22 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
         {writeups.map((w) => {
           const d = DIFFICULTIES.find((x) => x.key === w.difficulty) || DIFFICULTIES[0];
           const isOpen = !!expanded[w.id];
+          const canManage = isAdmin || (currentUser && w.author === pseudo);
           return (
             <Panel key={w.id} className="p-4">
-              {isAdmin && <button onClick={() => remove(w.id)} className="absolute top-3 right-3 z-10" style={{ color: C.alert }}><Trash2 size={13} /></button>}
+              {canManage && (
+                <div className="absolute top-3 right-3 z-10 flex items-center gap-2.5">
+                  <button onClick={() => startEdit(w)} title="Modifier" style={{ color: C.muted }}><Pencil size={13} /></button>
+                  <button onClick={() => remove(w.id)} title="Supprimer" style={{ color: C.alert }}><Trash2 size={13} /></button>
+                </div>
+              )}
               <div className="flex items-center gap-2 flex-wrap mb-1.5">
                 <span className="text-[10px] uppercase gowl-mono-tag" style={{ color: C.muted }}>{w.platform}</span>
                 <Chip label={d.label} color={d.color} />
               </div>
               <h3 className="font-semibold text-sm mb-1" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{w.title}</h3>
               {w.summary && <p className="text-xs mb-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>{w.summary}</p>}
+              {w.edited && <p className="text-[10px] italic mb-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>(modifié)</p>}
               {isOpen && (
                 <div className="mt-2 p-3 rounded-md whitespace-pre-wrap text-xs" style={{ background: C.panel2, color: C.text, fontFamily: BODY_FONT }}>{w.content}</div>
               )}
@@ -5971,6 +6310,26 @@ export default function GowlSec() {
         .gowl-profile-name { background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
         .gowl-avatar-swatch { transition: transform 0.15s ease; }
         .gowl-avatar-swatch:hover { transform: translateY(-2px) scale(1.05); }
+        .gowl-profile-banner-picker:focus-visible,
+        .gowl-profile-avatar-picker:focus-visible { outline: 2px solid ${C.primary}; outline-offset: 2px; }
+        .gowl-profile-banner-overlay,
+        .gowl-profile-avatar-overlay { opacity: 0; transition: opacity 0.18s ease, backdrop-filter 0.18s ease; }
+        .gowl-profile-banner-picker:hover .gowl-profile-banner-overlay,
+        .gowl-profile-banner-picker:focus-visible .gowl-profile-banner-overlay,
+        .gowl-profile-avatar-picker:hover .gowl-profile-avatar-overlay,
+        .gowl-profile-avatar-picker:focus-visible .gowl-profile-avatar-overlay { opacity: 1; }
+        .gowl-profile-upload-card { transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease; }
+        .gowl-profile-upload-card:hover { transform: translateY(-2px); border-color: ${C.primary}77 !important; background: ${C.primary}0A !important; }
+        .gowl-profile-social-field { transition: border-color 0.18s ease, background 0.18s ease; }
+        .gowl-profile-social-field:focus-within { border-color: ${C.primary}88 !important; background: ${C.primary}08 !important; }
+        .gowl-profile-input:focus { border-color: ${C.primary}88 !important; box-shadow: 0 0 0 3px ${C.primary}14 !important; }
+        .gowl-profile-save { transition: transform 0.16s ease, filter 0.16s ease, box-shadow 0.16s ease; }
+        .gowl-profile-save:hover:not(:disabled) { transform: translateY(-1px); filter: brightness(1.06); box-shadow: 0 12px 28px -12px ${C.ok} !important; }
+        @media (hover: none) {
+          .gowl-profile-banner-overlay { opacity: 0.72; align-items: flex-end; justify-content: flex-end; padding: 10px; }
+          .gowl-profile-banner-overlay > span { padding: 6px 8px !important; font-size: 10px !important; }
+          .gowl-profile-avatar-overlay { opacity: 0.72; }
+        }
         .gowl-timeline { position: relative; }
         .gowl-notif-bell[data-ring="true"] { position: relative; }
         .gowl-notif-bell[data-ring="true"]::after { content: ""; position: absolute; inset: -3px; border-radius: 10px; border: 1.5px solid ${C.alert}88; animation: gowl-ping-ring 1.8s ease-out infinite; pointer-events: none; }
@@ -6084,12 +6443,19 @@ export default function GowlSec() {
         .gowl-hub-header-icon { width: 32px; height: 32px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .gowl-hub-header-tag { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 1px 7px; border-radius: 999px; border: 1px solid; font-family: ${MONO_FONT}; }
         .gowl-hub-header-live { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: ${C.muted}; font-family: ${MONO_FONT}; flex-shrink: 0; }
-        .gowl-hub-msg { display: flex; align-items: flex-start; gap: 11px; padding: 8px 10px; border-radius: 12px; transition: background 0.15s ease; }
+        @keyframes gowl-msg-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .gowl-hub-msg { display: flex; align-items: flex-start; gap: 15px; padding: 2px 16px; border-radius: 4px; position: relative; transition: background 0.1s ease; animation: gowl-msg-in 0.15s ease; }
         .gowl-hub-msg:hover { background: rgba(255,255,255,0.035); }
-        .gowl-hub-msg-author { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
-        .gowl-hub-msg-bubble { display: inline-block; padding: 9px 13px; border-radius: 4px 14px 14px 14px; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-size: 14px; line-height: 1.6; font-family: ${BODY_FONT}; max-width: min(100%, 560px); word-break: break-word; box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset; }
-        .gowl-hub-msg-action { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
-        .gowl-hub-msg-action:hover { background: ${C.panel2}; }
+        .gowl-hub-msg[data-grouped="false"] { margin-top: 14px; }
+        .gowl-hub-msg[data-grouped="true"] { margin-top: 0; }
+        .gowl-hub-msg-gutter { width: 30px; flex-shrink: 0; display: flex; align-items: flex-start; justify-content: center; padding-top: 2px; }
+        .gowl-hub-msg-hovertime { display: block; width: 100%; text-align: center; font-size: 9.5px; line-height: 1.4; color: ${C.muted}; font-family: ${MONO_FONT}; opacity: 0; padding-top: 2px; }
+        .gowl-hub-msg:hover .gowl-hub-msg-hovertime { opacity: 1; }
+        .gowl-hub-msg-author { display: flex; align-items: baseline; gap: 7px; margin-bottom: 2px; }
+        .gowl-hub-msg-bubble { display: block; padding: 0; margin: 0; background: transparent; border: none; border-radius: 0; box-shadow: none; color: ${C.text}; font-size: 15px; line-height: 1.375; font-family: ${BODY_FONT}; max-width: 100%; word-break: break-word; white-space: pre-wrap; }
+        .gowl-hub-msg-hoveractions { position: absolute; top: -14px; right: 14px; display: inline-flex; gap: 2px; background: ${C.panel2}; border: 1px solid ${C.line}; border-radius: 8px; padding: 3px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); z-index: 1; }
+        .gowl-hub-msg-action { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
+        .gowl-hub-msg-action:hover { background: ${C.bg}88; }
         .gowl-hub-msg-edit { max-width: min(100%, 560px); }
         .gowl-hub-reaction { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; cursor: pointer; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-family: ${MONO_FONT}; transition: all 0.15s ease; }
         .gowl-hub-reaction[data-active="true"] { background: ${C.primary}22; border-color: ${C.primary}; }
@@ -6097,6 +6463,20 @@ export default function GowlSec() {
         .gowl-hub-reaction-picker { display: inline-flex; gap: 3px; }
         .gowl-hub-reaction-add { all: unset; box-sizing: border-box; cursor: pointer; font-size: 12px; padding: 2px 6px; border-radius: 999px; border: 1px solid ${C.line}; opacity: 0.65; transition: all 0.15s ease; }
         .gowl-hub-reaction-add:hover { opacity: 1; background: ${C.panel2}; transform: scale(1.08); }
+
+        /* --- Hub : barre de saisie dans le style du site --- */
+        .gowl-hub-composer { display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 12px; background: ${C.panel2}CC; border: 1px solid ${C.line}; transition: border-color 0.15s ease, box-shadow 0.15s ease; }
+        .gowl-hub-composer:focus-within { border-color: ${C.primary}77; box-shadow: 0 0 0 3px ${C.primary}1A; }
+        .gowl-hub-composer-icon { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; color: ${C.muted}; cursor: pointer; flex-shrink: 0; transition: background 0.15s ease, color 0.15s ease; }
+        .gowl-hub-composer-icon:hover { background: ${C.bg}66; color: ${C.text}; }
+        .gowl-hub-composer-input { flex: 1; min-width: 0; background: transparent; border: none; outline: none; box-shadow: none; color: ${C.text}; font-size: 14px; font-family: ${BODY_FONT}; padding: 7px 3px; }
+        .gowl-hub-composer-input::placeholder { color: ${C.muted}; }
+        .gowl-hub-composer-input:disabled { cursor: not-allowed; }
+        .gowl-hub-composer-send { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; background: ${C.primary}; color: #fff; cursor: pointer; flex-shrink: 0; opacity: 0.4; transition: opacity 0.15s ease, transform 0.1s ease; }
+        .gowl-hub-composer-send:hover { opacity: 0.85; }
+        .gowl-hub-composer-send[data-active="true"] { opacity: 1; }
+        .gowl-hub-composer-send[data-active="true"]:hover { opacity: 0.9; }
+        .gowl-hub-composer-send:active { transform: scale(0.94); }
 
         /* --- Hub : sélecteur de logo de salon --- */
         .gowl-roomicon-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; max-width: 320px; }
