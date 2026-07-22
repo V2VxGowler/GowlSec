@@ -12,7 +12,7 @@ export const profileUpload = multer({
   limits: {
     fileSize: MAX_IMAGE_SIZE,
     files: 2,
-    fields: 12,
+    fields: 24,
   },
   fileFilter(req, file, callback) {
     if (!ALLOWED_IMAGE_TYPES.has(file.mimetype)) {
@@ -35,6 +35,13 @@ export function handleProfileUploadError(error, req, res, next) {
       return res.status(413).json({
         success: false,
         message: "Chaque image doit peser 5 Mo maximum.",
+      });
+    }
+
+    if (error.code === "LIMIT_FIELD_COUNT") {
+      return res.status(400).json({
+        success: false,
+        message: "Le formulaire du profil contient trop de champs.",
       });
     }
 

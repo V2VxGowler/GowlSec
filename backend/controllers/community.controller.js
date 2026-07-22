@@ -362,17 +362,13 @@ export async function createQuestion(req, res) {
       });
     }
 
-    /*
-     * Valider les données avant de vérifier le délai.
-     */
     const data = questionSchema.parse(req.body);
 
-    const remainingCooldown =
-      await getRemainingCooldown(
-        "question",
-        userId,
-        30 * 60 * 1000
-      );
+    const remainingCooldown = await getRemainingCooldown(
+      "question",
+      userId,
+      30 * 60 * 1000
+    );
 
     if (remainingCooldown > 0) {
       return sendCooldownError(
@@ -382,35 +378,25 @@ export async function createQuestion(req, res) {
       );
     }
 
-    const question =
-      await prisma.question.create({
-        data: {
-          title: data.title,
-          body: data.body,
-          type: data.type,
-          authorId: userId,
+    const question = await prisma.question.create({
+      data: {
+        ...data,
+        authorId: userId,
+      },
+      include: {
+        author: {
+          select: { username: true },
         },
-        include: {
-          author: {
-            select: {
-              username: true,
-            },
-          },
-          answers: {
-            include: {
-              author: {
-                select: {
-                  username: true,
-                },
-              },
+        answers: {
+          include: {
+            author: {
+              select: { username: true },
             },
           },
         },
-      });
+      },
+    });
 
-    /*
-     * Enregistrer le délai après la création.
-     */
     await saveCooldown("question", userId);
 
     return res.status(201).json({
@@ -836,9 +822,13 @@ async function deleteOwnedResource(
       });
     }
 
-    const resource = await prisma[modelName].findUnique({
-      where: { id },
-    });
+    const [resource, currentUser] = await Promise.all([
+      prisma[modelName].findUnique({ where: { id } }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      }),
+    ]);
 
     if (!resource) {
       return res.status(404).json({
@@ -848,7 +838,7 @@ async function deleteOwnedResource(
     }
 
     const isOwner = resource[ownerField] === userId;
-    const isAdmin = req.user?.role === "admin";
+    const isAdmin = currentUser?.role === "admin";
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -937,9 +927,13 @@ export async function deleteRoom(req, res) {
       });
     }
 
-    const room = await prisma.hubRoom.findUnique({
-      where: { id },
-    });
+    const [room, currentUser] = await Promise.all([
+      prisma.hubRoom.findUnique({ where: { id } }),
+      prisma.user.findUnique({
+        where: { id: userId },
+        select: { role: true },
+      }),
+    ]);
 
     if (!room) {
       return res.status(404).json({
@@ -949,7 +943,7 @@ export async function deleteRoom(req, res) {
     }
 
     const isOwner = room.ownerId === userId;
-    const isAdmin = req.user?.role === "admin";
+    const isAdmin = currentUser?.role === "admin";
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
