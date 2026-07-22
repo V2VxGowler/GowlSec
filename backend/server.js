@@ -329,6 +329,21 @@ io.on("connection", (socket) => {
       lastMessageAt = now;
 
       try {
+        if (room === "updates") {
+          const sender = await prisma.user.findUnique({
+            where: { id: numericUserId },
+            select: { role: true },
+          });
+
+          if (sender?.role !== "admin") {
+            return reply({
+              success: false,
+              message:
+                "Seuls les administrateurs peuvent publier dans #updates.",
+            });
+          }
+        }
+
         const message =
           await prisma.hubMessage.create({
             data: {

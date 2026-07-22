@@ -63,6 +63,26 @@ const formStringArray = (allowed, max) =>
     z.array(z.enum(allowed)).max(max),
   );
 
+const formFreeStringArray = (maxItems, maxLength) =>
+  z.preprocess(
+    (value) => {
+      if (Array.isArray(value)) return value;
+      if (typeof value !== "string" || value.trim() === "") return [];
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+    },
+    z
+      .array(z.string().trim().min(2).max(maxLength))
+      .max(maxItems)
+      .transform((items) => [...new Set(items)]),
+  );
+
 const optionalBoolean = z
   .union([z.literal("true"), z.literal("false")])
   .optional()
@@ -85,6 +105,21 @@ const profileSchema = z.object({
     .optional()
     .default(""),
   discord: z.string().trim().max(80).optional().default(""),
+  hackTheBox: z.string().trim().max(80).optional().default(""),
+  rootMe: z.string().trim().max(80).optional().default(""),
+  tryHackMe: z.string().trim().max(80).optional().default(""),
+  otherPlatformName: z.string().trim().max(60).optional().default(""),
+  otherPlatformUrl: z
+    .string()
+    .trim()
+    .max(300)
+    .refine(
+      (value) => value === "" || /^https?:\/\/[^\s]+$/i.test(value),
+      "Le lien de la plateforme doit commencer par http:// ou https://.",
+    )
+    .optional()
+    .default(""),
+  certifications: formFreeStringArray(12, 80),
   avatarKey: z.enum(avatarKeys).optional().default("bird"),
   bannerKey: z.enum(bannerKeys).optional().default("indigo"),
   bannerColor: z
@@ -101,6 +136,7 @@ const profileSchema = z.object({
   isProfilePublic: formBoolean(true),
   showAge: formBoolean(true),
   showSocials: formBoolean(true),
+  showCertifications: formBoolean(true),
   age: z.preprocess(
     (value) =>
       value === "" || value === null || value === undefined
@@ -138,9 +174,16 @@ const privateProfileSelect = {
   isProfilePublic: true,
   showAge: true,
   showSocials: true,
+  showCertifications: true,
   age: true,
   pinnedBadges: true,
   customRole: true,
+  hackTheBox: true,
+  rootMe: true,
+  tryHackMe: true,
+  otherPlatformName: true,
+  otherPlatformUrl: true,
+  certifications: true,
 };
 
 const publicProfileSelect = {
@@ -165,9 +208,16 @@ const publicProfileSelect = {
   isProfilePublic: true,
   showAge: true,
   showSocials: true,
+  showCertifications: true,
   age: true,
   pinnedBadges: true,
   customRole: true,
+  hackTheBox: true,
+  rootMe: true,
+  tryHackMe: true,
+  otherPlatformName: true,
+  otherPlatformUrl: true,
+  certifications: true,
   trophies: { select: { difficulty: true } },
   _count: {
     select: { questions: true, answers: true, labsOwned: true },
@@ -208,6 +258,7 @@ function formatProfile(user, extras = {}, includePrivate = false) {
     isProfilePublic: user.isProfilePublic !== false,
     showAge: user.showAge !== false,
     showSocials: user.showSocials !== false,
+    showCertifications: user.showCertifications !== false,
     age: user.age,
     pinnedBadges: (user.pinnedBadges || []).slice(0, 3),
     customRole: user.customRole || "",
@@ -217,6 +268,14 @@ function formatProfile(user, extras = {}, includePrivate = false) {
       twitter: user.twitter,
       discord: user.discord,
     },
+    platformAccounts: {
+      hackTheBox: user.hackTheBox || "",
+      rootMe: user.rootMe || "",
+      tryHackMe: user.tryHackMe || "",
+      otherName: user.otherPlatformName || "",
+      otherUrl: user.otherPlatformUrl || "",
+    },
+    certifications: (user.certifications || []).slice(0, 12),
     ...extras,
   };
 
@@ -226,11 +285,28 @@ function formatProfile(user, extras = {}, includePrivate = false) {
     profile.specialties = [];
     profile.age = null;
     profile.socials = { github: "", twitter: "", discord: "" };
+    profile.platformAccounts = {
+      hackTheBox: "",
+      rootMe: "",
+      tryHackMe: "",
+      otherName: "",
+      otherUrl: "",
+    };
+    profile.certifications = [];
     profile.privateProfile = true;
   } else if (!includePrivate) {
     if (user.showAge === false) profile.age = null;
     if (user.showSocials === false)
       profile.socials = { github: "", twitter: "", discord: "" };
+    if (user.showSocials === false)
+      profile.platformAccounts = {
+        hackTheBox: "",
+        rootMe: "",
+        tryHackMe: "",
+        otherName: "",
+        otherUrl: "",
+      };
+    if (user.showCertifications === false) profile.certifications = [];
   }
   return profile;
 }
@@ -307,6 +383,12 @@ export const updateMe = async (req, res) => {
       github: data.github,
       twitter: data.twitter,
       discord: data.discord,
+      hackTheBox: data.hackTheBox,
+      rootMe: data.rootMe,
+      tryHackMe: data.tryHackMe,
+      otherPlatformName: data.otherPlatformName,
+      otherPlatformUrl: data.otherPlatformUrl,
+      certifications: data.certifications,
       avatarKey: data.avatarKey,
       banner: data.bannerKey,
       bannerColor: data.bannerColor,
@@ -315,6 +397,7 @@ export const updateMe = async (req, res) => {
       isProfilePublic: data.isProfilePublic,
       showAge: data.showAge,
       showSocials: data.showSocials,
+      showCertifications: data.showCertifications,
       age: data.age,
       pinnedBadges: data.pinnedBadges,
     };

@@ -40,9 +40,16 @@ model User {
   isProfilePublic Boolean   @default(true)
   showAge         Boolean   @default(true)
   showSocials     Boolean   @default(true)
+  showCertifications Boolean @default(true)
   age             Int?
   pinnedBadges    String[]  @default([])
   customRole      String    @default("") @db.VarChar(40)
+  hackTheBox      String    @default("") @db.VarChar(80)
+  rootMe          String    @default("") @db.VarChar(80)
+  tryHackMe       String    @default("") @db.VarChar(80)
+  otherPlatformName String  @default("") @db.VarChar(60)
+  otherPlatformUrl  String  @default("") @db.VarChar(300)
+  certifications  String[]  @default([])
 
   refreshTokens RefreshToken[]
   hubMessages   HubMessage[]

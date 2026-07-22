@@ -10,9 +10,11 @@ import {
   createWriteup,
   deleteEvent,
   deleteLab,
+  deleteLabMessage,
   deleteQuestion,
   deleteRoom,
   deleteTeam,
+  deleteTeamAnnouncement,
   deleteTrophy,
   deleteWriteup,
   getCommunity,
@@ -30,9 +32,15 @@ router.delete("/rooms/:id", authMiddleware, deleteRoom);
 
 router.post("/teams", authMiddleware, createTeam);
 router.delete("/teams/:id", authMiddleware, deleteTeam);
+router.delete(
+  "/team-announcements/:id",
+  authMiddleware,
+  deleteTeamAnnouncement
+);
 
 router.post("/labs", authMiddleware, createLab);
 router.delete("/labs/:id", authMiddleware, deleteLab);
+router.delete("/lab-messages/:id", authMiddleware, deleteLabMessage);
 
 router.post("/writeups", authMiddleware, createWriteup);
 router.delete("/writeups/:id", authMiddleware, deleteWriteup);

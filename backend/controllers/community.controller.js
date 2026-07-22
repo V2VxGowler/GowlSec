@@ -915,6 +915,24 @@ export function deleteEvent(req, res) {
   );
 }
 
+export function deleteTeamAnnouncement(req, res) {
+  return deleteOwnedResource(
+    req,
+    res,
+    "teamAnnouncement",
+    "authorId"
+  );
+}
+
+export function deleteLabMessage(req, res) {
+  return deleteOwnedResource(
+    req,
+    res,
+    "labMessage",
+    "authorId"
+  );
+}
+
 export async function deleteRoom(req, res) {
   try {
     const userId = getUserId(req);
