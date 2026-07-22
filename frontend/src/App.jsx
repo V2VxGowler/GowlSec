@@ -516,7 +516,7 @@ const I18N = {
     chooseLangSub: "La communauté GowlSec parle plusieurs langues — sélectionne la tienne pour continuer.",
     chooseLangCta: "Continuer",
     tagline: "Pentest · CTF · Cybersécurité",
-    tabs: { accueil: "Accueil", actus: "Actualités", forum: "Question", salons: "Hub", equipes: "Team", labs: "Labs", classement: "Classement", trophies: "Trophées", writeups: "Write-ups", evenements: "Événements", parcours: "Parcours", boutique: "Boutique", assistant: "Assistant IA", support: "Support" },
+    tabs: { accueil: "Accueil", actus: "CTFNews", forum: "Question", salons: "Hub", equipes: "Team", labs: "Labs", classement: "Classement", trophies: "Trophées", writeups: "Write-ups", evenements: "Événements", parcours: "Parcours", boutique: "Boutique", assistant: "Assistant IA", support: "Support" },
     live: "en ligne", admin: "Admin",
     heroTitle1: "Communauté francophone ", heroTitle2: "pentest, CTF, réseau et cybersécurité",
     heroSub: "Ici, on apprend, on échange et on progresse ensemble autour du pentest, des CTF, du réseau et de la cybersécurité — que tu sois débutant ou confirmé.",
@@ -528,7 +528,7 @@ const I18N = {
     quickStartTeamTitle: "Créer une team", quickStartTeamDesc: "Forme une escouade pour un CTF, un lab ou une préparation d’examen.",
     statNews: "actus", statQuestions: "questions", statTrophies: "trophées", statTeams: "teams", statLabs: "labs",
     activityTitle: "Ça bouge en ce moment", activityEmpty: "La communauté démarre — sois le premier à agir.",
-    scanLabel: "Terminal de démonstration — usage pédagogique", watchAll: "Voir toutes les actualités",
+    scanLabel: "Terminal de démonstration — usage pédagogique", watchAll: "Voir CTFNews",
     trending: "Ça circule en ce moment", live2: "EN DIRECT", watching: "veille active",
     footer: "GowlSec — communauté pentest & CTF · à but pédagogique",
     forumTitle: "Question", forumSub: "Pose une question ou demande un accompagnement.",
@@ -555,7 +555,7 @@ const I18N = {
     chooseLangSub: "The GowlSec community speaks several languages — pick yours to continue.",
     chooseLangCta: "Continue",
     tagline: "",
-    tabs: { accueil: "Home", actus: "News", forum: "Question", salons: "Hub", equipes: "Team", labs: "Labs", classement: "Leaderboard", trophies: "Trophies", boutique: "Shop", assistant: "AI Assistant", support: "Support", admin: "Admin" },
+    tabs: { accueil: "Home", actus: "CTFNews", forum: "Question", salons: "Hub", equipes: "Team", labs: "Labs", classement: "Leaderboard", trophies: "Trophies", boutique: "Shop", assistant: "AI Assistant", support: "Support", admin: "Admin" },
     live: "online", admin: "Admin",
     heroTitle1: "The pentest & CTF community ", heroTitle2: "that never sleeps",
     heroSub: "Here, you don't learn alone. Ask a question at 2am, find a team for a CTF, tackle a lab together, or get unblocked live on the Hub — the community answers.",
@@ -594,7 +594,7 @@ const I18N = {
     chooseLangSub: "Сообщество GowlSec говорит на нескольких языках — выберите свой, чтобы продолжить.",
     chooseLangCta: "Продолжить",
     tagline: "",
-    tabs: { accueil: "Главная", actus: "Новости", forum: "Вопрос", salons: "Хаб", equipes: "Команда", labs: "Лабы", classement: "Рейтинг", trophies: "Трофеи", boutique: "Магазин", assistant: "ИИ-ассистент", support: "Поддержка", admin: "Админ" },
+    tabs: { accueil: "Главная", actus: "CTFNews", forum: "Вопрос", salons: "Хаб", equipes: "Команда", labs: "Лабы", classement: "Рейтинг", trophies: "Трофеи", boutique: "Магазин", assistant: "ИИ-ассистент", support: "Поддержка", admin: "Админ" },
     live: "онлайн", admin: "Админ",
     heroTitle1: "Сообщество пентеста и CTF, ", heroTitle2: "которое никогда не спит",
     heroSub: "Здесь никто не учится в одиночку. Задай вопрос в 2 часа ночи, найди команду для CTF, проходите лабу вместе или получи помощь в прямом эфире на Хабе — сообщество ответит.",
@@ -633,7 +633,7 @@ const I18N = {
     chooseLangSub: "GowlSec 社区使用多种语言 — 请选择你的语言以继续。",
     chooseLangCta: "继续",
     tagline: "",
-    tabs: { accueil: "首页", actus: "资讯", forum: "提问", salons: "社区中心", equipes: "战队", labs: "实验室", classement: "排行榜", trophies: "奖杯", boutique: "商店", assistant: "AI 助手", support: "支持", admin: "管理" },
+    tabs: { accueil: "首页", actus: "CTFNews", forum: "提问", salons: "社区中心", equipes: "战队", labs: "实验室", classement: "排行榜", trophies: "奖杯", boutique: "商店", assistant: "AI 助手", support: "支持", admin: "管理" },
     live: "在线", admin: "管理",
     heroTitle1: "永不打烊的 ", heroTitle2: "渗透测试与 CTF 社区",
     heroSub: "在这里，你不是一个人学习。凌晨两点提问、组队参加 CTF、和大家一起攻克实验室，或在社区中心实时获得帮助——社区会回应你。",
@@ -2387,7 +2387,7 @@ function NewsMarquee({ news }) {
       <div className="flex items-center gap-2 px-3 py-1.5 shrink-0 relative z-10" style={{ borderBottom: `1px solid ${C.line}`, background: `${C.bg}F0` }}>
         <span className="w-1.5 h-1.5 rounded-full gowl-cursor-blink" style={{ background: C.alert }} />
         <span className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: C.alert, fontFamily: MONO_FONT }}>En direct</span>
-        <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>· flux des actualités GowlSec</span>
+        <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>· flux CTFNews GowlSec</span>
       </div>
       <div className="flex gowl-marquee-track" style={{ width: "max-content" }}>
         {loop.map((n, i) => {
@@ -2450,6 +2450,30 @@ function NewsCard({ item, isAdmin, onDelete }) {
   );
 }
 
+function calendarDateKey(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function ctfEventsForCalendarDay(events, day) {
+  const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+  const dayEnd = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+
+  return events.filter((event) => {
+    const start = new Date(event.start || event.date);
+    if (Number.isNaN(start.getTime())) return false;
+
+    const parsedFinish = new Date(event.finish);
+    const finish = Number.isNaN(parsedFinish.getTime()) || parsedFinish <= start
+      ? new Date(start.getTime() + 60 * 1000)
+      : parsedFinish;
+
+    return start < dayEnd && finish > dayStart;
+  });
+}
+
 function NewsTab({ news, setNews, isAdmin, profiles = [], notifications = [], setNotifications, full }) {
   const [filter, setFilter] = useState("Tous");
   const [showForm, setShowForm] = useState(false);
@@ -2459,6 +2483,59 @@ function NewsTab({ news, setNews, isAdmin, profiles = [], notifications = [], se
   const [source, setSource] = useState("");
   const [url, setUrl] = useState("");
   const [recipient, setRecipient] = useState("");
+  const today = new Date();
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => new Date(today.getFullYear(), today.getMonth(), 1)
+  );
+  const [selectedCalendarDay, setSelectedCalendarDay] = useState(
+    () => calendarDateKey(today)
+  );
+
+  const ctfEvents = useMemo(
+    () => news
+      .filter((item) => item.external && String(item.id).startsWith("ctftime-"))
+      .sort((a, b) => new Date(a.start || a.date) - new Date(b.start || b.date)),
+    [news]
+  );
+
+  const calendarDays = useMemo(() => {
+    const year = calendarMonth.getFullYear();
+    const month = calendarMonth.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const leadingDays = (firstDay.getDay() + 6) % 7;
+    const totalDays = new Date(year, month + 1, 0).getDate();
+    const visibleDays = Math.ceil((leadingDays + totalDays) / 7) * 7;
+
+    return Array.from({ length: visibleDays }, (_, index) =>
+      new Date(year, month, index - leadingDays + 1)
+    );
+  }, [calendarMonth]);
+
+  const selectedDayDate = useMemo(() => {
+    const parsed = new Date(`${selectedCalendarDay}T00:00:00`);
+    return Number.isNaN(parsed.getTime()) ? today : parsed;
+  }, [selectedCalendarDay]);
+
+  const selectedDayEvents = useMemo(
+    () => ctfEventsForCalendarDay(ctfEvents, selectedDayDate),
+    [ctfEvents, selectedDayDate]
+  );
+
+  function changeCalendarMonth(offset) {
+    const nextMonth = new Date(
+      calendarMonth.getFullYear(),
+      calendarMonth.getMonth() + offset,
+      1
+    );
+    setCalendarMonth(nextMonth);
+    setSelectedCalendarDay(calendarDateKey(nextMonth));
+  }
+
+  function returnToCurrentDay() {
+    const now = new Date();
+    setCalendarMonth(new Date(now.getFullYear(), now.getMonth(), 1));
+    setSelectedCalendarDay(calendarDateKey(now));
+  }
 
   async function submit(e) {
     e.preventDefault();
@@ -2501,14 +2578,138 @@ function NewsTab({ news, setNews, isAdmin, profiles = [], notifications = [], se
         <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <span className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: `${C.gold}1A`, color: C.gold, border: `1px solid ${C.gold}33` }}>
-              <Newspaper size={18} />
+              <Flag size={18} />
             </span>
             <div>
-              <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Actualités & annonces</h2>
-              <p className="text-sm mt-0.5" style={{ color: C.muted, fontFamily: BODY_FONT }}>Nouveautés du site, annonces de l'équipe, félicitations et événements à venir.</p>
+              <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>CTFNews</h2>
+              <p className="text-sm mt-0.5" style={{ color: C.muted, fontFamily: BODY_FONT }}>Repère les prochains CTF jour par jour et prépare ton équipe.</p>
             </div>
           </div>
           {isAdmin && <PrimaryButton onClick={() => setShowForm((s) => !s)}>{showForm ? <X size={15} /> : <Plus size={15} />} {showForm ? "Annuler" : "Publier"}</PrimaryButton>}
+        </div>
+      )}
+
+      {full && (
+        <Panel className="overflow-hidden mb-6 gowl-ctf-calendar" style={{ borderColor: `${C.primary}38`, background: "rgba(8,12,18,0.9)" }}>
+          <div className="px-4 py-3.5 flex items-center justify-between gap-3 flex-wrap" style={{ borderBottom: `1px solid ${C.line}`, background: `linear-gradient(135deg, ${C.primary}15, ${C.ok}08, transparent 72%)` }}>
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ color: C.primary, background: `${C.primary}1B`, border: `1px solid ${C.primary}33` }}>
+                <Calendar size={15} />
+              </span>
+              <div>
+                <h3 className="text-sm font-bold capitalize" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+                  {calendarMonth.toLocaleDateString("fr-FR", { month: "long", year: "numeric" })}
+                </h3>
+                <p className="text-[10px] mt-0.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>
+                  {ctfEvents.length} CTF chargé{ctfEvents.length > 1 ? "s" : ""} depuis CTFTime
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button type="button" onClick={() => changeCalendarMonth(-1)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ color: C.muted, background: C.panel2, border: `1px solid ${C.line}` }} aria-label="Mois précédent"><ChevronLeft size={15} /></button>
+              <button type="button" onClick={returnToCurrentDay} className="h-8 px-3 rounded-lg text-[11px] font-semibold" style={{ color: C.text, background: C.panel2, border: `1px solid ${C.line}`, fontFamily: BODY_FONT }}>Aujourd’hui</button>
+              <button type="button" onClick={() => changeCalendarMonth(1)} className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ color: C.muted, background: C.panel2, border: `1px solid ${C.line}` }} aria-label="Mois suivant"><ChevronRight size={15} /></button>
+            </div>
+          </div>
+
+          <div className="grid lg:grid-cols-[1.45fr_0.75fr]">
+            <div className="p-3 sm:p-4 lg:border-r" style={{ borderColor: C.line }}>
+              <div className="grid grid-cols-7 mb-1">
+                {["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"].map((label) => (
+                  <span key={label} className="py-1.5 text-center text-[9px] sm:text-[10px] font-bold uppercase tracking-wider" style={{ color: C.muted, fontFamily: MONO_FONT }}>{label}</span>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-1 sm:gap-1.5">
+                {calendarDays.map((day) => {
+                  const key = calendarDateKey(day);
+                  const dayEvents = ctfEventsForCalendarDay(ctfEvents, day);
+                  const inCurrentMonth = day.getMonth() === calendarMonth.getMonth();
+                  const isSelected = key === selectedCalendarDay;
+                  const isToday = key === calendarDateKey(today);
+
+                  return (
+                    <button
+                      type="button"
+                      key={key}
+                      onClick={() => {
+                        setSelectedCalendarDay(key);
+                        if (!inCurrentMonth) {
+                          setCalendarMonth(new Date(day.getFullYear(), day.getMonth(), 1));
+                        }
+                      }}
+                      className="relative min-h-[58px] sm:min-h-[82px] rounded-lg p-1.5 sm:p-2 text-left overflow-hidden gowl-ctf-day"
+                      style={{
+                        color: inCurrentMonth ? C.text : C.muted,
+                        opacity: inCurrentMonth ? 1 : 0.42,
+                        background: isSelected ? `${C.primary}1C` : dayEvents.length ? `${C.ok}0B` : "rgba(255,255,255,0.018)",
+                        border: `1px solid ${isSelected ? `${C.primary}88` : dayEvents.length ? `${C.ok}38` : C.line}`,
+                      }}
+                    >
+                      <span className="flex items-center justify-between gap-1">
+                        <span className="w-5 h-5 rounded-full inline-flex items-center justify-center text-[10px] font-bold" style={{ color: isToday ? "#04120D" : "inherit", background: isToday ? C.ok : "transparent", fontFamily: MONO_FONT }}>{day.getDate()}</span>
+                        {dayEvents.length > 0 && <span className="text-[8px] sm:text-[9px] font-bold rounded-full px-1.5 py-0.5" style={{ color: C.ok, background: `${C.ok}18`, fontFamily: MONO_FONT }}>{dayEvents.length}</span>}
+                      </span>
+                      <span className="mt-1.5 hidden sm:flex flex-col gap-1">
+                        {dayEvents.slice(0, 2).map((event) => (
+                          <span key={event.id} className="block truncate rounded px-1 py-0.5 text-[8px] font-semibold" style={{ color: C.primary, background: `${C.primary}13`, borderLeft: `2px solid ${C.primary}`, fontFamily: BODY_FONT }}>{event.title}</span>
+                        ))}
+                      </span>
+                      {dayEvents.length > 0 && <span className="sm:hidden absolute bottom-1.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full" style={{ background: C.ok, boxShadow: `0 0 7px ${C.ok}` }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <aside className="p-4 min-w-0" style={{ background: "rgba(255,255,255,0.012)" }}>
+              <div className="flex items-start justify-between gap-2 mb-3">
+                <div>
+                  <span className="text-[9px] uppercase tracking-[0.18em] font-bold" style={{ color: C.primary, fontFamily: MONO_FONT }}>Programme du jour</span>
+                  <h4 className="text-sm font-bold capitalize mt-1" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+                    {selectedDayDate.toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}
+                  </h4>
+                </div>
+                <span className="text-[10px] rounded-full px-2 py-1 shrink-0" style={{ color: selectedDayEvents.length ? C.ok : C.muted, background: selectedDayEvents.length ? `${C.ok}13` : C.panel2, border: `1px solid ${selectedDayEvents.length ? `${C.ok}33` : C.line}`, fontFamily: MONO_FONT }}>{selectedDayEvents.length} CTF</span>
+              </div>
+
+              {selectedDayEvents.length === 0 ? (
+                <div className="rounded-xl px-3 py-6 text-center" style={{ background: C.panel2, border: `1px dashed ${C.line}` }}>
+                  <Calendar size={20} className="mx-auto mb-2" style={{ color: C.muted }} />
+                  <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun CTF prévu ce jour-là.</p>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {selectedDayEvents.map((event) => {
+                    const start = new Date(event.start || event.date);
+                    const finish = new Date(event.finish);
+                    const schedule = Number.isNaN(start.getTime())
+                      ? "Horaire à confirmer"
+                      : `${start.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} ${start.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}${Number.isNaN(finish.getTime()) ? "" : ` → ${finish.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" })} ${finish.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}`}`;
+
+                    return (
+                      <a key={event.id} href={event.url} target="_blank" rel="noreferrer" className="group rounded-xl p-3 block gowl-ctf-event-link" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                        <span className="flex items-start justify-between gap-2">
+                          <span className="text-xs font-bold leading-snug" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{event.title}</span>
+                          <ExternalLink size={12} className="shrink-0" style={{ color: C.primary }} />
+                        </span>
+                        <span className="flex items-center gap-1.5 mt-2 text-[9px] leading-relaxed" style={{ color: C.muted, fontFamily: MONO_FONT }}><Clock size={10} className="shrink-0" /> {schedule}</span>
+                        <span className="flex items-center gap-1.5 mt-1 text-[9px]" style={{ color: C.muted, fontFamily: MONO_FONT }}><MapPin size={10} /> {event.format || "CTF"} · {event.location || "En ligne"}</span>
+                      </a>
+                    );
+                  })}
+                </div>
+              )}
+            </aside>
+          </div>
+        </Panel>
+      )}
+
+      {full && (
+        <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+          <div>
+            <h3 className="text-sm font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Flux CTF & annonces</h3>
+            <p className="text-[11px] mt-0.5" style={{ color: C.muted, fontFamily: BODY_FONT }}>Les détails CTFTime et les publications de l’équipe GowlSec.</p>
+          </div>
         </div>
       )}
       {full && (
@@ -2552,7 +2753,7 @@ function NewsTab({ news, setNews, isAdmin, profiles = [], notifications = [], se
         </Panel>
       )}
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {shown.length === 0 && <EmptyState text="Aucune actualité pour l'instant." />}
+        {shown.length === 0 && <EmptyState text="Aucune publication CTFNews pour l'instant." />}
         {shown.map((n) => <NewsCard key={n.id} item={n} isAdmin={isAdmin} onDelete={removeNews} />)}
       </div>
     </div>
@@ -4804,7 +5005,7 @@ const SEARCH_GROUPS = [
   { kind: "question", label: "Questions", icon: MessageSquare, accent: C.primary },
   { kind: "team", label: "Teams", icon: Users, accent: C.warn },
   { kind: "lab", label: "Salons lab", icon: Bug, accent: C.alert },
-  { kind: "news", label: "Actualités", icon: Newspaper, accent: C.gold },
+  { kind: "news", label: "CTFNews", icon: Flag, accent: C.gold },
   { kind: "trophy", label: "Trophées", icon: Trophy, accent: C.gold },
 ];
 
@@ -4836,7 +5037,7 @@ function GlobalSearchModal({ onClose, setTab, questions, teams, labs, news, trop
     });
     news.forEach((item) => {
       if (item.title.toLowerCase().includes(query) || item.summary?.toLowerCase().includes(query)) {
-        out.push({ kind: "news", id: item.id, title: item.title, sub: "Actualité", tab: "actus", accent: C.gold, icon: <Newspaper size={15} /> });
+        out.push({ kind: "news", id: item.id, title: item.title, sub: "CTFNews", tab: "actus", accent: C.gold, icon: <Flag size={15} /> });
       }
     });
     trophies.forEach((item) => {
@@ -5563,7 +5764,7 @@ function LearningPathsTab({ currentUser, setTab }) {
 --------------------------------------------------------------------- */
 const TABS = [
   { key: "accueil", label: "Accueil", icon: Compass, primary: true },
-  { key: "actus", label: "Actualités", icon: Newspaper, primary: true },
+  { key: "actus", label: "CTFNews", icon: Flag, primary: true },
   { key: "evenements", label: "Événements", icon: Calendar, primary: true },
   { key: "parcours", label: "Parcours", icon: MapPin, primary: true },
   { key: "salons", label: "Hub", icon: Hash, primary: true },
@@ -5971,6 +6172,10 @@ export default function GowlSec() {
                   event.officialUrl ||
                   `https://ctftime.org/event/${event.id}/`,
                 date: event.start || new Date().toISOString(),
+                start: event.start || null,
+                finish: event.finish || null,
+                format: event.format || "CTF",
+                location: event.location || "En ligne",
                 external: true,
               };
             })
@@ -6255,6 +6460,10 @@ export default function GowlSec() {
         .gowl-news-delete:hover { color: ${C.alert}; background: ${C.alert}14; }
         .gowl-news-filter { transition: all 0.15s ease; }
         .gowl-news-filter:hover { color: ${C.text}; border-color: ${C.primary}77; }
+        .gowl-ctf-day { transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease; }
+        .gowl-ctf-day:hover { transform: translateY(-1px); border-color: ${C.primary}77 !important; background: ${C.primary}10 !important; }
+        .gowl-ctf-event-link { transition: transform 0.16s ease, border-color 0.16s ease, background 0.16s ease; }
+        .gowl-ctf-event-link:hover { transform: translateX(2px); border-color: ${C.primary}77 !important; background: ${C.primary}0B !important; }
         .gowl-glass { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: linear-gradient(165deg, ${C.panel}99, ${C.panel2}80) !important; }
         .gowl-inner-line { position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: linear-gradient(90deg, transparent, #ffffff22, transparent); pointer-events: none; }
         @keyframes gowl-bar-fill { from { width: 0; } }
@@ -6629,7 +6838,7 @@ export default function GowlSec() {
                 <p className="text-[10px] font-semibold uppercase tracking-[0.24em] mb-3.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>Explorer</p>
                 <div className="flex flex-col items-start gap-3">
                   {[
-                    { label: "Actualités", tab: "actus" },
+                    { label: "CTFNews", tab: "actus" },
                     { label: "Questions", tab: "forum" },
                     { label: "Hub", tab: "salons" },
                     { label: "Labs", tab: "labs" },
@@ -6786,7 +6995,7 @@ function ProfessionalHome({ L, setTab, profiles, memberCount, liveCount, news, q
     { icon: Compass, title: "Parcours", text: "Suis un chemin guidé : labs, ressources et défis structurés étape par étape.", tab: "parcours", color: gh.indigo, meta: `${LEARNING_PATHS.length} parcours disponible${LEARNING_PATHS.length > 1 ? "s" : ""}` },
     { icon: MessageSquare, title: "Hub", text: "Discute en direct par thème avec la communauté.", tab: "salons", color: gh.blue, meta: liveCount ? `${liveCount} en ligne maintenant` : "Salons ouverts en direct", live: true },
     { icon: MessageCircle, title: "Question", text: "Pose une question et obtiens de l'aide de la communauté.", tab: "forum", color: gh.green, meta: `${questions.length} question${questions.length > 1 ? "s" : ""} posée${questions.length > 1 ? "s" : ""}` },
-    { icon: Newspaper, title: "Actualité", text: "Suis les nouveautés du site, les annonces et les félicitations de l'équipe.", tab: "actus", color: gh.orange, meta: `${news.length} actualité${news.length > 1 ? "s" : ""}` },
+    { icon: Flag, title: "CTFNews", text: "Repère les prochains CTF dans le calendrier et prépare tes participations.", tab: "actus", color: gh.orange, meta: `${news.filter((item) => item.external && String(item.id).startsWith("ctftime-")).length} CTF à suivre` },
     { icon: Calendar, title: "Événement", text: "Découvre et participe aux prochains événements de la communauté.", tab: "evenements", color: gh.purple, meta: `${events.length} événement${events.length > 1 ? "s" : ""}` },
   ];
 
