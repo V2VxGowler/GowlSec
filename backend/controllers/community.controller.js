@@ -142,6 +142,19 @@ function formatTrophy(trophy) {
   };
 }
 
+function formatEvent(event) {
+  return {
+    id: event.id,
+    author: event.author.username,
+    title: event.title,
+    type: event.type,
+    date: event.date,
+    description: event.description,
+    link: event.link,
+    createdAt: event.createdAt,
+  };
+}
+
 function handleError(error, res) {
   if (error instanceof z.ZodError) {
     return res.status(400).json({
@@ -159,6 +172,13 @@ function handleError(error, res) {
     });
   }
 
+  if (error?.code === "P2025") {
+    return res.status(404).json({
+      success: false,
+      message: "Cet élément a déjà été supprimé.",
+    });
+  }
+
   console.error("Erreur communauté :", error);
 
   return res.status(500).json({
@@ -167,9 +187,7 @@ function handleError(error, res) {
   });
 }
 
-/*
- * Charge toutes les données communautaires.
- */
+
 export async function getCommunity(req, res) {
   try {
     const [
@@ -179,6 +197,7 @@ export async function getCommunity(req, res) {
       labs,
       writeups,
       trophies,
+      events,
     ] = await Promise.all([
       prisma.question.findMany({
         orderBy: { createdAt: "desc" },
@@ -271,6 +290,15 @@ export async function getCommunity(req, res) {
           },
         },
       }),
+
+      prisma.event.findMany({
+        orderBy: { date: "asc" },
+        include: {
+          author: {
+            select: { username: true },
+          },
+        },
+      }),
     ]);
 
     const teamAnnouncements = teams.flatMap((team) =>
@@ -303,6 +331,7 @@ export async function getCommunity(req, res) {
       labMessages,
       writeups: writeups.map(formatWriteup),
       trophies: trophies.map(formatTrophy),
+      events: events.map(formatEvent),
     });
   } catch (error) {
     return handleError(error, res);
@@ -335,6 +364,20 @@ export async function createQuestion(req, res) {
 
     const data = questionSchema.parse(req.body);
 
+    const remainingCooldown = await getRemainingCooldown(
+      "question",
+      userId,
+      30 * 60 * 1000
+    );
+
+    if (remainingCooldown > 0) {
+      return sendCooldownError(
+        res,
+        remainingCooldown,
+        "une nouvelle question"
+      );
+    }
+
     const question = await prisma.question.create({
       data: {
         ...data,
@@ -353,6 +396,8 @@ export async function createQuestion(req, res) {
         },
       },
     });
+
+    await saveCooldown("question", userId);
 
     return res.status(201).json({
       success: true,
@@ -606,6 +651,20 @@ export async function createWriteup(req, res) {
 
     const data = writeupSchema.parse(req.body);
 
+    const remainingCooldown = await getRemainingCooldown(
+      "writeup",
+      userId,
+      30 * 60 * 1000
+    );
+
+    if (remainingCooldown > 0) {
+      return sendCooldownError(
+        res,
+        remainingCooldown,
+        "un nouveau write-up"
+      );
+    }
+
     const writeup = await prisma.writeup.create({
       data: {
         ...data,
@@ -617,6 +676,8 @@ export async function createWriteup(req, res) {
         },
       },
     });
+
+    await saveCooldown("writeup", userId);
 
     return res.status(201).json({
       success: true,
@@ -649,6 +710,20 @@ export async function createTrophy(req, res) {
 
     const data = trophySchema.parse(req.body);
 
+    const remainingCooldown = await getRemainingCooldown(
+      "trophy",
+      userId,
+      3 * 60 * 60 * 1000
+    );
+
+    if (remainingCooldown > 0) {
+      return sendCooldownError(
+        res,
+        remainingCooldown,
+        "un nouveau trophée"
+      );
+    }
+
     const trophy = await prisma.trophy.create({
       data: {
         ...data,
@@ -661,9 +736,69 @@ export async function createTrophy(req, res) {
       },
     });
 
+    await saveCooldown("trophy", userId);
+
     return res.status(201).json({
       success: true,
       trophy: formatTrophy(trophy),
+    });
+  } catch (error) {
+    return handleError(error, res);
+  }
+}
+
+const eventSchema = z.object({
+  title: z.string().trim().min(2).max(150),
+  type: z.string().trim().min(1).max(50),
+  date: z.coerce.date(),
+  description: optionalText(10000),
+  link: optionalText(500),
+});
+
+export async function createEvent(req, res) {
+  try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Utilisateur invalide.",
+      });
+    }
+
+    const data = eventSchema.parse(req.body);
+
+    const remainingCooldown = await getRemainingCooldown(
+      "event",
+      userId,
+      24 * 60 * 60 * 1000
+    );
+
+    if (remainingCooldown > 0) {
+      return sendCooldownError(
+        res,
+        remainingCooldown,
+        "un nouvel événement"
+      );
+    }
+
+    const event = await prisma.event.create({
+      data: {
+        ...data,
+        authorId: userId,
+      },
+      include: {
+        author: {
+          select: { username: true },
+        },
+      },
+    });
+
+    await saveCooldown("event", userId);
+
+    return res.status(201).json({
+      success: true,
+      event: formatEvent(event),
     });
   } catch (error) {
     return handleError(error, res);
@@ -767,6 +902,15 @@ export function deleteTrophy(req, res) {
   );
 }
 
+export function deleteEvent(req, res) {
+  return deleteOwnedResource(
+    req,
+    res,
+    "event",
+    "authorId"
+  );
+}
+
 export async function deleteRoom(req, res) {
   try {
     const userId = getUserId(req);
@@ -821,31 +965,52 @@ export async function deleteRoom(req, res) {
   }
 }
 async function getRemainingCooldown(
-  modelName,
+  type,
   userId,
   durationMs
 ) {
-  const latestItem = await prisma[modelName].findFirst({
+  const cooldown = await prisma.creationCooldown.findUnique({
     where: {
-      authorId: userId,
-    },
-    orderBy: {
-      createdAt: "desc",
+      userId_type: {
+        userId,
+        type,
+      },
     },
     select: {
-      createdAt: true,
+      lastCreatedAt: true,
     },
   });
 
-  if (!latestItem) {
+  if (!cooldown) {
     return 0;
   }
 
   const elapsed =
     Date.now() -
-    new Date(latestItem.createdAt).getTime();
+    new Date(cooldown.lastCreatedAt).getTime();
 
   return Math.max(0, durationMs - elapsed);
+}
+
+async function saveCooldown(type, userId) {
+  const now = new Date();
+
+  await prisma.creationCooldown.upsert({
+    where: {
+      userId_type: {
+        userId,
+        type,
+      },
+    },
+    update: {
+      lastCreatedAt: now,
+    },
+    create: {
+      type,
+      userId,
+      lastCreatedAt: now,
+    },
+  });
 }
 
 function sendCooldownError(res, remainingMs, contentName) {

@@ -173,30 +173,36 @@ io.on("connection", (socket) => {
   /*
    * Envoie les 100 derniers messages au frontend.
    */
-    socket.on("hub-messages:load", async (callback) => {
+  /*
+   * Envoie les 100 derniers messages au frontend.
+   */
+  socket.on("hub-messages:load", async (callback) => {
     const reply =
-      typeof callback === "function" ? callback : () => {};
+      typeof callback === "function"
+        ? callback
+        : () => {};
 
     try {
-      const messages = await prisma.hubMessage.findMany({
-        take: 100,
-        orderBy: {
-          createdAt: "desc",
-        },
-        select: {
-          id: true,
-          content: true,
-          room: true,
-          createdAt: true,
-          user: {
-            select: {
-              id: true,
-              username: true,
-              role: true,
+      const messages =
+        await prisma.hubMessage.findMany({
+          take: 100,
+          orderBy: {
+            createdAt: "desc",
+          },
+          select: {
+            id: true,
+            content: true,
+            room: true,
+            createdAt: true,
+            user: {
+              select: {
+                id: true,
+                username: true,
+                role: true,
+              },
             },
           },
-        },
-      });
+        });
 
       return reply({
         success: true,
@@ -210,205 +216,232 @@ io.on("connection", (socket) => {
 
       return reply({
         success: false,
-        message: "Impossible de charger les messages.",
+        message:
+          "Impossible de charger les messages.",
       });
     }
   });
 
-  socket.on("hub-message:send", async (payload, callback) => {
-    const reply =
-      typeof callback === "function" ? callback : () => {};
-
-    const numericUserId = Number(userId);
-
-    if (!Number.isInteger(numericUserId)) {
-      return reply({
-        success: false,
-        message: "Connecte-toi pour envoyer un message.",
-      });
-    }
-
-    const room =
-      typeof payload?.room === "string"
-        ? payload.room.trim().toLowerCase()
-        : "general";
-
-    if (!/^[a-z0-9-]{1,80}$/.test(room)) {
-      return reply({
-        success: false,
-        message: "Salon invalide.",
-      });
-    }
-
-    const content =
-      typeof payload?.content === "string"
-        ? payload.content.trim()
-        : "";
-
-    if (!content) {
-      return reply({
-        success: false,
-        message: "Le message est vide.",
-      });
-    }
-
-    if (content.length > 1000) {
-      return reply({
-        success: false,
-        message:
-          "Le message ne peut pas dépasser 1000 caractères.",
-      });
-    }
-
-    const now = Date.now();
-
-    if (now - lastMessageAt < 1000) {
-      return reply({
-        success: false,
-        message:
-          "Tu envoies des messages trop rapidement.",
-      });
-    }
-
-    lastMessageAt = now;
-
-    try {
-      const message = await prisma.hubMessage.create({
-        data: {
-          content,
-          room,
-          userId: numericUserId,
-        },
-        select: {
-          id: true,
-          content: true,
-          room: true,
-          createdAt: true,
-          user: {
-            select: {
-              id: true,
-              username: true,
-              role: true,
-            },
-          },
-        },
-      });
-
-      io.emit("hub-message:new", message);
-
-      return reply({
-        success: true,
-        message,
-      });
-    } catch (error) {
-      console.error(
-        "Erreur pendant l’enregistrement du message :",
-        error
-      );
-
-      return reply({
-        success: false,
-        message: "Impossible d’enregistrer le message.",
-      });
-    }
-  });
-
+  /*
+   * Enregistre un message.
+   */
   socket.on(
-  "hub-message:delete",
-  async (payload, callback) => {
-    const reply =
-      typeof callback === "function"
-        ? callback
-        : () => {};
+    "hub-message:send",
+    async (payload, callback) => {
+      const reply =
+        typeof callback === "function"
+          ? callback
+          : () => {};
 
-    const numericUserId = Number(userId);
-    const messageId = Number(payload?.id);
+      const numericUserId = Number(userId);
 
-    if (
-      !Number.isInteger(numericUserId) ||
-      !Number.isInteger(messageId)
-    ) {
-      return reply({
-        success: false,
-        message: "Identifiant invalide.",
-      });
-    }
-
-    try {
-      const [message, currentUser] =
-        await Promise.all([
-          prisma.hubMessage.findUnique({
-            where: {
-              id: messageId,
-            },
-            select: {
-              id: true,
-              userId: true,
-            },
-          }),
-
-          prisma.user.findUnique({
-            where: {
-              id: numericUserId,
-            },
-            select: {
-              role: true,
-            },
-          }),
-        ]);
-
-      if (!message) {
-        return reply({
-          success: false,
-          message: "Message introuvable.",
-        });
-      }
-
-      const isAuthor =
-        message.userId === numericUserId;
-
-      const isAdmin =
-        currentUser?.role === "admin";
-
-      if (!isAuthor && !isAdmin) {
+      if (
+        !Number.isInteger(numericUserId) ||
+        numericUserId <= 0
+      ) {
         return reply({
           success: false,
           message:
-            "Tu ne peux pas supprimer ce message.",
+            "Connecte-toi pour envoyer un message.",
         });
       }
 
-      await prisma.hubMessage.delete({
-        where: {
-          id: messageId,
-        },
-      });
+      const room =
+        typeof payload?.room === "string"
+          ? payload.room.trim().toLowerCase()
+          : "general";
 
-      /*
-       * Retirer le message chez tous les visiteurs.
-       */
-      io.emit("hub-message:deleted", {
-        id: messageId,
-      });
+      if (!/^[a-z0-9-]{1,80}$/.test(room)) {
+        return reply({
+          success: false,
+          message: "Salon invalide.",
+        });
+      }
 
-      return reply({
-        success: true,
-        message: "Message supprimé.",
-      });
-    } catch (error) {
-      console.error(
-        "Erreur suppression du message :",
-        error
-      );
+      const content =
+        typeof payload?.content === "string"
+          ? payload.content.trim()
+          : "";
 
-      return reply({
-        success: false,
-        message:
-          "Impossible de supprimer le message.",
-      });
+      if (!content) {
+        return reply({
+          success: false,
+          message: "Le message est vide.",
+        });
+      }
+
+      if (content.length > 1000) {
+        return reply({
+          success: false,
+          message:
+            "Le message ne peut pas dépasser 1000 caractères.",
+        });
+      }
+
+      const now = Date.now();
+
+      if (now - lastMessageAt < 1000) {
+        return reply({
+          success: false,
+          message:
+            "Tu envoies des messages trop rapidement.",
+        });
+      }
+
+      lastMessageAt = now;
+
+      try {
+        const message =
+          await prisma.hubMessage.create({
+            data: {
+              content,
+              room,
+              userId: numericUserId,
+            },
+            select: {
+              id: true,
+              content: true,
+              room: true,
+              createdAt: true,
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  role: true,
+                },
+              },
+            },
+          });
+
+        io.emit("hub-message:new", message);
+
+        return reply({
+          success: true,
+          message,
+        });
+      } catch (error) {
+        console.error(
+          "Erreur pendant l’enregistrement du message :",
+          error
+        );
+
+        return reply({
+          success: false,
+          message:
+            "Impossible d’enregistrer le message.",
+        });
+      }
     }
-  }
-);
+  );
+
+  /*
+   * Supprime un message.
+   */
+  socket.on(
+    "hub-message:delete",
+    async (payload, callback) => {
+      const reply =
+        typeof callback === "function"
+          ? callback
+          : () => {};
+
+      const numericUserId = Number(userId);
+      const messageId = Number(payload?.id);
+
+      if (
+        !Number.isInteger(numericUserId) ||
+        numericUserId <= 0 ||
+        !Number.isInteger(messageId) ||
+        messageId <= 0
+      ) {
+        return reply({
+          success: false,
+          message: "Identifiant invalide.",
+        });
+      }
+
+      try {
+        const [message, currentUser] =
+          await Promise.all([
+            prisma.hubMessage.findUnique({
+              where: {
+                id: messageId,
+              },
+              select: {
+                id: true,
+                userId: true,
+              },
+            }),
+
+            prisma.user.findUnique({
+              where: {
+                id: numericUserId,
+              },
+              select: {
+                role: true,
+              },
+            }),
+          ]);
+
+        if (!message) {
+          return reply({
+            success: false,
+            message: "Message introuvable.",
+          });
+        }
+
+        const isAuthor =
+          message.userId === numericUserId;
+
+        const isAdmin =
+          currentUser?.role === "admin";
+
+        if (!isAuthor && !isAdmin) {
+          return reply({
+            success: false,
+            message:
+              "Tu ne peux pas supprimer ce message.",
+          });
+        }
+
+        await prisma.hubMessage.delete({
+          where: {
+            id: messageId,
+          },
+        });
+
+        io.emit("hub-message:deleted", {
+          id: messageId,
+        });
+
+        return reply({
+          success: true,
+          message: "Message supprimé.",
+        });
+      } catch (error) {
+        if (error?.code === "P2025") {
+          return reply({
+            success: false,
+            message:
+              "Ce message a déjà été supprimé.",
+          });
+        }
+
+        console.error(
+          "Erreur suppression du message :",
+          error
+        );
+
+        return reply({
+          success: false,
+          message:
+            "Impossible de supprimer le message.",
+        });
+      }
+    }
+  );
+
+
 
   socket.on("disconnect", () => {
     if (userId && onlineUsers.has(userId)) {

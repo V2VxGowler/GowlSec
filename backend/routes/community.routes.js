@@ -10,17 +10,21 @@ import {
   createLab,
   createWriteup,
   createTrophy,
+  createEvent,
   deleteQuestion,
   deleteRoom,
   deleteTeam,
   deleteLab,
   deleteWriteup,
   deleteTrophy,
+  deleteEvent,
 } from "../controllers/community.controller.js";
 
 const router = express.Router();
 
+
 router.get("/", getCommunity);
+
 
 router.post(
   "/questions",
@@ -58,6 +62,15 @@ router.post(
   createTrophy
 );
 
+router.post(
+  "/events",
+  authMiddleware,
+  createEvent
+);
+
+/*
+ * Suppressions protégées.
+ */
 router.delete(
   "/questions/:id",
   authMiddleware,
@@ -92,6 +105,12 @@ router.delete(
   "/trophies/:id",
   authMiddleware,
   deleteTrophy
+);
+
+router.delete(
+  "/events/:id",
+  authMiddleware,
+  deleteEvent
 );
 
 export default router;

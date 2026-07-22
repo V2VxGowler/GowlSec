@@ -25,7 +25,8 @@ model User {
   hubMessages   HubMessage[]
   questions     Question[]
   answers       Answer[]
-  hubRooms      HubRoom[]      @relation("HubRoomOwner")
+
+  hubRooms HubRoom[] @relation("HubRoomOwner")
 
   teamsOwned        Team[]             @relation("TeamOwner")
   teamMemberships   TeamMember[]
@@ -37,7 +38,9 @@ model User {
 
   writeups Writeup[]
   trophies Trophy[]
-  events Event[]
+  events   Event[]
+
+  creationCooldowns CreationCooldown[]
 }
 
 model RefreshToken {
@@ -133,13 +136,12 @@ model Team {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ownerId Int @unique
+  ownerId Int  @unique
   owner   User @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   members       TeamMember[]
   announcements TeamAnnouncement[]
 
-  @@index([ownerId])
   @@index([createdAt])
 }
 
@@ -181,13 +183,12 @@ model Lab {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  ownerId Int
+  ownerId Int  @unique
   owner   User @relation("LabOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
   members  LabMember[]
   messages LabMessage[]
 
-  @@index([ownerId])
   @@index([createdAt])
 }
 
@@ -270,4 +271,18 @@ model Event {
   @@index([authorId])
   @@index([date])
   @@index([createdAt])
+}
+
+model CreationCooldown {
+  id            Int      @id @default(autoincrement())
+  type          String   @db.VarChar(30)
+  lastCreatedAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type])
+  @@index([lastCreatedAt])
 }
