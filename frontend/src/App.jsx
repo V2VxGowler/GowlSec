@@ -285,20 +285,62 @@ async function updateProfileRequest(formData) {
   return data?.user || data?.profile || data;
 }
 
+const API_GET_CACHE = new Map();
+const API_GET_INFLIGHT = new Map();
+
 async function apiRequest(path, options = {}) {
+  const method = String(options.method || "GET").toUpperCase();
   const token = localStorage.getItem("gowlsec_token");
-  const response = await fetch(`${COMMUNITY_API_URL}${path}`, {
-    method: options.method || "GET",
-    headers: {
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    credentials: "include",
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  });
-  const data = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(data?.message || "La requête a échoué.");
-  return data;
+  const cacheMs =
+    method === "GET" ? Math.max(0, Number(options.cacheMs ?? 5000)) : 0;
+  const cacheKey = `${token || "guest"}:${path}`;
+  const cached = API_GET_CACHE.get(cacheKey);
+
+  if (cacheMs > 0 && cached && Date.now() - cached.savedAt < cacheMs) {
+    return cached.data;
+  }
+  if (method === "GET" && API_GET_INFLIGHT.has(cacheKey)) {
+    return API_GET_INFLIGHT.get(cacheKey);
+  }
+
+  const execute = async () => {
+    const response = await fetch(`${COMMUNITY_API_URL}${path}`, {
+      method,
+      headers: {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      credentials: "include",
+      body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      const error = new Error(data?.message || "La requête a échoué.");
+      const retryHeader = Number(response.headers.get("retry-after") || 0);
+      error.status = response.status;
+      error.retryAfterSeconds = Number(
+        data?.retryAfterSeconds || retryHeader || 0,
+      );
+      throw error;
+    }
+
+    if (method === "GET" && cacheMs > 0) {
+      API_GET_CACHE.set(cacheKey, { data, savedAt: Date.now() });
+    } else if (method !== "GET") {
+      API_GET_CACHE.clear();
+    }
+    return data;
+  };
+
+  if (method !== "GET") return execute();
+
+  const request = execute();
+  API_GET_INFLIGHT.set(cacheKey, request);
+  try {
+    return await request;
+  } finally {
+    API_GET_INFLIGHT.delete(cacheKey);
+  }
 }
 
 function formatAnnouncementForNews(announcement) {
@@ -11166,6 +11208,60 @@ function TrophyTab({
   const [certification, setCertification] = useState("");
   const [imageUrl, setImageUrl] = useState("");
   const [imageName, setImageName] = useState("");
+  const [cooldownNow, setCooldownNow] = useState(Date.now());
+  const [trophyCooldown, setTrophyCooldown] = useState({
+    durationSeconds: 3 * 60 * 60,
+    availableAt: null,
+  });
+  const [trophyFeedback, setTrophyFeedback] = useState("");
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setCooldownNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  async function refreshTrophyCooldown() {
+    if (!currentUser) return null;
+    try {
+      const data = await apiRequest("/api/social/progress");
+      const cooldown = data.cooldowns?.trophy;
+      if (cooldown) setTrophyCooldown(cooldown);
+      return cooldown || null;
+    } catch {
+      return null;
+    }
+  }
+
+  useEffect(() => {
+    refreshTrophyCooldown();
+  }, [currentUser?.id, trophies.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const trophyRemainingSeconds = trophyCooldown.availableAt
+    ? Math.max(
+        0,
+        Math.ceil(
+          (new Date(trophyCooldown.availableAt).getTime() - cooldownNow) / 1000,
+        ),
+      )
+    : 0;
+  const trophyCooldownPct = Math.min(
+    100,
+    Math.max(
+      0,
+      Math.round(
+        (trophyRemainingSeconds /
+          Math.max(1, trophyCooldown.durationSeconds || 10800)) *
+          100,
+      ),
+    ),
+  );
+  const trophyCooldownClock = [
+    Math.floor(trophyRemainingSeconds / 3600),
+    Math.floor((trophyRemainingSeconds % 3600) / 60),
+    trophyRemainingSeconds % 60,
+  ]
+    .map((value) => String(value).padStart(2, "0"))
+    .join(":");
 
   function handleImageUpload(e) {
     const file = e.target.files?.[0];
@@ -11203,8 +11299,28 @@ function TrophyTab({
       setImageName("");
       setDifficulty(DIFFICULTIES[0].key);
       setShowForm(false);
+      setTrophyCooldown({
+        durationSeconds: 3 * 60 * 60,
+        availableAt: new Date(Date.now() + 3 * 60 * 60 * 1000).toISOString(),
+      });
+      setTrophyFeedback(
+        "Trophée ajouté. Le prochain pourra être publié dans 3 heures.",
+      );
     } catch (error) {
-      window.alert(error.message);
+      let cooldown = null;
+      if (error.retryAfterSeconds) {
+        cooldown = {
+          durationSeconds: 3 * 60 * 60,
+          availableAt: new Date(
+            Date.now() + error.retryAfterSeconds * 1000,
+          ).toISOString(),
+        };
+        setTrophyCooldown(cooldown);
+      } else {
+        cooldown = await refreshTrophyCooldown();
+      }
+      setTrophyFeedback(error.message);
+      if (cooldown?.availableAt) setShowForm(false);
     }
   }
   async function removeTrophy(id) {
@@ -11233,13 +11349,22 @@ function TrophyTab({
             Connexion
           </PrimaryButton>
         ) : (
-          <PrimaryButton onClick={() => setShowForm((s) => !s)}>
-            {showForm ? (
+          <PrimaryButton
+            disabled={trophyRemainingSeconds > 0}
+            onClick={() => setShowForm((s) => !s)}
+          >
+            {trophyRemainingSeconds > 0 ? (
+              <Clock size={15} />
+            ) : showForm ? (
               <X size={15} />
             ) : (
               <CyberTrophyIcon size={17} color="#fff" />
             )}{" "}
-            {showForm ? "Annuler" : "Ajouter un trophée"}
+            {trophyRemainingSeconds > 0
+              ? `Disponible dans ${trophyCooldownClock}`
+              : showForm
+                ? "Annuler"
+                : "Ajouter un trophée"}
           </PrimaryButton>
         )}
       </div>
@@ -11248,6 +11373,78 @@ function TrophyTab({
           text="Connecte-toi pour ajouter des trophées et participer à l'espace communauté."
           accent={C.alert}
         />
+      )}
+      {currentUser && (
+        <Panel
+          className="mb-4 overflow-hidden"
+          style={{
+            background: trophyRemainingSeconds
+              ? `linear-gradient(135deg, ${C.gold}12, ${C.panel})`
+              : `linear-gradient(135deg, ${C.ok}10, ${C.panel})`,
+            borderColor: trophyRemainingSeconds ? `${C.gold}40` : `${C.ok}35`,
+          }}
+        >
+          <div className="p-3.5 flex items-center gap-3">
+            <span
+              className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+              style={{
+                color: trophyRemainingSeconds ? C.gold : C.ok,
+                background: trophyRemainingSeconds
+                  ? `${C.gold}16`
+                  : `${C.ok}14`,
+                border: `1px solid ${trophyRemainingSeconds ? `${C.gold}3D` : `${C.ok}35`}`,
+              }}
+            >
+              {trophyRemainingSeconds ? (
+                <Clock size={18} />
+              ) : (
+                <CyberTrophyIcon size={20} color={C.ok} />
+              )}
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-bold" style={{ color: C.text }}>
+                    {trophyRemainingSeconds
+                      ? "Cooldown des trophées actif"
+                      : "Tu peux publier un trophée"}
+                  </p>
+                  <p className="text-[10px] mt-0.5" style={{ color: C.muted }}>
+                    {trophyRemainingSeconds
+                      ? "Un trophée toutes les 3 heures pour éviter le spam et conserver des réussites de qualité."
+                      : "Partage une réussite réelle avec son contexte et sa difficulté."}
+                  </p>
+                </div>
+                <span
+                  className="text-lg font-extrabold shrink-0"
+                  style={{
+                    color: trophyRemainingSeconds ? C.gold : C.ok,
+                    fontFamily: MONO_FONT,
+                  }}
+                >
+                  {trophyRemainingSeconds ? trophyCooldownClock : "PRÊT"}
+                </span>
+              </div>
+              <div
+                className="h-1.5 rounded-full overflow-hidden mt-2.5"
+                style={{ background: C.panel2 }}
+              >
+                <div
+                  className="h-full rounded-full transition-[width] duration-1000"
+                  style={{
+                    width: `${trophyRemainingSeconds ? trophyCooldownPct : 100}%`,
+                    background: trophyRemainingSeconds ? C.gold : C.ok,
+                  }}
+                />
+              </div>
+              {trophyFeedback && (
+                <p className="text-[10px] mt-2" style={{ color: C.muted }}>
+                  {trophyFeedback}
+                </p>
+              )}
+            </div>
+          </div>
+        </Panel>
       )}
       {showForm && (
         <ModalOverlay onClose={() => setShowForm(false)}>
@@ -13692,7 +13889,7 @@ function NotificationBell({
       }
     }
     refreshNotifications();
-    const interval = window.setInterval(refreshNotifications, 30000);
+    const interval = window.setInterval(refreshNotifications, 60000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -14724,7 +14921,7 @@ function LearningPathsTab({ currentUser, setTab }) {
       }
     }
     refreshProgress();
-    const interval = window.setInterval(refreshProgress, 15000);
+    const interval = window.setInterval(refreshProgress, 30000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -17337,7 +17534,7 @@ export default function GowlSec() {
     }
 
     loadMemberCount();
-    const interval = window.setInterval(loadMemberCount, 15000);
+    const interval = window.setInterval(loadMemberCount, 300000);
 
     return () => {
       active = false;
