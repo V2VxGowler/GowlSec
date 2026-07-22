@@ -288,6 +288,21 @@ const PLATFORMS = [
   "Autre",
 ];
 
+const PLATFORM_BADGES = {
+  "TryHackMe": { initials: "THM", color: "#FF3B3B" },
+  "Root-Me": { initials: "RM", color: "#1A1A1A" },
+  "Hack The Box": { initials: "HTB", color: "#9FEF00" },
+  "Offsec": { initials: "OSCP", color: "#E4141B" },
+  "PentesterLab": { initials: "PL", color: "#5B6EF5" },
+  "PortSwigger": { initials: "PS", color: "#FF6633" },
+  "CyberDefenders": { initials: "CD", color: "#3AA0FF" },
+  "CTFTime": { initials: "CTF", color: "#FFD166" },
+  "Autre": { initials: "GS", color: "#8A93A3" },
+};
+function getPlatformBadge(platform) {
+  return PLATFORM_BADGES[platform] || PLATFORM_BADGES["Autre"];
+}
+
 const LAB_PLATFORMS = [
   { key: "htb", label: "Hack The Box" },
   { key: "thm", label: "TryHackMe" },
@@ -642,6 +657,7 @@ function uid() {
 }
 function timeAgo(iso) {
   const d = new Date(iso);
+  if (!iso || Number.isNaN(d.getTime())) return "récemment";
   const diff = Math.max(0, Date.now() - d.getTime());
   const m = Math.floor(diff / 60000);
   if (m < 1) return "à l'instant";
@@ -724,6 +740,12 @@ function Chip({ label, color }) {
       {label}
     </span>
   );
+}
+function isAdminProfile(profile) {
+  return !!profile && (profile.role === "admin" || profile.isAdmin === true);
+}
+function AdminBadge() {
+  return <Shield size={13} style={{ color: C.gold, verticalAlign: "-2px" }} fill={C.gold} fillOpacity={0.25} title="Administrateur" />;
 }
 function Panel({ children, className = "", style = {}, onClick }) {
   return (
@@ -826,6 +848,27 @@ function StatChip({ icon, label, value }) {
     </div>
   );
 }
+function ProfileStat({ icon, label, value, accent = C.primary }) {
+  return (
+    <div className="rounded-lg px-3 py-2.5 gowl-glass gowl-profile-stat relative overflow-hidden" style={{ border: `1px solid ${accent}33` }}>
+      <span className="gowl-inner-line" />
+      <div className="flex items-center gap-1.5 mb-1" style={{ color: accent }}>
+        <span className="w-6 h-6 rounded-md flex items-center justify-center shrink-0" style={{ background: `${accent}1F` }}>{icon}</span>
+        <span className="text-[9px] font-bold uppercase gowl-mono-tag truncate" style={{ color: C.muted }}>{label}</span>
+      </div>
+      <p className="text-lg font-extrabold gowl-count-pop leading-none" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{value}</p>
+    </div>
+  );
+}
+
+const ACTIVITY_META = {
+  question: { Icon: MessageSquare, color: C.primary },
+  trophy: { Icon: Trophy, color: C.gold },
+  team: { Icon: Users, color: C.warn },
+  lab: { Icon: Bug, color: C.alert },
+  message: { Icon: Hash, color: C.ok },
+};
+
 function Avatar({ profile, size = 32 }) {
   if (profile?.avatarImage) {
     return (
@@ -975,13 +1018,14 @@ function NavMoreMenu({ tabs, tab, setTab, lang }) {
       {open && typeof document !== "undefined" && createPortal(
         <>
           <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
-          <div className="fixed py-1.5 rounded-xl z-[9999] min-w-[190px]" style={{ top: pos.top, right: pos.right, background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 16px 40px -12px rgba(0,0,0,0.65)" }}>
+          <div className="fixed py-1.5 rounded-xl z-[9999] min-w-[190px]" style={{ top: pos.top, right: pos.right, background: C.bg, border: `1px solid ${C.line}`, boxShadow: "0 16px 40px -12px rgba(0,0,0,0.65)" }}>
             {tabs.map((t) => {
               const active = tab === t.key;
               const Icon = t.icon;
               return (
-                <button key={t.key} onClick={() => { setTab(t.key); setOpen(false); }} className="flex items-center gap-2.5 w-full px-3.5 py-2 text-[13px] text-left"
-                  style={{ color: active ? C.primary : C.text, background: active ? `${C.primary}14` : "transparent", fontFamily: BODY_FONT }}>
+                <button key={t.key} onClick={() => { setTab(t.key); setOpen(false); }}
+                  className={`gowl-moremenu-item flex items-center gap-2.5 w-full px-3.5 py-2 text-[13px] text-left${active ? " active" : ""}`}
+                  style={{ color: active ? C.primary : C.text, fontFamily: BODY_FONT }}>
                   {Icon && <Icon size={14} />} {(I18N[lang || "fr"].tabs[t.key]) || t.label}
                 </button>
               );
@@ -1268,6 +1312,9 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
   const [portalTarget, setPortalTarget] = useState(null);
   const [toast, setToast] = useState(null);
   const [showPw, setShowPw] = useState({ password: false, newPassword: false, newPasswordConfirm: false });
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+  const menuBtnRef = useRef(null);
   const resetToken = new URLSearchParams(window.location.search).get("token");
 
   useEffect(() => {
@@ -1296,6 +1343,20 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    if (menuOpen && menuBtnRef.current) {
+      const r = menuBtnRef.current.getBoundingClientRect();
+      setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+  }, [menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onKey(e) { if (e.key === "Escape") setMenuOpen(false); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [menuOpen]);
 
   function reset() {
     setEmail(""); setPassword(""); setBusy(false); setRememberMe(false);
@@ -1425,12 +1486,59 @@ function AuthWidget({ currentUser, setCurrentUser, profiles, setProfiles, creden
 
   if (currentUser) {
     return (
-      <div className="flex items-center gap-2">
-        <button onClick={() => setTab("profil")} className="gowl-userchip flex items-center gap-2 rounded-full px-2.5 py-1.5" style={{ background: `${C.panel2}CC`, border: `1px solid ${C.line}` }}>
-          <Avatar profile={currentUser} size={30} />
+      <div className="relative">
+        <button ref={menuBtnRef} onClick={() => setMenuOpen((v) => !v)} className="gowl-userchip flex items-center gap-2 rounded-lg pl-1.5 pr-2.5 py-1.5" style={{ background: `${C.panel2}CC`, border: `1px solid ${C.line}` }}>
+          <Avatar profile={currentUser} size={28} />
           <span className="text-sm hidden sm:inline" style={{ color: C.text, fontFamily: BODY_FONT }}>{currentUser.username}</span>
+          {isAdminProfile(currentUser) && <AdminBadge />}
+          <ChevronDown size={13} style={{ color: C.muted, transform: menuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }} />
         </button>
-        <button onClick={async () => { saveSession(null); await clearSession(); setCurrentUser(null); }} title="Se déconnecter" className="gowl-icon-btn" style={{ color: C.muted }}><LogOut size={15} /></button>
+        {menuOpen && typeof document !== "undefined" && createPortal(
+          <>
+            <div className="fixed inset-0 z-[9998]" onClick={() => setMenuOpen(false)} />
+            <div className="fixed w-64 max-w-[90vw] rounded-xl z-[9999] overflow-hidden gowl-fade-up" style={{ top: menuPos.top, right: menuPos.right, background: C.bg, border: `1px solid ${C.line}`, boxShadow: "0 16px 40px -12px rgba(0,0,0,0.65)" }}>
+              <div className="px-3.5 py-3 flex items-center gap-2.5" style={{ borderBottom: `1px solid ${C.line}`, background: C.bg }}>
+                <Avatar profile={currentUser} size={36} />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm font-bold truncate" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{currentUser.username}</span>
+                    {isAdminProfile(currentUser) && <AdminBadge />}
+                  </div>
+                  {currentUser.isPremium ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold" style={{ color: C.primary, fontFamily: MONO_FONT }}><Sparkles size={10} /> Premium</span>
+                  ) : (
+                    <span className="text-[10px] gowl-mono-tag" style={{ color: C.muted }}>{currentUser.provider === "discord" ? "Discord" : "E-mail"}</span>
+                  )}
+                </div>
+              </div>
+              <div className="py-1.5">
+                <button onClick={() => { setTab("profil"); setMenuOpen(false); }} className="gowl-usermenu-item">
+                  <span className="gowl-usermenu-icon" style={{ color: C.primary }}><UserIcon size={14} /></span> Mon profil
+                </button>
+                <button onClick={() => { setTab("trophies"); setMenuOpen(false); }} className="gowl-usermenu-item">
+                  <span className="gowl-usermenu-icon" style={{ color: C.gold }}><Trophy size={14} /></span> Trophées
+                </button>
+                <button onClick={() => { setTab("boutique"); setMenuOpen(false); }} className="gowl-usermenu-item">
+                  <span className="gowl-usermenu-icon" style={{ color: C.ok }}><ShoppingCart size={14} /></span> Boutique
+                </button>
+                {isAdminProfile(currentUser) && (
+                  <button onClick={() => { setTab("admin"); setMenuOpen(false); }} className="gowl-usermenu-item">
+                    <span className="gowl-usermenu-icon" style={{ color: C.warn }}><Shield size={14} /></span> Administration
+                  </button>
+                )}
+              </div>
+              <div className="py-1.5" style={{ borderTop: `1px solid ${C.line}` }}>
+                <button
+                  onClick={async () => { setMenuOpen(false); saveSession(null); await clearSession(); setCurrentUser(null); }}
+                  className="gowl-usermenu-item gowl-usermenu-danger"
+                >
+                  <span className="gowl-usermenu-icon" style={{ color: C.alert }}><LogOut size={14} /></span> Se déconnecter
+                </button>
+              </div>
+            </div>
+          </>,
+          document.body
+        )}
       </div>
     );
   }
@@ -1719,17 +1827,58 @@ function AuthSidebarInfo({ profiles }) {
 /* ---------------------------------------------------------------------
    Profil
 --------------------------------------------------------------------- */
-function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questions, trophies, labs = [], teams = [], messages = [], setTab }) {
+function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questions, trophies, labs = [], teams = [], messages = [], writeups = [], setTab }) {
   const [editing, setEditing] = useState(false);
   const [avatarKey, setAvatarKey] = useState(currentUser?.avatarKey);
   const [avatarImage, setAvatarImage] = useState(currentUser?.avatarImage || "");
+  const [avatarImgWarn, setAvatarImgWarn] = useState("");
   const [banner, setBanner] = useState(currentUser?.banner);
   const [bannerImage, setBannerImage] = useState(currentUser?.bannerImage || "");
+  const [bannerImgWarn, setBannerImgWarn] = useState("");
   const [bannerColor, setBannerColor] = useState(currentUser?.bannerColor || "");
   const [github, setGithub] = useState(currentUser?.socials?.github || "");
   const [twitter, setTwitter] = useState(currentUser?.socials?.twitter || "");
   const [discord, setDiscord] = useState(currentUser?.socials?.discord || "");
   const [bio, setBio] = useState(currentUser?.bio || "");
+
+  function isGifUrl(u) {
+    const clean = (u || "").split("?")[0].split("#")[0].trim().toLowerCase();
+    return clean.endsWith(".gif");
+  }
+
+  function handleAvatarUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type === "image/gif") {
+      setAvatarImgWarn("Les GIF ne sont pas autorisés — utilise un JPG, PNG ou WebP.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : "";
+      if (dataUrl) { setAvatarImage(dataUrl); setAvatarImgWarn(""); }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
+
+  function handleBannerUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type === "image/gif") {
+      setBannerImgWarn("Les GIF ne sont pas autorisés — utilise un JPG, PNG ou WebP.");
+      e.target.value = "";
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const dataUrl = typeof reader.result === "string" ? reader.result : "";
+      if (dataUrl) { setBannerImage(dataUrl); setBannerColor(""); setBannerImgWarn(""); }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   if (!currentUser) {
     return (
@@ -1743,11 +1892,12 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
 
   const myQuestions = questions.filter((q) => q.author === currentUser.username).length;
   const myTrophies = trophies.filter((t) => t.author === currentUser.username).length;
-  const bannerCss = bannerImage ? `url(${bannerImage}) center/cover no-repeat` : bannerColor ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})` : BANNER_MAP[banner] || BANNER_MAP.indigo;
+  const bannerCss = bannerImage ? `url(${bannerImage}) center/cover no-repeat` : bannerColor ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})` : BANNER_MAP[banner] || "transparent";
   const socials = currentUser.socials || {};
 
-  const myPoints = useMemo(() => computeUserPoints(currentUser.username, questions, trophies, labs), [currentUser.username, questions, trophies, labs]);
+  const myPoints = useMemo(() => computeUserPoints(currentUser.username, questions, trophies, labs, writeups), [currentUser.username, questions, trophies, labs, writeups]);
   const levelInfo = useMemo(() => getLevelInfo(myPoints), [myPoints]);
+  const isMaxLevel = !levelInfo.next;
 
   const myActivity = useMemo(() => {
     const items = [
@@ -1761,13 +1911,13 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
   }, [currentUser.username, questions, trophies, teams, labs, messages]);
 
   async function save() {
-    const isPremium = !!currentUser.isPremium;
+    if (isGifUrl(avatarImage) || isGifUrl(bannerImage)) return;
     const updated = {
       ...currentUser,
       avatarKey,
-      avatarImage: isPremium ? avatarImage.trim() : "",
+      avatarImage: avatarImage.trim(),
       banner,
-      bannerImage: isPremium ? bannerImage.trim() : "",
+      bannerImage: bannerImage.trim(),
       bannerColor: bannerColor.trim(),
       bio: bio.trim().slice(0, 160),
       socials: { github: github.trim(), twitter: twitter.trim(), discord: discord.trim() },
@@ -1779,136 +1929,195 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
     setEditing(false);
   }
 
+  const joinedValid = currentUser.joinedAt && !Number.isNaN(new Date(currentUser.joinedAt).getTime());
+  const badgeCount = [isAdminProfile(currentUser), currentUser.isPremium, isMaxLevel].filter(Boolean).length;
+
   return (
-    <div>
-      <Panel className="overflow-hidden mb-6">
-        <div className="h-36" style={{ background: bannerCss }} />
-        <div className="px-5 pb-5">
-          <div className="-mt-8 mb-3">
-            <div className="inline-block rounded-full p-1" style={{ background: C.panel }}>
-              <Avatar profile={{ avatarKey }} size={64} />
-            </div>
-          </div>
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{currentUser.username}</h2>
-                {currentUser.isPremium && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-xs font-semibold"
-                    style={{ background: `${C.primary}20`, color: C.primary }}>
-                    Premium
+    <div className="max-w-xl mx-auto">
+      <Panel className="overflow-hidden mb-4 gowl-profile-card" style={{ border: `1px solid ${levelInfo.level.color}3D`, background: "rgba(8,10,14,0.6)", backdropFilter: "blur(2px)" }}>
+        <div className="h-20 sm:h-24 relative overflow-hidden" style={{ background: "transparent" }}>
+          <div className="absolute inset-0" style={{ background: bannerCss }} />
+          <span aria-hidden className="absolute -top-10 -right-10 w-40 h-40 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${levelInfo.level.color}33, transparent 70%)`, filter: "blur(6px)" }} />
+          <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(#ffffff1c 1px, transparent 1px)", backgroundSize: "18px 18px", opacity: 0.3, maskImage: "linear-gradient(180deg, black, transparent 88%)" }} />
+          <span aria-hidden className="absolute inset-0 pointer-events-none" style={{ background: `linear-gradient(180deg, transparent 30%, rgba(8,10,14,0.6) 100%)` }} />
+          {editing && (
+            <label className="absolute inset-0 flex items-center justify-center gap-1.5 cursor-pointer gowl-banner-edit" title="Changer la bannière">
+              <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
+              <Pencil size={13} color="#fff" />
+              <span className="text-[11px] font-semibold" style={{ color: "#fff", fontFamily: BODY_FONT }}>Changer la bannière</span>
+            </label>
+          )}
+          {isAdminProfile(currentUser) && (
+            <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-bold uppercase gowl-mono-tag" style={{ background: `${C.bg}B0`, color: C.gold, border: `1px solid ${C.gold}55` }}>
+              <Shield size={11} /> Admin
+            </span>
+          )}
+        </div>
+
+        <div className="px-4 sm:px-5 pb-4">
+          <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 -mt-8">
+            <div className="flex items-end gap-3">
+              <div className="relative shrink-0">
+                <div className="rounded-full p-[2px]" style={{ background: `conic-gradient(${levelInfo.level.color} ${levelInfo.pct * 3.6}deg, ${C.line} 0deg)`, boxShadow: `0 6px 16px -8px ${levelInfo.level.color}CC` }}>
+                  <div className="rounded-full p-[2px]" style={{ background: "#0A0C10" }}>
+                    <Avatar profile={{ avatarKey, avatarImage }} size={56} />
+                  </div>
+                </div>
+                {editing && (
+                  <label className="absolute inset-0 rounded-full flex items-center justify-center cursor-pointer gowl-avatar-edit" title="Changer la photo de profil">
+                    <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                    <Pencil size={16} color="#fff" />
+                  </label>
+                )}
+                <span className="absolute bottom-1 right-1 w-3 h-3 rounded-full gowl-live-dot" style={{ background: C.ok, border: `2px solid #0A0C10` }} title="En ligne" />
+                {isMaxLevel && (
+                  <span className="absolute -top-1 -left-1 w-5 h-5 rounded-full flex items-center justify-center gowl-count-pop" style={{ background: "#0A0C10", border: `1.5px solid ${levelInfo.level.color}`, color: levelInfo.level.color, boxShadow: `0 4px 10px -3px ${levelInfo.level.color}AA` }} title="Niveau maximum">
+                    <Crown size={10} />
                   </span>
                 )}
               </div>
-              <p className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>
-                Membre depuis {timeAgo(currentUser.joinedAt)} · {currentUser.provider === "discord" ? "Discord" : "E-mail"}
-                {currentUser.isPremium && currentUser.premiumUntil && (
-                  <span className="ml-2 text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>
-                    • Expire le {new Date(currentUser.premiumUntil).toLocaleDateString()}
-                  </span>
-                )}
-              </p>
-              {currentUser.bio && <p className="text-sm mt-2" style={{ color: C.text, fontFamily: BODY_FONT }}>{currentUser.bio}</p>}
+              <div className="pb-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h2 className="text-lg font-extrabold leading-tight gowl-profile-name" style={{ fontFamily: DISPLAY_FONT, backgroundImage: `linear-gradient(90deg, ${C.text}, ${levelInfo.level.color})` }}>{currentUser.username}</h2>
+                  {isAdminProfile(currentUser) && <AdminBadge />}
+                </div>
+                <p className="text-[11px] mt-0.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>
+                  Membre depuis {joinedValid ? timeAgo(currentUser.joinedAt) : "peu de temps"} · {currentUser.provider === "discord" ? "Discord" : "E-mail"}
+                </p>
+              </div>
             </div>
-            <GhostButton onClick={() => setEditing((e) => !e)}><Pencil size={12} /> {editing ? "Annuler" : "Modifier"}</GhostButton>
-          </div>
-          <div className="flex gap-3 mt-4 flex-wrap">
-            <StatChip icon={<Flag size={14} />} label="questions" value={myQuestions} />
-            <StatChip icon={<Trophy size={14} />} label="trophées" value={myTrophies} />
-            <StatChip icon={<Zap size={14} />} label="points" value={myPoints} />
+            <GhostButton onClick={() => setEditing((e) => !e)}><Pencil size={12} /> {editing ? "Annuler" : "Modifier le profil"}</GhostButton>
           </div>
 
-          <div className="mt-4 p-3 rounded-lg" style={{ background: C.panel2, border: `1px solid ${levelInfo.level.color}44` }}>
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: levelInfo.level.color, fontFamily: MONO_FONT }}>
-                <Gauge size={13} /> Niveau {levelInfo.level.label}
+          <div className="flex items-center gap-2 flex-wrap mt-2.5">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase gowl-mono-tag" style={{ background: `${levelInfo.level.color}1A`, color: levelInfo.level.color, border: `1px solid ${levelInfo.level.color}44` }}>
+              <Gauge size={10} /> Niveau {levelInfo.level.label}
+            </span>
+            {currentUser.isPremium && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase" style={{ background: `${C.primary}1A`, color: C.primary, border: `1px solid ${C.primary}44`, fontFamily: MONO_FONT }}>
+                <Sparkles size={10} /> Premium
+                {currentUser.premiumUntil && <span className="opacity-80 normal-case font-normal">· jusqu'au {new Date(currentUser.premiumUntil).toLocaleDateString("fr-FR")}</span>}
               </span>
-              <span className="text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>
+            )}
+            {badgeCount === 0 && !currentUser.bio && (
+              <span className="text-[11px]" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun badge pour l'instant — continue à participer pour progresser.</span>
+            )}
+          </div>
+
+          {currentUser.bio && <p className="text-xs mt-2 max-w-xl leading-relaxed" style={{ color: C.text, fontFamily: BODY_FONT }}>{currentUser.bio}</p>}
+
+          <div className="grid grid-cols-2 gap-2 mt-3">
+            <ProfileStat icon={<Trophy size={13} />} label="trophées" value={myTrophies} accent={C.gold} />
+            <ProfileStat icon={<Zap size={13} />} label="points" value={myPoints} accent={C.ok} />
+          </div>
+
+          <div className="mt-2.5 p-2.5 rounded-lg gowl-glass relative overflow-hidden" style={{ border: `1px solid ${levelInfo.level.color}44` }}>
+            <span className="gowl-inner-line" />
+            <div className="flex items-center justify-between mb-1.5 flex-wrap gap-1">
+              <span className="text-[11px] font-bold uppercase tracking-wide flex items-center gap-1.5" style={{ color: levelInfo.level.color, fontFamily: MONO_FONT }}>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center shrink-0" style={{ background: `${levelInfo.level.color}22` }}><Gauge size={10} /></span>
+                Niveau {levelInfo.level.label}
+              </span>
+              <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>
                 {levelInfo.next ? `${levelInfo.pointsToNext} pts avant ${levelInfo.next.label}` : "Niveau maximum atteint"}
               </span>
             </div>
             <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: C.bg }}>
-              <div className="h-full rounded-full gowl-bar-fill" style={{ width: `${levelInfo.pct}%`, background: levelInfo.level.color }} />
+              <div className="h-full rounded-full gowl-bar-fill" style={{ width: `${levelInfo.pct}%`, background: `linear-gradient(90deg, ${levelInfo.level.color}99, ${levelInfo.level.color})` }} />
             </div>
           </div>
 
-          {(socials.github || socials.twitter || socials.discord) && !editing && (
-            <div className="flex flex-wrap gap-2 mt-4 pt-4" style={{ borderTop: `1px solid ${C.line}` }}>
-              {socials.github && (
-                <a href={socials.github.startsWith("http") ? socials.github : `https://github.com/${socials.github.replace(/^@/, "")}`} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs" style={{ border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
-                  <GitHubIcon size={13} /> GitHub
-                </a>
-              )}
-              {socials.twitter && (
-                <a href={socials.twitter.startsWith("http") ? socials.twitter : `https://twitter.com/${socials.twitter.replace(/^@/, "")}`} target="_blank" rel="noreferrer"
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs" style={{ border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
-                  <XIcon size={13} /> X (Twitter)
-                </a>
-              )}
-              {socials.discord && (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs" style={{ border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
-                  <MessageCircle size={13} /> {socials.discord}
-                </span>
-              )}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-2 mt-3 pt-3" style={{ borderTop: `1px solid ${C.line}` }}>
+            {socials.github ? (
+              <a href={socials.github.startsWith("http") ? socials.github : `https://github.com/${socials.github.replace(/^@/, "")}`} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs gowl-social-link" style={{ border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
+                <GitHubIcon size={13} /> GitHub
+              </a>
+            ) : !editing && <GhostButton onClick={() => setEditing(true)}><GitHubIcon size={12} /> Ajouter GitHub</GhostButton>}
+            {socials.twitter ? (
+              <a href={socials.twitter.startsWith("http") ? socials.twitter : `https://twitter.com/${socials.twitter.replace(/^@/, "")}`} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs gowl-social-link" style={{ border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
+                <XIcon size={13} /> X (Twitter)
+              </a>
+            ) : !editing && <GhostButton onClick={() => setEditing(true)}><XIcon size={12} /> Ajouter X</GhostButton>}
+            {socials.discord && (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs" style={{ border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
+                <MessageCircle size={13} /> {socials.discord}
+              </span>
+            )}
+          </div>
         </div>
       </Panel>
 
-      <Panel className="p-4 mb-6">
+      <Panel className="p-4 mb-6 gowl-glass">
         <div className="flex items-center gap-2 mb-3">
           <Activity size={14} style={{ color: C.ok }} />
-          <span className="text-xs font-bold uppercase tracking-wide" style={{ color: C.muted, fontFamily: MONO_FONT }}>Fil d'activité</span>
+          <span className="text-xs font-bold uppercase tracking-wide gowl-mono-tag" style={{ color: C.muted }}>Fil d'activité</span>
         </div>
         {myActivity.length === 0 ? (
-          <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucune activité pour l'instant — pose une question, ajoute un trophée ou ouvre un salon lab.</p>
+          <EmptyState text="Aucune activité pour l'instant — pose une question, ajoute un trophée ou ouvre un salon lab." icon={<Activity size={20} />} accent={C.ok} />
         ) : (
-          <div className="space-y-1.5">
-            {myActivity.map((item) => (
-              <button key={`${item.kind}-${item.id}`} onClick={() => setTab(item.tab)} className="flex items-center gap-2 w-full text-left px-2.5 py-1.5 rounded-md transition-colors hover:opacity-90" style={{ background: C.panel2 }}>
-                <span className="w-6 h-6 rounded-full flex items-center justify-center shrink-0" style={{ background: `${C.primary}22`, color: C.primary }}>
-                  {item.kind === "trophy" ? <Trophy size={12} /> : item.kind === "team" ? <Users size={12} /> : item.kind === "lab" ? <Bug size={12} /> : item.kind === "message" ? <Hash size={12} /> : <MessageSquare size={12} />}
-                </span>
-                <p className="text-xs truncate flex-1" style={{ color: C.text, fontFamily: BODY_FONT }}>{item.text}</p>
-                <span className="text-[10px] shrink-0" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(item.createdAt)}</span>
-              </button>
-            ))}
+          <div className="relative gowl-timeline">
+            {myActivity.map((item) => {
+              const meta = ACTIVITY_META[item.kind] || ACTIVITY_META.question;
+              const MetaIcon = meta.Icon;
+              return (
+                <button key={`${item.kind}-${item.id}`} onClick={() => setTab(item.tab)} className="flex items-center gap-2.5 w-full text-left px-2.5 py-2 rounded-md gowl-activity-row mb-1.5" style={{ background: C.panel2, borderLeft: `2px solid ${meta.color}66` }}>
+                  <span className="w-7 h-7 rounded-full flex items-center justify-center shrink-0" style={{ background: `${meta.color}22`, color: meta.color }}>
+                    <MetaIcon size={13} />
+                  </span>
+                  <p className="text-xs truncate flex-1" style={{ color: C.text, fontFamily: BODY_FONT }}>{item.text}</p>
+                  <span className="text-[10px] shrink-0 gowl-mono-tag" style={{ color: C.muted }}>{timeAgo(item.createdAt)}</span>
+                </button>
+              );
+            })}
           </div>
         )}
       </Panel>
 
       {editing && (
-        <Panel className="p-4">
+        <Panel className="overflow-hidden mb-6">
+          <div className="px-4 py-3 flex items-center gap-2" style={{ borderBottom: `1px solid ${C.line}`, background: C.panel }}>
+            <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${C.primary}1A`, color: C.primary }}><Pencil size={13} /></span>
+            <div>
+              <span className="text-xs font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Modifier le profil</span>
+              <p className="text-[10px] gowl-mono-tag" style={{ color: C.muted }}>Visible par toute la communauté</p>
+            </div>
+          </div>
+          <div className="p-4">
           <Field label="Bio (160 caractères max)">
             <textarea value={bio} onChange={(e) => setBio(e.target.value.slice(0, 160))} rows={2} placeholder="Une courte présentation, ta spécialité, tes objectifs..." className="w-full px-3 py-2 rounded-md text-sm resize-none" style={inputStyle} />
             <span className="block mt-1 text-xs text-right" style={{ color: C.muted, fontFamily: MONO_FONT }}>{bio.length}/160</span>
           </Field>
           <Field label="Photo de profil">
-            <div className="flex flex-wrap gap-2 mb-2">
+            <p className="text-[11px] mb-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>Clique sur ta photo en haut de la page, ou choisis un fichier ci-dessous.</p>
+            <div className="flex flex-wrap items-center gap-2 mb-2">
+              <label className="gowl-upload-btn inline-flex items-center gap-1.5 px-3 py-1.75 rounded-md text-xs font-semibold cursor-pointer" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
+                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                <UserIcon size={13} /> Choisir un fichier
+              </label>
               {AVATAR_OPTIONS.map((a) => {
                 const Icon = a.icon;
                 const active = avatarKey === a.key && !avatarImage;
                 return (
-                  <button key={a.key} onClick={() => { setAvatarKey(a.key); setAvatarImage(""); }} className="w-10 h-10 rounded-full flex items-center justify-center"
+                  <button key={a.key} onClick={() => { setAvatarKey(a.key); setAvatarImage(""); }} className="relative w-11 h-11 rounded-full flex items-center justify-center gowl-avatar-swatch"
                     style={{ background: a.color, outline: active ? `2px solid ${C.text}` : "none", outlineOffset: 2 }}>
-                    <Icon size={18} color="#fff" />
+                    <Icon size={19} color="#fff" />
+                    {active && <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: C.ok, border: `2px solid ${C.panel}` }}><CheckCircle2 size={9} color="#fff" /></span>}
                   </button>
                 );
               })}
             </div>
-            {currentUser.isPremium ? (
-              <input value={avatarImage} onChange={(e) => setAvatarImage(e.target.value)} placeholder="Photo ou GIF animé — colle une URL d'image..."
-                className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            ) : (
-              <button onClick={() => setTab("boutique")} className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-left" style={{ background: `${C.gold}0F`, border: `1px solid ${C.gold}44`, color: C.muted, fontFamily: BODY_FONT }}>
-                <Lock size={13} color={C.gold} /> Photo de profil animée (GIF) réservée au Pack VIP — <span style={{ color: C.gold }}>voir la boutique</span>
-              </button>
-            )}
+            {avatarImgWarn && <p className="mt-1 text-[11px]" style={{ color: C.alert, fontFamily: BODY_FONT }}>{avatarImgWarn}</p>}
           </Field>
           <Field label="Bannière">
+            <p className="text-[11px] mb-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>Clique sur la bannière en haut de la page, ou choisis un fichier ci-dessous.</p>
             <div className="flex flex-wrap items-center gap-2 mb-2">
-              <label className="relative w-20 h-11 rounded-md flex items-center justify-center cursor-pointer overflow-hidden"
+              <label className="gowl-upload-btn inline-flex items-center gap-1.5 px-3 py-1.75 rounded-md text-xs font-semibold cursor-pointer" style={{ background: C.panel2, border: `1px solid ${C.line}`, color: C.text, fontFamily: BODY_FONT }}>
+                <input type="file" accept="image/*" className="hidden" onChange={handleBannerUpload} />
+                <ExternalLink size={13} style={{ transform: "rotate(90deg)" }} /> Choisir un fichier
+              </label>
+              <label className="relative w-20 h-11 rounded-md flex items-center justify-center cursor-pointer overflow-hidden gowl-avatar-swatch"
                 style={{ background: bannerColor ? `linear-gradient(135deg, ${bannerColor}, ${shadeColor(bannerColor, -35)})` : BANNER_MAP.indigo, outline: `2px solid ${C.text}`, outlineOffset: 2 }}
                 title="Choisir ma propre couleur">
                 <span className="text-[10px] font-semibold" style={{ color: "#fff", fontFamily: MONO_FONT }}>Pipette</span>
@@ -1916,14 +2125,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
               </label>
             </div>
-            {currentUser.isPremium ? (
-              <input value={bannerImage} onChange={(e) => { setBannerImage(e.target.value); setBannerColor(""); }} placeholder="Bannière ou GIF animé — colle une URL d'image..."
-                className="w-full px-3 py-2 rounded-md text-sm" style={inputStyle} />
-            ) : (
-              <button onClick={() => setTab("boutique")} className="w-full flex items-center gap-2 px-3 py-2 rounded-md text-xs text-left" style={{ background: `${C.gold}0F`, border: `1px solid ${C.gold}44`, color: C.muted, fontFamily: BODY_FONT }}>
-                <Lock size={13} color={C.gold} /> Bannière personnalisée (GIF) réservée au Pack VIP — <span style={{ color: C.gold }}>voir la boutique</span>
-              </button>
-            )}
+            {bannerImgWarn && <p className="mt-1 text-[11px]" style={{ color: C.alert, fontFamily: BODY_FONT }}>{bannerImgWarn}</p>}
           </Field>
           <Field label="GitHub">
             <div className="flex items-center gap-2">
@@ -1944,6 +2146,7 @@ function ProfileTab({ currentUser, setCurrentUser, profiles, setProfiles, questi
             </div>
           </Field>
           <PrimaryButton onClick={save}><CheckCircle2 size={14} /> Enregistrer</PrimaryButton>
+          </div>
         </Panel>
       )}
     </div>
@@ -2201,12 +2404,9 @@ function ForumTab({ pseudo, questions, setQuestions, isAdmin, lang = "fr", curre
     setReplyDraft((d) => ({ ...d, [qid]: "" }));
   }
   async function removeQuestion(qid) {
-    try {
-      await communityRequest(`/questions/${qid}`, { method: "DELETE" });
-      setQuestions((current) => current.filter((q) => q.id !== qid));
-    } catch (error) {
-      window.alert(error.message);
-    }
+    const next = questions.filter((q) => q.id !== qid);
+    setQuestions(next);
+    saveCollection("gowlsec:questions", next);
   }
 
   return (
@@ -2370,6 +2570,8 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
   const [roomJoinPassword, setRoomJoinPassword] = useState({});
   const [roomJoinError, setRoomJoinError] = useState("");
   const [roomAccess, setRoomAccess] = useState({ general: true });
+  const [editingId, setEditingId] = useState(null);
+  const [editText, setEditText] = useState("");
   const bottomRef = useRef(null);
   const roomMessages = messages.filter((m) => (m.room || "general") === room);
   const current = rooms.find((r) => r.key === room) || rooms[0] || DEFAULT_ROOMS[0];
@@ -2429,9 +2631,37 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
     );
   }
   async function removeMsg(id) {
+    const target = messages.find((m) => m.id === id);
+    if (!target) return;
+    if (!isAdmin && target.author !== pseudo) return;
     const next = messages.filter((m) => m.id !== id);
     setMessages(next);
     saveCollection("gowlsec:chat", next);
+    try {
+      socket.emit("hub-message:delete", { id });
+    } catch { /* best effort — suppression locale déjà appliquée */ }
+  }
+  function startEditMsg(m) {
+    setEditingId(m.id);
+    setEditText(m.text);
+  }
+  function cancelEditMsg() {
+    setEditingId(null);
+    setEditText("");
+  }
+  async function saveEditMsg(id) {
+    const value = editText.trim();
+    if (!value) return;
+    const target = messages.find((m) => m.id === id);
+    if (!target || (!isAdmin && target.author !== pseudo)) return;
+    const next = messages.map((m) => (m.id === id ? { ...m, text: value, edited: true, editedAt: new Date().toISOString() } : m));
+    setMessages(next);
+    saveCollection("gowlsec:chat", next);
+    try {
+      socket.emit("hub-message:edit", { id, content: value });
+    } catch { /* best effort — édition locale déjà appliquée */ }
+    setEditingId(null);
+    setEditText("");
   }
   async function toggleReaction(id, emoji) {
     const next = messages.map((m) => {
@@ -2537,17 +2767,22 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
   async function deleteRoom() {
     if (!isOwner) return;
     const targetRoom = rooms.find((r) => r.key === room) || rooms[0] || DEFAULT_ROOMS[0];
-    if (!targetRoom.id) return;
-    try {
-      await communityRequest(`/rooms/${targetRoom.id}`, { method: "DELETE" });
-      const nextRooms = rooms.filter((r) => r.id !== targetRoom.id);
-      setRooms(nextRooms);
-      setMessages((current) => current.filter((m) => m.room !== targetRoom.key));
-      setRoom(nextRooms[0]?.key || "general");
-      setRoomActionFeedback(`Le salon "${targetRoom.label}" a été supprimé.`);
-    } catch (error) {
-      setRoomActionFeedback(error.message);
+    const nextRooms = rooms.filter((r) => r.key !== targetRoom.key);
+    if (nextRooms.length === 0) {
+      setRooms(DEFAULT_ROOMS.map((r) => ({ ...r, owner: r.owner || "system", bannedUsers: [] })));
+      saveCollection("gowlsec:rooms", DEFAULT_ROOMS.map((r) => ({ ...r, owner: r.owner || "system", bannedUsers: [] })));
+      setRoom("general");
+      setMessages(messages.filter((m) => m.room !== targetRoom.key));
+      saveCollection("gowlsec:chat", messages.filter((m) => m.room !== targetRoom.key));
+      setRoomActionFeedback("Le salon a été supprimé.");
+      return;
     }
+    setRooms(nextRooms);
+    saveCollection("gowlsec:rooms", nextRooms);
+    setMessages(messages.filter((m) => m.room !== targetRoom.key));
+    saveCollection("gowlsec:chat", messages.filter((m) => m.room !== targetRoom.key));
+    setRoom(nextRooms[0].key);
+    setRoomActionFeedback(`Le salon "${targetRoom.label}" a été supprimé.`);
   }
 
   return (
@@ -2678,16 +2913,49 @@ function RoomsTab({ pseudo, messages, setMessages, isAdmin, lang = "fr", profile
                 {roomMessages.map((m) => {
               const reactions = m.reactions || {};
               const authorProfile = profiles.find((p) => p.username === m.author);
+              const isSelf = !!pseudo && m.author === pseudo;
+              const isEditing = editingId === m.id;
               return (
                 <div key={m.id} className="gowl-hub-msg group">
                   <Avatar profile={authorProfile} size={30} />
                   <div className="flex-1 min-w-0">
                     <div className="gowl-hub-msg-author">
                       <span className="text-[13px] font-bold" style={{ color: C.text, fontFamily: BODY_FONT }}>{m.author}</span>
+                      {isAdminProfile(authorProfile) && <AdminBadge />}
                       <span className="text-[11px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(m.createdAt)}</span>
-                      {isAdmin && <button onClick={() => removeMsg(m.id)} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.alert }}><Trash2 size={11} /></button>}
+                      {m.edited && <span className="text-[10px] italic" style={{ color: C.muted, fontFamily: BODY_FONT }}>(modifié)</span>}
+                      {!isEditing && (isSelf || isAdmin) && (
+                        <span className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {isSelf && (
+                            <button onClick={() => startEditMsg(m)} title="Modifier" className="gowl-hub-msg-action" style={{ color: C.muted }}><Pencil size={11} /></button>
+                          )}
+                          <button onClick={() => removeMsg(m.id)} title="Supprimer" className="gowl-hub-msg-action" style={{ color: C.alert }}><Trash2 size={11} /></button>
+                        </span>
+                      )}
                     </div>
-                    <div className="gowl-hub-msg-bubble">{m.text}</div>
+                    {isEditing ? (
+                      <div className="gowl-hub-msg-edit">
+                        <textarea
+                          value={editText}
+                          onChange={(e) => setEditText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); saveEditMsg(m.id); }
+                            if (e.key === "Escape") cancelEditMsg();
+                          }}
+                          autoFocus
+                          rows={2}
+                          className="w-full px-2.5 py-2 rounded-md text-sm resize-none"
+                          style={inputStyle}
+                        />
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <button onClick={() => saveEditMsg(m.id)} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold" style={{ background: C.primary, color: "#fff", fontFamily: BODY_FONT }}><CheckCircle2 size={12} /> Enregistrer</button>
+                          <button onClick={cancelEditMsg} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs" style={{ border: `1px solid ${C.line}`, color: C.muted, fontFamily: BODY_FONT }}><X size={12} /> Annuler</button>
+                          <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>Entrée pour valider · Échap pour annuler</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="gowl-hub-msg-bubble">{m.text}</div>
+                    )}
                     <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
                       {Object.entries(reactions).map(([em, users]) => (
                         <button key={em} onClick={() => toggleReaction(m.id, em)} className="gowl-hub-reaction" data-active={users.includes(pseudo)}>
@@ -2804,14 +3072,13 @@ function TeamsTab({ pseudo, teams, setTeams, announcements, setAnnouncements, is
     await saveCollection("gowlsec:teams", next);
   }
   async function removeTeam(teamId) {
-    try {
-      await communityRequest(`/teams/${teamId}`, { method: "DELETE" });
-      setTeams((current) => current.filter((t) => t.id !== teamId));
-      setAnnouncements((current) => current.filter((a) => a.teamId !== teamId));
-      setSelectedId(null);
-    } catch (error) {
-      window.alert(error.message);
-    }
+    const next = teams.filter((t) => t.id !== teamId);
+    setTeams(next);
+    await saveCollection("gowlsec:teams", next);
+    const nextAnn = announcements.filter((a) => a.teamId !== teamId);
+    setAnnouncements(nextAnn);
+    await saveCollection("gowlsec:team_announcements", nextAnn);
+    setSelectedId(null);
   }
   async function postAnnouncement(teamId) {
     if (!currentUser) return;
@@ -3081,14 +3348,18 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
     await saveCollection("gowlsec:labs", next);
   }
   async function removeLab(labId) {
-    try {
-      await communityRequest(`/labs/${labId}`, { method: "DELETE" });
-      setLabs((current) => current.filter((l) => l.id !== labId));
-      setLabMessages((current) => current.filter((m) => m.labId !== labId));
-      setSelectedId(null);
-    } catch (error) {
-      window.alert(error.message);
-    }
+    const next = labs.filter((l) => l.id !== labId);
+    setLabs(next);
+    await saveCollection("gowlsec:labs", next);
+    const nextMsgs = labMessages.filter((m) => m.labId !== labId);
+    setLabMessages(nextMsgs);
+    await saveCollection("gowlsec:lab_messages", nextMsgs);
+    setSelectedId(null);
+  }
+  async function toggleLabFinished(labId) {
+    const next = labs.map((l) => l.id === labId ? { ...l, finished: !l.finished } : l);
+    setLabs(next);
+    await saveCollection("gowlsec:labs", next);
   }
   async function sendLabMessage(labId) {
     if (!currentUser) return;
@@ -3126,6 +3397,7 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
                 <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{selected.title}</h2>
                 <Chip label={isPrivate ? "Privé" : "Public"} color={isPrivate ? C.warn : C.ok} />
                 <Chip label={plat.label} color={C.primary} />
+                {selected.finished && <Chip label="Terminé" color={C.ok} />}
               </div>
               <p className="text-sm mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{selected.description || "Aucune description."}</p>
               <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -3148,6 +3420,11 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
                 </div>
               ) : (
                 <PrimaryButton onClick={() => joinLab(selected)}><Plus size={14} /> Rejoindre</PrimaryButton>
+              )}
+              {(isAdmin || selected.owner === pseudo) && (
+                <button onClick={() => toggleLabFinished(selected.id)} className="text-xs px-2.5 py-1 rounded-full font-medium" style={{ background: selected.finished ? `${C.ok}22` : "transparent", border: `1px solid ${selected.finished ? C.ok : C.line}`, color: selected.finished ? C.ok : C.muted, fontFamily: MONO_FONT }}>
+                  {selected.finished ? <span className="inline-flex items-center gap-1"><CheckCircle2 size={12} /> Terminé</span> : "Marquer terminé"}
+                </button>
               )}
               {(isAdmin || selected.owner === pseudo) && <GhostButton danger onClick={() => removeLab(selected.id)}><Trash2 size={12} /> Supprimer</GhostButton>}
             </div>
@@ -3269,6 +3546,9 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
               return (
                 <Panel key={l.id} className="p-4 pt-5 cursor-pointer gowl-hud-card gowl-glass relative overflow-hidden" style={{ "--gowl-accent": C.alert }} onClick={() => setSelectedId(l.id)}>
                   <div aria-hidden className="absolute top-0 left-0 right-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${C.alert}, transparent)` }} />
+                  {l.finished && (
+                    <span className="gowl-qcard-resolved"><CheckCircle2 size={11} /> Terminé</span>
+                  )}
                   <div className="flex items-center gap-3 mb-2">
                     <div className="w-10 h-10 rounded-md flex items-center justify-center shrink-0" style={{ background: `${C.alert}1A`, border: `1px solid ${C.alert}44`, color: C.alert }}><Bug size={18} /></div>
                     <div className="min-w-0 flex-1">
@@ -3296,6 +3576,7 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
         <InfoSidebar>
           <StatCardsRow vertical items={[
             { icon: <Bug size={13} />, label: "Salons ouverts", value: labs.length, accent: C.alert },
+            { icon: <CheckCircle2 size={13} />, label: "Labs terminés", value: labs.filter((l) => l.finished).length, accent: C.ok },
             { icon: <Users size={13} />, label: "Hackers connectés", value: labs.reduce((s, l) => s + l.members.length, 0), accent: C.primary },
             { icon: <Unlock size={13} />, label: "Places libres", value: labs.reduce((s, l) => s + Math.max(0, (l.maxMembers || LAB_MAX_MEMBERS) - l.members.length), 0), accent: C.ok },
           ]} />
@@ -3308,30 +3589,45 @@ function LabsTab({ pseudo, labs, setLabs, labMessages, setLabMessages, isAdmin, 
 /* ---------------------------------------------------------------------
    Classement — points calculés depuis trophées, forum et labs créés
 --------------------------------------------------------------------- */
-const TROPHY_POINTS = { facile: 10, moyen: 20, difficile: 35, insane: 50 };
 const RANK_MEDALS = ["🥇", "🥈", "🥉"];
 
-/* Points d'un membre — calcul partagé entre Classement et Profil (niveaux/XP) */
-function computeUserPoints(username, questions, trophies, labs) {
+/* Barème d'XP — utilisé partout où les points d'un membre sont calculés */
+const XP_RULES = {
+  question: 10,   // Publier une question
+  answer: 15,     // Donner une réponse
+  acceptedAnswer: 40, // Réponse acceptée
+  lab: 75,        // Terminer un lab
+  writeup: 100,   // Publier un write-up validé
+  ctf: 150,       // Participer à un CTF
+  trophy: 200,    // Gagner un trophée
+};
+
+/* Points d'un membre — calcul partagé entre Classement, Accueil, Admin et Profil (niveaux/XP) */
+function computeUserPoints(username, questions, trophies, labs, writeups = []) {
   if (!username) return 0;
   let total = 0;
-  trophies.forEach((t) => { if (t.author === username) total += TROPHY_POINTS[t.difficulty] || 10; });
+  trophies.forEach((t) => { if (t.author === username) total += XP_RULES.trophy; });
   questions.forEach((q) => {
-    if (q.author === username) total += 2;
-    (q.answers || []).forEach((a) => { if (a.author === username) total += 3; });
+    if (q.author === username) total += XP_RULES.question;
+    (q.answers || []).forEach((a) => { if (a.author === username) total += XP_RULES.answer; });
   });
-  labs.forEach((l) => { if (l.owner === username) total += 5; });
+  labs.forEach((l) => { if (l.owner === username) total += XP_RULES.lab; });
+  writeups.forEach((w) => { if (w.author === username) total += XP_RULES.writeup; });
   return total;
 }
 
-/* Niveaux/XP — paliers construits sur les mêmes points que le classement */
+/* Niveaux/XP — 10 paliers de progression pentest */
 const LEVELS = [
-  { key: "debutant", label: "Débutant", min: 0, color: C.muted },
-  { key: "initie", label: "Initié", min: 50, color: C.primary },
-  { key: "operateur", label: "Opérateur", min: 150, color: C.ok },
-  { key: "expert", label: "Expert", min: 350, color: C.warn },
-  { key: "elite", label: "Elite", min: 700, color: C.alert },
-  { key: "legende", label: "Légende", min: 1500, color: C.gold },
+  { key: "rookie", label: "Cybersecurity Rookie", min: 0, color: C.muted },
+  { key: "explorer", label: "Security Explorer", min: 100, color: C.primary },
+  { key: "apprentice", label: "Pentest Apprentice", min: 300, color: "#3AA0FF" },
+  { key: "junior", label: "Junior Pentester", min: 700, color: C.ok },
+  { key: "intermediate", label: "Intermediate Pentester", min: 1500, color: "#9FEF00" },
+  { key: "advanced", label: "Advanced Pentester", min: 3000, color: C.warn },
+  { key: "senior", label: "Senior Pentester", min: 6000, color: "#FF9F43" },
+  { key: "elite", label: "Elite Pentester", min: 10000, color: C.alert },
+  { key: "master", label: "Security Master", min: 16000, color: "#B388FF" },
+  { key: "legendary", label: "Legendary Ethical Hacker", min: 25000, color: C.gold },
 ];
 function getLevelInfo(points) {
   let idx = 0;
@@ -3344,7 +3640,7 @@ function getLevelInfo(points) {
   return { level: current, next, pct, pointsToNext: next ? next.min - points : 0 };
 }
 
-function LeaderboardTab({ questions, trophies, labs, teams, profiles, currentUser = null }) {
+function LeaderboardTab({ questions, trophies, labs, teams, profiles, writeups = [], currentUser = null }) {
   const rows = useMemo(() => {
     const scores = {};
     function add(author, points, kind) {
@@ -3354,17 +3650,18 @@ function LeaderboardTab({ questions, trophies, labs, teams, profiles, currentUse
       scores[author][kind] += points;
     }
     trophies.forEach((t) => {
-      if (!currentUser || (t.author || "") !== currentUser.username) add(t.author, TROPHY_POINTS[t.difficulty] || 10, "trophies");
+      if (!currentUser || (t.author || "") !== currentUser.username) add(t.author, XP_RULES.trophy, "trophies");
     });
     questions.forEach((q) => {
-      add(q.author, 2, "forum");
-      (q.answers || []).forEach((a) => add(a.author, 3, "forum"));
+      add(q.author, XP_RULES.question, "forum");
+      (q.answers || []).forEach((a) => add(a.author, XP_RULES.answer, "forum"));
     });
     labs.forEach((l) => {
-      if (!currentUser || (l.owner || "") !== currentUser.username) add(l.owner, 5, "labs");
+      if (!currentUser || (l.owner || "") !== currentUser.username) add(l.owner, XP_RULES.lab, "labs");
     });
+    writeups.forEach((w) => add(w.author, XP_RULES.writeup, "forum"));
     return Object.values(scores).sort((a, b) => b.total - a.total);
-  }, [questions, trophies, labs]);
+  }, [questions, trophies, labs, writeups]);
 
   const podium = rows.slice(0, 3);
   const rest = rows.slice(3);
@@ -3406,7 +3703,7 @@ function LeaderboardTab({ questions, trophies, labs, teams, profiles, currentUse
           ) : (
             <>
               {podium.length > 0 && (
-                <Panel className="p-6 mb-6 overflow-hidden relative" style={{ border: `1px solid ${C.gold}33`, background: `linear-gradient(180deg, ${C.gold}12, ${C.panel} 55%)` }}>
+                <Panel className="p-6 mb-6 overflow-hidden relative" style={{ border: `1px solid ${C.gold}33`, background: `linear-gradient(180deg, ${C.gold}12, ${C.panel}80 55%)`, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" }}>
                   <div aria-hidden className="gowl-podium-spot" style={{ width: 220, height: 220, left: "50%", top: -40, marginLeft: -110, background: C.gold }} />
                   <div className="relative flex items-end justify-center gap-3 sm:gap-7">
                     {podiumOrder.map((idx) => {
@@ -3442,7 +3739,7 @@ function LeaderboardTab({ questions, trophies, labs, teams, profiles, currentUse
                   const profile = profiles.find((p) => p.username === r.author);
                   const pct = Math.max(6, Math.round((r.total / maxTotal) * 100));
                   return (
-                    <Panel key={r.author} className="p-3 gowl-hud-card relative overflow-hidden" style={{ "--gowl-accent": C.gold, background: rank % 2 === 0 ? C.panel : C.panel2 }}>
+                    <Panel key={r.author} className="p-3 gowl-hud-card relative overflow-hidden" style={{ "--gowl-accent": C.gold, background: rank % 2 === 0 ? `${C.panel}80` : `${C.panel2}66`, backdropFilter: "blur(14px)", WebkitBackdropFilter: "blur(14px)" }}>
                       <div aria-hidden className="absolute left-0 top-0 bottom-0 gowl-bar-fill" style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${C.gold}14, transparent)` }} />
                       <div className="relative flex items-center gap-3">
                         <span className="w-8 text-center text-sm font-bold shrink-0" style={{ color: rank < 10 ? C.text : C.muted, fontFamily: MONO_FONT }}>#{rank + 1}</span>
@@ -3483,7 +3780,7 @@ function LeaderboardTab({ questions, trophies, labs, teams, profiles, currentUse
                 { icon: <MessageSquare size={16} />, color: C.primary, label: "Forum", desc: "2 pts par question posée, 3 pts par réponse donnée." },
                 { icon: <Bug size={16} />, color: C.ok, label: "Salons labs", desc: "5 pts pour chaque salon lab ouvert." },
               ].map((it) => (
-                <div key={it.label} className="flex items-start gap-2.5 p-3 rounded-lg" style={{ background: C.panel2, border: `1px solid ${it.color}33` }}>
+                <div key={it.label} className="flex items-start gap-2.5 p-3 rounded-lg" style={{ background: `${C.panel2}66`, border: `1px solid ${it.color}33` }}>
                   <span className="w-8 h-8 rounded-md flex items-center justify-center shrink-0" style={{ background: `${it.color}1A`, color: it.color }}>{it.icon}</span>
                   <div className="min-w-0">
                     <p className="text-xs font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{it.label}</p>
@@ -3540,12 +3837,9 @@ function TrophyTab({ pseudo, trophies, setTrophies, isAdmin, currentUser = null 
     }
   }
   async function removeTrophy(id) {
-    try {
-      await communityRequest(`/trophies/${id}`, { method: "DELETE" });
-      setTrophies((current) => current.filter((t) => t.id !== id));
-    } catch (error) {
-      window.alert(error.message);
-    }
+    const next = trophies.filter((t) => t.id !== id);
+    setTrophies(next);
+    saveCollection("gowlsec:trophies", next);
   }
   const filtered = trophies;
 
@@ -3603,17 +3897,21 @@ function TrophyTab({ pseudo, trophies, setTrophies, isAdmin, currentUser = null 
         {filtered.length === 0 && <EmptyState text="Aucun trophée ici pour le moment." />}
         {filtered.map((t) => {
           const d = DIFFICULTIES.find((x) => x.key === t.difficulty) || DIFFICULTIES[0];
+          const pf = getPlatformBadge(t.platform);
           return (
             <Panel key={t.id} className="p-4 relative gowl-hud-card gowl-glass gowl-sweep-wrap" style={{ "--gowl-accent": d.color, borderColor: `${d.color}55`, background: `linear-gradient(165deg, ${d.color}14, ${C.panel})` }}>
-              {isAdmin && <button onClick={() => removeTrophy(t.id)} className="absolute top-3 right-3 z-10" style={{ color: C.alert }}><Trash2 size={13} /></button>}
+              {(isAdmin || t.author === pseudo) && <button onClick={() => removeTrophy(t.id)} className="absolute top-3 right-3 z-10" style={{ color: C.alert }}><Trash2 size={13} /></button>}
               {t.imageUrl ? (
-                <div className="mb-3 overflow-hidden rounded-lg border" style={{ borderColor: `${d.color}44` }}>
+                <div className="mb-3 relative overflow-hidden rounded-lg border" style={{ borderColor: `${d.color}44` }}>
                   <img src={t.imageUrl} alt={t.title} className="h-36 w-full object-cover" />
+                  <span className="absolute top-2 left-2 w-7 h-7 rounded-md flex items-center justify-center overflow-hidden" style={{ background: `${C.bg}CC`, border: `1px solid ${pf.color}66` }} title={t.platform}>
+                    <Trophy size={14} style={{ color: pf.color }} />
+                  </span>
                 </div>
               ) : (
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="gowl-trophy-badge" style={{ background: `linear-gradient(155deg, ${d.color}33, ${d.color}0A)`, border: `1px solid ${d.color}77` }}>
-                    <Trophy size={20} style={{ color: d.color }} className="gowl-rank-glow" />
+                  <div className="gowl-trophy-badge overflow-hidden rounded-full" style={{ background: `linear-gradient(155deg, ${pf.color}33, ${pf.color}0A)`, border: `1px solid ${pf.color}77` }} title={t.platform}>
+                    <Trophy size={18} style={{ color: pf.color }} />
                   </div>
                   <div className="min-w-0">
                     <span className="text-[10px] uppercase gowl-mono-tag block" style={{ color: C.muted }}>{t.platform}</span>
@@ -3757,8 +4055,8 @@ Reste concis mais suffisamment détaillé pour être utile.`,
           <p className="text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>Une aide rapide en cas de blocage, disponible à toute heure.</p>
         </div>
       </div>
-      <Panel className="flex flex-col overflow-hidden" style={{ height: 520, background: "linear-gradient(145deg, rgba(8, 14, 21, 0.98), rgba(12, 19, 28, 0.95))", border: `1px solid ${C.primary}22`, boxShadow: `0 22px 60px -36px rgba(91,110,245,0.45)` }}>
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3" style={{ background: "radial-gradient(circle at top left, rgba(91,110,245,0.12), transparent 36%), linear-gradient(180deg, rgba(255,255,255,0.025), transparent)" }}>
+      <Panel className="flex flex-col overflow-hidden" style={{ height: 520, border: `1px solid ${C.primary}22`, boxShadow: `0 22px 60px -36px rgba(91,110,245,0.45)` }}>
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
           {messages.map((m, i) => (
             <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
               <div className="max-w-[82%] px-3.5 py-2.5 rounded-2xl text-sm whitespace-pre-wrap"
@@ -3795,21 +4093,35 @@ Reste concis mais suffisamment détaillé pour être utile.`,
 /* ---------------------------------------------------------------------
    Admin
 --------------------------------------------------------------------- */
-function AdminList({ title, icon, items, onDelete }) {
+function AdminList({ title, icon, items, onDelete, accent = C.primary }) {
+  const [q, setQ] = useState("");
+  const filtered = q.trim()
+    ? items.filter((it) => `${it.primary} ${it.secondary}`.toLowerCase().includes(q.trim().toLowerCase()))
+    : items;
   return (
     <Panel className="p-4 mb-4">
-      <div className="flex items-center gap-2 mb-3">
-        <span style={{ color: C.primary }}>{icon}</span>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span style={{ color: accent }}>{icon}</span>
         <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{title}</span>
-        <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>({items.length})</span>
+        <span className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>({filtered.length}{filtered.length !== items.length ? `/${items.length}` : ""})</span>
+        {items.length > 4 && (
+          <div className="ml-auto relative">
+            <Search size={12} className="absolute left-2 top-1/2 -translate-y-1/2" style={{ color: C.muted }} />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filtrer..." className="pl-6 pr-2 py-1 rounded-md text-xs w-36" style={inputStyle} />
+          </div>
+        )}
       </div>
-      {items.length === 0 ? <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Rien ici.</p> : (
+      {items.length === 0 ? (
+        <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Rien ici.</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun résultat pour « {q} ».</p>
+      ) : (
         <div className="space-y-1.5 max-h-64 overflow-y-auto">
-          {items.map((it) => (
+          {filtered.map((it) => (
             <div key={it.id} className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md" style={{ background: C.panel2 }}>
               <div className="min-w-0">
                 <p className="text-xs truncate" style={{ color: C.text, fontFamily: BODY_FONT }}>{it.primary}</p>
-                <p className="text-xs" style={{ color: C.muted, fontFamily: MONO_FONT }}>{it.secondary}</p>
+                <p className="text-xs truncate" style={{ color: C.muted, fontFamily: MONO_FONT }}>{it.secondary}</p>
               </div>
               <button onClick={() => onDelete(it.id)} style={{ color: C.alert }} className="shrink-0"><Trash2 size={13} /></button>
             </div>
@@ -3822,14 +4134,20 @@ function AdminList({ title, icon, items, onDelete }) {
 
 function AdminTab({
   isAdmin, setIsAdmin, questions, setQuestions, messages, setMessages, trophies, setTrophies,
-  events, setEvents, profiles, teams, setTeams, teamAnnouncements, setTeamAnnouncements, orders, setOrders,
+  events, setEvents, profiles, setProfiles, teams, setTeams, teamAnnouncements, setTeamAnnouncements, orders, setOrders,
   labs, setLabs, labMessages, setLabMessages, tickets, setTickets, supportThreads, setSupportThreads,
+  writeups = [], currentUser,
 }) {
   const [presence, setPresence] = useState([]);
   const [loadingPresence, setLoadingPresence] = useState(false);
   const [selectedTicketId, setSelectedTicketId] = useState(null);
   const [adminReply, setAdminReply] = useState("");
   const [adminNotice, setAdminNotice] = useState("");
+  const [section, setSection] = useState("overview");
+  const [userQuery, setUserQuery] = useState("");
+  const [userFilter, setUserFilter] = useState("all");
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [roleNotice, setRoleNotice] = useState("");
 
   async function refreshPresence() {
     setLoadingPresence(true);
@@ -3864,6 +4182,7 @@ function AdminTab({
     saveCollection("gowlsec:trophies", []);
     saveCollection("gowlsec:tickets", []);
     saveCollection("gowlsec:support_threads", []);
+    setConfirmClear(false);
   }
 
   async function updateTicketStatus(nextStatus) {
@@ -3892,6 +4211,19 @@ function AdminTab({
     setAdminNotice("Réponse envoyée au membre.");
   }
 
+  async function toggleAdminRole(profile) {
+    if (!setProfiles) return;
+    if (currentUser && profile.username === currentUser.username) {
+      setRoleNotice("Tu ne peux pas modifier ton propre rôle depuis ici.");
+      return;
+    }
+    const nextRole = isAdminProfile(profile) ? "member" : "admin";
+    const next = profiles.map((p) => p.id === profile.id ? { ...p, role: nextRole } : p);
+    setProfiles(next);
+    await saveCollection("gowlsec:profiles", next);
+    setRoleNotice(`${profile.username} est maintenant ${nextRole === "admin" ? "administrateur" : "membre"}.`);
+  }
+
   if (!isAdmin) {
     return (
       <div className="max-w-sm mx-auto text-center py-10">
@@ -3906,165 +4238,325 @@ function AdminTab({
   const now = Date.now();
   const onlineCount = presence.filter((p) => now - new Date(p.lastSeen).getTime() < ONLINE_WINDOW_MS).length;
   const totalRevenue = orders.reduce((s, o) => s + o.total, 0);
+  const adminCount = profiles.filter((p) => isAdminProfile(p)).length;
+  const premiumCount = profiles.filter((p) => p.isPremium).length;
+  const openTickets = tickets.filter((t) => (t.status || "open") !== "resolved").length;
+  const totalContentCount = questions.length + messages.length + trophies.length + teams.length + labs.length + events.length;
+
+  const filteredProfiles = profiles.filter((p) => {
+    if (userFilter === "online") {
+      const pres = presence.find((x) => x.userId === p.id);
+      if (!(pres && (now - new Date(pres.lastSeen).getTime() < ONLINE_WINDOW_MS))) return false;
+    }
+    if (userFilter === "admin" && !isAdminProfile(p)) return false;
+    if (!userQuery.trim()) return true;
+    const needle = userQuery.trim().toLowerCase();
+    return (p.username || "").toLowerCase().includes(needle) || (p.email || "").toLowerCase().includes(needle);
+  });
+
+  const SECTIONS = [
+    { key: "overview", label: "Vue d'ensemble", icon: <Gauge size={14} /> },
+    { key: "users", label: "Utilisateurs", icon: <Users size={14} /> },
+    { key: "content", label: "Contenu", icon: <MessageSquare size={14} /> },
+    { key: "shop", label: "Boutique & Support", icon: <ShoppingCart size={14} /> },
+    { key: "danger", label: "Zone dangereuse", icon: <AlertTriangle size={14} /> },
+  ];
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-5">
+      <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Panel admin</h2>
+          <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>
+            Panel admin <AdminBadge />
+          </h2>
           <p className="text-sm mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>Modération et suivi de la communauté.</p>
         </div>
         <GhostButton onClick={() => setIsAdmin(false)}><Lock size={12} /> Se déconnecter</GhostButton>
       </div>
 
-      <div className="grid sm:grid-cols-3 lg:grid-cols-8 gap-3 mb-6">
-        <StatChip icon={<Wifi size={14} />} label="en ligne" value={onlineCount} />
-        <StatChip icon={<UserIcon size={14} />} label="profils" value={profiles.length} />
-        <StatChip icon={<Calendar size={14} />} label="événements" value={events.length} />
-        <StatChip icon={<Flag size={14} />} label="questions" value={questions.length} />
-        <StatChip icon={<MessageSquare size={14} />} label="messages" value={messages.length} />
-        <StatChip icon={<Trophy size={14} />} label="trophées" value={trophies.length} />
-        <StatChip icon={<Bug size={14} />} label="labs" value={labs.length} />
-        <StatChip icon={<ShoppingCart size={14} />} label="ventes" value={orders.length} />
+      <div className="flex items-center gap-1.5 mb-6 flex-wrap p-1 rounded-xl" style={{ background: C.panel2, border: `1px solid ${C.line}`, width: "fit-content" }}>
+        {SECTIONS.map((s) => (
+          <button key={s.key} onClick={() => setSection(s.key)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            style={{
+              background: section === s.key ? C.primary : "transparent",
+              color: section === s.key ? "#fff" : C.muted,
+              fontFamily: BODY_FONT,
+            }}>
+            {s.icon} {s.label}
+          </button>
+        ))}
       </div>
 
-      <Panel className="p-4 mb-6">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <Activity size={15} style={{ color: C.ok }} />
-            <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Utilisateurs</span>
+      {section === "overview" && (
+        <div>
+          <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            <StatChip icon={<Wifi size={14} />} label="en ligne" value={onlineCount} />
+            <StatChip icon={<UserIcon size={14} />} label="profils" value={profiles.length} />
+            <StatChip icon={<Shield size={14} />} label="admins" value={adminCount} />
+            <StatChip icon={<Crown size={14} />} label="premium" value={premiumCount} />
+            <StatChip icon={<Mail size={14} />} label="tickets ouverts" value={openTickets} />
+            <StatChip icon={<ShoppingCart size={14} />} label="ventes" value={orders.length} />
           </div>
-          <GhostButton onClick={refreshPresence}><RefreshCw size={12} className={loadingPresence ? "animate-spin" : ""} /> Actualiser</GhostButton>
-        </div>
-        {profiles.length === 0 ? <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun profil enregistré.</p> : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs" style={{ fontFamily: BODY_FONT }}>
-              <thead>
-                <tr style={{ color: C.muted, fontFamily: MONO_FONT }}>
-                  <th className="text-left font-normal pb-2">Statut</th>
-                  <th className="text-left font-normal pb-2">Utilisateur</th>
-                  <th className="text-left font-normal pb-2">E-mail</th>
-                  <th className="text-left font-normal pb-2">Connexion</th>
-                  <th className="text-left font-normal pb-2">Membre depuis</th>
-                </tr>
-              </thead>
-              <tbody>
-                {profiles.map((p) => {
-                  const pres = presence.find((x) => x.userId === p.id);
-                  const online = pres && (now - new Date(pres.lastSeen).getTime() < ONLINE_WINDOW_MS);
-                  return (
-                    <tr key={p.id} style={{ borderTop: `1px solid ${C.line}` }}>
-                      <td className="py-2">
-                        <span className="inline-flex items-center gap-1.5">
-                          <Circle size={8} fill={online ? C.ok : C.muted} color={online ? C.ok : C.muted} />
-                          {online ? "En ligne" : "Hors ligne"}
-                        </span>
-                      </td>
-                      <td className="py-2" style={{ color: C.text }}>{p.username}</td>
-                      <td className="py-2" style={{ color: C.text }}>{p.email || "—"}</td>
-                      <td className="py-2">{p.provider === "discord" ? "Discord" : "E-mail"}</td>
-                      <td className="py-2" style={{ color: C.muted }}>{timeAgo(p.joinedAt)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+          <div className="grid sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+            <StatChip icon={<Calendar size={14} />} label="événements" value={events.length} />
+            <StatChip icon={<Flag size={14} />} label="questions" value={questions.length} />
+            <StatChip icon={<MessageSquare size={14} />} label="messages" value={messages.length} />
+            <StatChip icon={<Trophy size={14} />} label="trophées" value={trophies.length} />
+            <StatChip icon={<Users size={14} />} label="teams" value={teams.length} />
+            <StatChip icon={<Bug size={14} />} label="labs" value={labs.length} />
           </div>
-        )}
-      </Panel>
 
-      <Panel className="p-4 mb-6">
-        <div className="flex items-center gap-2 mb-1"><AlertTriangle size={15} style={{ color: C.alert }} /><span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Zone dangereuse</span></div>
-        <p className="text-xs mb-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>Supprime tout le contenu partagé (questions, messages, trophées).</p>
-        <GhostButton danger onClick={clearAll}><Trash2 size={12} /> Tout réinitialiser</GhostButton>
-      </Panel>
+          <div className="grid md:grid-cols-2 gap-4 mb-6">
+            <Panel className="p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>Chiffre d'affaires simulé</span>
+                <TrendingUp size={14} style={{ color: C.ok }} />
+              </div>
+              <span className="text-2xl font-extrabold" style={{ color: C.ok, fontFamily: DISPLAY_FONT }}>{totalRevenue}€</span>
+              <p className="text-xs mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{orders.length} commande{orders.length > 1 ? "s" : ""} au total.</p>
+            </Panel>
+            <Panel className="p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>Contenu communautaire</span>
+                <Activity size={14} style={{ color: C.primary }} />
+              </div>
+              <span className="text-2xl font-extrabold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>{totalContentCount}</span>
+              <p className="text-xs mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>Éléments publiés tous salons confondus.</p>
+            </Panel>
+          </div>
 
-      <AdminList title="Événements" icon={<Calendar size={14} />} items={events.map((e) => ({ id: e.id, primary: e.title, secondary: `${e.author} · ${new Date(e.date).toLocaleDateString("fr-FR")}` }))}
-        onDelete={(id) => { const next = events.filter((e) => e.id !== id); setEvents(next); saveCollection("gowlsec:events", next); }} />
-      <AdminList title="Questions" icon={<Flag size={14} />} items={questions.map((q) => ({ id: q.id, primary: q.title, secondary: `${q.author} · ${timeAgo(q.createdAt)}` }))}
-        onDelete={async (id) => { try { await communityRequest(`/questions/${id}`, { method: "DELETE" }); setQuestions((current) => current.filter((q) => q.id !== id)); } catch (error) { window.alert(error.message); } }} />
-      <AdminList title="Messages des salons" icon={<MessageSquare size={14} />} items={messages.map((m) => ({ id: m.id, primary: m.text, secondary: `#${m.room || "general"} · ${m.author}` }))}
-        onDelete={(id) => { const next = messages.filter((m) => m.id !== id); setMessages(next); saveCollection("gowlsec:chat", next); }} />
-      <AdminList title="Trophées" icon={<Trophy size={14} />} items={trophies.map((t) => ({ id: t.id, primary: `${t.platform} — ${t.title}`, secondary: `${t.author} · ${timeAgo(t.createdAt)}` }))}
-        onDelete={async (id) => { try { await communityRequest(`/trophies/${id}`, { method: "DELETE" }); setTrophies((current) => current.filter((t) => t.id !== id)); } catch (error) { window.alert(error.message); } }} />
-      <AdminList title="Team" icon={<Users size={14} />} items={teams.map((t) => ({ id: t.id, primary: `${t.name} (${t.visibility === "private" ? "privée" : "publique"})`, secondary: `${t.members.length}/${t.maxMembers || TEAM_MAX_MEMBERS} membre(s) · capitaine ${t.owner}` }))}
-        onDelete={async (id) => {
-          try { await communityRequest(`/teams/${id}`, { method: "DELETE" }); setTeams((current) => current.filter((t) => t.id !== id)); setTeamAnnouncements((current) => current.filter((a) => a.teamId !== id)); } catch (error) { window.alert(error.message); }
-        }} />
-      <AdminList title="Salons labs" icon={<Bug size={14} />} items={labs.map((l) => ({ id: l.id, primary: `${l.title} (${l.visibility === "private" ? "privé" : "public"})`, secondary: `${l.members.length}/${l.maxMembers || LAB_MAX_MEMBERS} membre(s) · ${l.owner}` }))}
-        onDelete={async (id) => {
-          try { await communityRequest(`/labs/${id}`, { method: "DELETE" }); setLabs((current) => current.filter((l) => l.id !== id)); setLabMessages((current) => current.filter((m) => m.labId !== id)); } catch (error) { window.alert(error.message); }
-        }} />
-      <AdminList title="Commandes boutique" icon={<ShoppingCart size={14} />} items={orders.map((o) => ({ id: o.id, primary: `${o.items.join(", ")} — ${o.total}€`, secondary: `${o.buyer} · ${o.email} · ${timeAgo(o.createdAt)}` }))}
-        onDelete={(id) => { const next = orders.filter((o) => o.id !== id); setOrders(next); saveCollection("gowlsec:orders", next); }} />
-      <AdminList title="Tickets support" icon={<Mail size={14} />} items={tickets.map((t) => ({ id: t.id, primary: `${t.title} · ${t.category}`, secondary: `${t.author} · ${t.email || "sans e-mail"} · ${timeAgo(t.createdAt)}` }))}
-        onDelete={(id) => { const next = tickets.filter((t) => t.id !== id); setTickets(next); saveCollection("gowlsec:tickets", next); }} />
-
-      <Panel className="p-4 mb-6">
-        <div className="flex items-center gap-2 mb-3">
-          <MessageCircle size={15} style={{ color: C.primary }} />
-          <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Support privé</span>
-        </div>
-        {tickets.length === 0 ? (
-          <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun ticket à traiter.</p>
-        ) : (
-          <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-4">
-            <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
-              {tickets.map((ticket) => {
-                const active = selectedTicket?.id === ticket.id;
-                return (
-                  <button key={ticket.id} type="button" onClick={() => setSelectedTicketId(ticket.id)} className="w-full rounded-lg p-3 text-left" style={{ background: active ? `${C.primary}22` : C.panel2, border: `1px solid ${active ? C.primary : C.line}` }}>
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: C.primary, fontFamily: MONO_FONT }}>{ticket.category}</span>
-                      <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(ticket.createdAt)}</span>
-                    </div>
-                    <p className="text-sm font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{ticket.title}</p>
-                    <p className="text-[11px] mt-1" style={{ color: C.muted, fontFamily: MONO_FONT }}>{ticket.author} · {ticket.status}</p>
-                  </button>
-                );
-              })}
+          <Panel className="p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <Newspaper size={15} style={{ color: C.gold }} />
+              <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Activité récente</span>
             </div>
-            {selectedTicket && (
-              <div className="rounded-lg p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
-                <div className="flex items-center justify-between gap-3 mb-3">
-                  <div>
-                    <h3 className="text-sm font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{selectedTicket.title}</h3>
-                    <p className="text-xs mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{selectedTicket.message}</p>
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
+              {[
+                ...questions.map((x) => ({ id: `q-${x.id}`, icon: <Flag size={12} />, text: `${x.author} a posé une question : « ${x.title} »`, createdAt: x.createdAt, accent: C.primary })),
+                ...trophies.map((x) => ({ id: `t-${x.id}`, icon: <Trophy size={12} />, text: `${x.author} a débloqué le trophée ${x.title}`, createdAt: x.createdAt, accent: C.gold })),
+                ...labs.map((x) => ({ id: `l-${x.id}`, icon: <Bug size={12} />, text: `${x.owner} a ouvert le salon lab ${x.title}`, createdAt: x.createdAt, accent: C.alert })),
+                ...teams.map((x) => ({ id: `tm-${x.id}`, icon: <Users size={12} />, text: `${x.owner} a créé la team ${x.name}`, createdAt: x.createdAt, accent: C.warn })),
+                ...orders.map((x) => ({ id: `o-${x.id}`, icon: <ShoppingCart size={12} />, text: `${x.buyer} a commandé pour ${x.total}€`, createdAt: x.createdAt, accent: C.ok })),
+              ]
+                .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+                .slice(0, 12)
+                .map((item) => (
+                  <div key={item.id} className="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md" style={{ background: C.panel2 }}>
+                    <span style={{ color: item.accent }}>{item.icon}</span>
+                    <p className="text-xs flex-1 truncate" style={{ color: C.text, fontFamily: BODY_FONT }}>{item.text}</p>
+                    <span className="text-[10px] shrink-0" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(item.createdAt)}</span>
                   </div>
-                  <select value={selectedTicket.status || "open"} onChange={(e) => updateTicketStatus(e.target.value)} className="px-2 py-1 rounded-md text-xs" style={inputStyle}>
-                    <option value="open">Ouvert</option>
-                    <option value="in_progress">En cours</option>
-                    <option value="resolved">Résolu</option>
-                  </select>
+                ))}
+              {totalContentCount + orders.length === 0 && <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucune activité pour l'instant.</p>}
+            </div>
+          </Panel>
+        </div>
+      )}
+
+      {section === "users" && (
+        <Panel className="p-4">
+          <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <Activity size={15} style={{ color: C.ok }} />
+              <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Utilisateurs ({filteredProfiles.length}{filteredProfiles.length !== profiles.length ? `/${profiles.length}` : ""})</span>
+            </div>
+            <GhostButton onClick={refreshPresence}><RefreshCw size={12} className={loadingPresence ? "animate-spin" : ""} /> Actualiser</GhostButton>
+          </div>
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <div className="relative flex-1 min-w-[180px]">
+              <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2" style={{ color: C.muted }} />
+              <input value={userQuery} onChange={(e) => setUserQuery(e.target.value)} placeholder="Rechercher par pseudo ou e-mail..." className="w-full pl-8 pr-3 py-1.5 rounded-md text-xs" style={inputStyle} />
+            </div>
+            <div className="flex gap-1.5">
+              {[
+                { key: "all", label: "Tous" },
+                { key: "online", label: "En ligne" },
+                { key: "admin", label: "Admins" },
+              ].map((f) => (
+                <button key={f.key} onClick={() => setUserFilter(f.key)} className="px-2.5 py-1.5 rounded-md text-xs font-medium"
+                  style={{ background: userFilter === f.key ? C.primary : C.panel2, color: userFilter === f.key ? "#fff" : C.muted, fontFamily: BODY_FONT }}>
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {roleNotice && <p className="text-xs mb-2" style={{ color: C.ok, fontFamily: BODY_FONT }}>{roleNotice}</p>}
+          {profiles.length === 0 ? <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun profil enregistré.</p> : filteredProfiles.length === 0 ? (
+            <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun résultat pour ce filtre.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs" style={{ fontFamily: BODY_FONT }}>
+                <thead>
+                  <tr style={{ color: C.muted, fontFamily: MONO_FONT }}>
+                    <th className="text-left font-normal pb-2">Statut</th>
+                    <th className="text-left font-normal pb-2">Utilisateur</th>
+                    <th className="text-left font-normal pb-2">E-mail</th>
+                    <th className="text-left font-normal pb-2">Connexion</th>
+                    <th className="text-left font-normal pb-2">Points</th>
+                    <th className="text-left font-normal pb-2">Membre depuis</th>
+                    <th className="text-right font-normal pb-2">Rôle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProfiles.map((p) => {
+                    const pres = presence.find((x) => x.userId === p.id);
+                    const online = pres && (now - new Date(pres.lastSeen).getTime() < ONLINE_WINDOW_MS);
+                    const points = computeUserPoints(p.username, questions, trophies, labs, writeups);
+                    const admin = isAdminProfile(p);
+                    const isSelf = currentUser && p.username === currentUser.username;
+                    return (
+                      <tr key={p.id} style={{ borderTop: `1px solid ${C.line}` }}>
+                        <td className="py-2">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Circle size={8} fill={online ? C.ok : C.muted} color={online ? C.ok : C.muted} />
+                            {online ? "En ligne" : "Hors ligne"}
+                          </span>
+                        </td>
+                        <td className="py-2" style={{ color: C.text }}>
+                          <span className="inline-flex items-center gap-1.5">
+                            {p.username}{admin && <AdminBadge />}
+                          </span>
+                        </td>
+                        <td className="py-2" style={{ color: C.text }}>{p.email || "—"}</td>
+                        <td className="py-2">{p.provider === "discord" ? "Discord" : "E-mail"}</td>
+                        <td className="py-2" style={{ color: C.gold, fontFamily: MONO_FONT }}>{points} pts</td>
+                        <td className="py-2" style={{ color: C.muted }}>{timeAgo(p.joinedAt)}</td>
+                        <td className="py-2 text-right">
+                          <button
+                            onClick={() => toggleAdminRole(p)}
+                            disabled={isSelf}
+                            title={isSelf ? "Tu ne peux pas modifier ton propre rôle" : (admin ? "Rétrograder en membre" : "Promouvoir administrateur")}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium disabled:opacity-30 disabled:cursor-not-allowed"
+                            style={{ background: admin ? `${C.alert}18` : `${C.gold}18`, color: admin ? C.alert : C.gold, border: `1px solid ${admin ? C.alert + "44" : C.gold + "44"}`, fontFamily: MONO_FONT }}>
+                            {admin ? <><Unlock size={11} /> Rétrograder</> : <><Shield size={11} /> Promouvoir</>}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Panel>
+      )}
+
+      {section === "content" && (
+        <div>
+          <AdminList title="Événements" icon={<Calendar size={14} />} accent={C.gold} items={events.map((e) => ({ id: e.id, primary: e.title, secondary: `${e.author} · ${new Date(e.date).toLocaleDateString("fr-FR")}` }))}
+            onDelete={(id) => { const next = events.filter((e) => e.id !== id); setEvents(next); saveCollection("gowlsec:events", next); }} />
+          <AdminList title="Questions" icon={<Flag size={14} />} accent={C.primary} items={questions.map((q) => ({ id: q.id, primary: q.title, secondary: `${q.author} · ${timeAgo(q.createdAt)}` }))}
+            onDelete={(id) => { const next = questions.filter((q) => q.id !== id); setQuestions(next); saveCollection("gowlsec:questions", next); }} />
+          <AdminList title="Messages des salons" icon={<MessageSquare size={14} />} accent={C.primary} items={messages.map((m) => ({ id: m.id, primary: m.text, secondary: `#${m.room || "general"} · ${m.author}` }))}
+            onDelete={(id) => { const next = messages.filter((m) => m.id !== id); setMessages(next); saveCollection("gowlsec:chat", next); }} />
+          <AdminList title="Trophées" icon={<Trophy size={14} />} accent={C.gold} items={trophies.map((t) => ({ id: t.id, primary: `${t.platform} — ${t.title}`, secondary: `${t.author} · ${timeAgo(t.createdAt)}` }))}
+            onDelete={(id) => { const next = trophies.filter((t) => t.id !== id); setTrophies(next); saveCollection("gowlsec:trophies", next); }} />
+          <AdminList title="Team" icon={<Users size={14} />} accent={C.warn} items={teams.map((t) => ({ id: t.id, primary: `${t.name} (${t.visibility === "private" ? "privée" : "publique"})`, secondary: `${t.members.length}/${t.maxMembers || TEAM_MAX_MEMBERS} membre(s) · capitaine ${t.owner}` }))}
+            onDelete={(id) => {
+              const next = teams.filter((t) => t.id !== id); setTeams(next); saveCollection("gowlsec:teams", next);
+              const na = teamAnnouncements.filter((a) => a.teamId !== id); setTeamAnnouncements(na); saveCollection("gowlsec:team_announcements", na);
+            }} />
+          <AdminList title="Salons labs" icon={<Bug size={14} />} accent={C.alert} items={labs.map((l) => ({ id: l.id, primary: `${l.title}${l.finished ? " · Terminé" : ""} (${l.visibility === "private" ? "privé" : "public"})`, secondary: `${l.members.length}/${l.maxMembers || LAB_MAX_MEMBERS} membre(s) · ${l.owner}` }))}
+            onDelete={(id) => {
+              const next = labs.filter((l) => l.id !== id); setLabs(next); saveCollection("gowlsec:labs", next);
+              const nm = labMessages.filter((m) => m.labId !== id); setLabMessages(nm); saveCollection("gowlsec:lab_messages", nm);
+            }} />
+        </div>
+      )}
+
+      {section === "shop" && (
+        <div>
+          <AdminList title="Commandes boutique" icon={<ShoppingCart size={14} />} accent={C.ok} items={orders.map((o) => ({ id: o.id, primary: `${o.items.join(", ")} — ${o.total}€`, secondary: `${o.buyer} · ${o.email} · ${timeAgo(o.createdAt)}` }))}
+            onDelete={(id) => { const next = orders.filter((o) => o.id !== id); setOrders(next); saveCollection("gowlsec:orders", next); }} />
+          <AdminList title="Tickets support" icon={<Mail size={14} />} accent={C.primary} items={tickets.map((t) => ({ id: t.id, primary: `${t.title} · ${t.category}`, secondary: `${t.author} · ${t.email || "sans e-mail"} · ${timeAgo(t.createdAt)}` }))}
+            onDelete={(id) => { const next = tickets.filter((t) => t.id !== id); setTickets(next); saveCollection("gowlsec:tickets", next); }} />
+
+          <Panel className="p-4 mb-6">
+            <div className="flex items-center gap-2 mb-3">
+              <MessageCircle size={15} style={{ color: C.primary }} />
+              <span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Support privé</span>
+            </div>
+            {tickets.length === 0 ? (
+              <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Aucun ticket à traiter.</p>
+            ) : (
+              <div className="grid lg:grid-cols-[0.8fr_1.2fr] gap-4">
+                <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+                  {tickets.map((ticket) => {
+                    const active = selectedTicket?.id === ticket.id;
+                    const st = SUPPORT_STATUS[ticket.status || "open"] || SUPPORT_STATUS.open;
+                    return (
+                      <button key={ticket.id} type="button" onClick={() => setSelectedTicketId(ticket.id)} className="w-full rounded-lg p-3 text-left" style={{ background: active ? `${C.primary}22` : C.panel2, border: `1px solid ${active ? C.primary : C.line}` }}>
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <span className="text-[10px] uppercase tracking-[0.2em]" style={{ color: C.primary, fontFamily: MONO_FONT }}>{ticket.category}</span>
+                          <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(ticket.createdAt)}</span>
+                        </div>
+                        <p className="text-sm font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{ticket.title}</p>
+                        <p className="text-[11px] mt-1 flex items-center gap-1.5" style={{ color: C.muted, fontFamily: MONO_FONT }}>
+                          {ticket.author} · <span style={{ color: st.color }}>{st.label}</span>
+                        </p>
+                      </button>
+                    );
+                  })}
                 </div>
-                <div className="space-y-2 mb-3 max-h-[220px] overflow-y-auto pr-1">
-                  {(selectedThread?.messages || []).map((message) => (
-                    <div key={message.id} className={`rounded-md px-3 py-2 ${message.sender === "admin" ? "ml-4" : "mr-4"}`} style={{ background: message.sender === "admin" ? `${C.primary}22` : `${C.ok}14`, border: `1px solid ${message.sender === "admin" ? C.primary : C.ok}33` }}>
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <span className="text-[11px] font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{message.author}</span>
-                        <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(message.createdAt)}</span>
+                {selectedTicket && (
+                  <div className="rounded-lg p-3" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div>
+                        <h3 className="text-sm font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{selectedTicket.title}</h3>
+                        <p className="text-xs mt-1" style={{ color: C.muted, fontFamily: BODY_FONT }}>{selectedTicket.message}</p>
                       </div>
-                      <p className="text-xs" style={{ color: C.text, fontFamily: BODY_FONT }}>{message.text}</p>
+                      <select value={selectedTicket.status || "open"} onChange={(e) => updateTicketStatus(e.target.value)} className="px-2 py-1 rounded-md text-xs" style={inputStyle}>
+                        <option value="open">Ouvert</option>
+                        <option value="in_progress">En cours</option>
+                        <option value="resolved">Résolu</option>
+                      </select>
                     </div>
-                  ))}
-                </div>
-                <form onSubmit={sendAdminReply}>
-                  <textarea value={adminReply} onChange={(e) => setAdminReply(e.target.value)} rows={3} placeholder="Répondre en privé à ce membre..." className="w-full px-3 py-2 rounded-md text-sm mb-2" style={inputStyle} />
-                  {adminNotice && <p className="text-xs mb-2" style={{ color: C.ok, fontFamily: BODY_FONT }}>{adminNotice}</p>}
-                  <PrimaryButton type="submit"><Send size={14} /> Répondre</PrimaryButton>
-                </form>
+                    <div className="space-y-2 mb-3 max-h-[220px] overflow-y-auto pr-1">
+                      {(selectedThread?.messages || []).map((message) => (
+                        <div key={message.id} className={`rounded-md px-3 py-2 ${message.sender === "admin" ? "ml-4" : "mr-4"}`} style={{ background: message.sender === "admin" ? `${C.primary}22` : `${C.ok}14`, border: `1px solid ${message.sender === "admin" ? C.primary : C.ok}33` }}>
+                          <div className="flex items-center justify-between gap-2 mb-1">
+                            <span className="text-[11px] font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{message.author}</span>
+                            <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(message.createdAt)}</span>
+                          </div>
+                          <p className="text-xs" style={{ color: C.text, fontFamily: BODY_FONT }}>{message.text}</p>
+                        </div>
+                      ))}
+                    </div>
+                    <form onSubmit={sendAdminReply}>
+                      <textarea value={adminReply} onChange={(e) => setAdminReply(e.target.value)} rows={3} placeholder="Répondre en privé à ce membre..." className="w-full px-3 py-2 rounded-md text-sm mb-2" style={inputStyle} />
+                      {adminNotice && <p className="text-xs mb-2" style={{ color: C.ok, fontFamily: BODY_FONT }}>{adminNotice}</p>}
+                      <PrimaryButton type="submit"><Send size={14} /> Répondre</PrimaryButton>
+                    </form>
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        )}
-      </Panel>
+          </Panel>
 
-      <Panel className="p-4">
-        <div className="flex items-center justify-between">
-          <span className="text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>Chiffre d'affaires simulé</span>
-          <span className="text-lg font-bold" style={{ color: C.ok, fontFamily: DISPLAY_FONT }}>{totalRevenue}€</span>
+          <Panel className="p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-sm" style={{ color: C.muted, fontFamily: BODY_FONT }}>Chiffre d'affaires simulé</span>
+              <span className="text-lg font-bold" style={{ color: C.ok, fontFamily: DISPLAY_FONT }}>{totalRevenue}€</span>
+            </div>
+          </Panel>
         </div>
-      </Panel>
+      )}
+
+      {section === "danger" && (
+        <Panel className="p-4">
+          <div className="flex items-center gap-2 mb-1"><AlertTriangle size={15} style={{ color: C.alert }} /><span className="text-sm font-semibold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Zone dangereuse</span></div>
+          <p className="text-xs mb-3" style={{ color: C.muted, fontFamily: BODY_FONT }}>Supprime définitivement tout le contenu partagé : questions, messages du Hub, trophées, tickets et fils de support. Cette action est irréversible.</p>
+          {!confirmClear ? (
+            <GhostButton danger onClick={() => setConfirmClear(true)}><Trash2 size={12} /> Tout réinitialiser</GhostButton>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-xs" style={{ color: C.alert, fontFamily: BODY_FONT }}>Confirmer la suppression définitive ?</span>
+              <GhostButton danger onClick={clearAll}><Trash2 size={12} /> Oui, tout supprimer</GhostButton>
+              <GhostButton onClick={() => setConfirmClear(false)}>Annuler</GhostButton>
+            </div>
+          )}
+        </Panel>
+      )}
     </div>
   );
 }
@@ -4257,7 +4749,8 @@ function GlobalSearchModal({ onClose, setTab, questions, teams, labs, news, trop
 function NotificationBell({ currentUser, questions, teams, labs, notifications = [], setTab }) {
   const [open, setOpen] = useState(false);
   const [lastSeen, setLastSeen] = useState(null);
-  const ref = useRef(null);
+  const btnRef = useRef(null);
+  const [pos, setPos] = useState({ top: 0, right: 0 });
 
   useEffect(() => {
     if (!currentUser) return;
@@ -4270,10 +4763,11 @@ function NotificationBell({ currentUser, questions, teams, labs, notifications =
   }, [currentUser?.id]);
 
   useEffect(() => {
-    function onDocClick(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, []);
+    if (open && btnRef.current) {
+      const r = btnRef.current.getBoundingClientRect();
+      setPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+    }
+  }, [open]);
 
   const items = useMemo(() => {
     if (!currentUser) return [];
@@ -4316,55 +4810,89 @@ function NotificationBell({ currentUser, questions, teams, labs, notifications =
     return items.filter((n) => new Date(n.createdAt) > new Date(lastSeen)).length;
   }, [items, lastSeen]);
 
+  const unreadItems = useMemo(() => (lastSeen ? items.filter((n) => new Date(n.createdAt) > new Date(lastSeen)) : items), [items, lastSeen]);
+  const readItems = useMemo(() => (lastSeen ? items.filter((n) => new Date(n.createdAt) <= new Date(lastSeen)) : []), [items, lastSeen]);
+
   async function toggle() {
     const next = !open;
     setOpen(next);
-    if (next && currentUser) {
-      const now = new Date().toISOString();
-      setLastSeen(now);
-      try { await window.storage.set(`gowlsec:notif_seen:${currentUser.id}`, now, false); } catch { /* best effort */ }
-    }
+  }
+
+  async function markAllRead() {
+    if (!currentUser) return;
+    const now = new Date().toISOString();
+    setLastSeen(now);
+    try { await window.storage.set(`gowlsec:notif_seen:${currentUser.id}`, now, false); } catch { /* best effort */ }
   }
 
   if (!currentUser) return null;
 
+  function NotifRow({ n, unread }) {
+    return (
+      <button onClick={() => { setTab(n.tab); setOpen(false); }} className="flex items-start gap-2.5 w-full text-left px-3.5 py-2.5 gowl-notif-row" style={{ borderBottom: `1px solid ${C.line}`, borderLeft: unread ? `2px solid ${n.accent}` : "2px solid transparent", background: unread ? `${n.accent}0C` : "transparent" }}>
+        <span className="w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${n.accent}1F`, color: n.accent }}>{n.icon}</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-xs leading-snug font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{n.text}</p>
+          {n.sub && <p className="text-[11px] leading-snug mt-0.5" style={{ color: C.muted, fontFamily: BODY_FONT }}>{n.sub}</p>}
+          <span className="text-[10px] gowl-mono-tag" style={{ color: C.muted }}>{timeAgo(n.createdAt)}</span>
+        </div>
+        {unread && <span className="w-2 h-2 rounded-full shrink-0 mt-1.5" style={{ background: n.accent }} />}
+      </button>
+    );
+  }
+
   return (
-    <div ref={ref} className="relative">
-      <button onClick={toggle} title="Notifications" className="relative w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
+    <div className="relative">
+      <button ref={btnRef} onClick={toggle} title="Notifications" className="relative w-9 h-9 rounded-lg flex items-center justify-center gowl-notif-bell" data-ring={unreadCount > 0} style={{ background: C.panel2, border: `1px solid ${C.line}` }}>
         <Mail size={17} />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold" style={{ background: C.alert, color: "#fff", fontFamily: MONO_FONT }}>
+          <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center text-[9px] font-bold gowl-count-pop" style={{ background: C.alert, color: "#fff", fontFamily: MONO_FONT, boxShadow: `0 0 0 2px ${C.panel2}` }}>
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         )}
       </button>
-      {open && (
-        <div className="absolute right-0 top-11 w-80 max-w-[90vw] rounded-xl z-[9999] overflow-hidden gowl-fade-up" style={{ background: C.panel, border: `1px solid ${C.line}`, boxShadow: "0 16px 40px -12px rgba(0,0,0,0.65)" }}>
-          <div className="px-3.5 py-3 flex items-center gap-2.5" style={{ borderBottom: `1px solid ${C.line}`, background: `linear-gradient(155deg, ${C.primary}14, transparent)` }}>
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${C.primary}1A`, color: C.primary }}><Mail size={15} /></span>
-            <div className="min-w-0">
-              <span className="text-xs font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Notifications</span>
-              <p className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>Tes notifications GowlSec</p>
+      {open && typeof document !== "undefined" && createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
+          <div className="fixed w-64 max-w-[85vw] rounded-xl z-[9999] overflow-hidden gowl-fade-up" style={{ top: pos.top, right: pos.right, background: "#0A0C10", border: `1px solid ${C.line}`, boxShadow: "0 16px 40px -12px rgba(0,0,0,0.75)" }}>
+            <div className="px-3 py-2.5 flex items-center gap-2.5" style={{ borderBottom: `1px solid ${C.line}`, background: "#0A0C10" }}>
+              <span className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${C.primary}1A`, color: C.primary }}><Mail size={15} /></span>
+              <div className="min-w-0 flex-1">
+                <span className="text-xs font-bold" style={{ color: C.text, fontFamily: DISPLAY_FONT }}>Notifications</span>
+                <p className="text-[10px] gowl-mono-tag" style={{ color: C.muted }}>{unreadCount > 0 ? `${unreadCount} non lue${unreadCount > 1 ? "s" : ""}` : "Tout est à jour"}</p>
+              </div>
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="shrink-0 text-[10px] font-semibold px-2 py-1 rounded-md gowl-notif-markread" style={{ color: C.primary, border: `1px solid ${C.primary}44` }}>
+                  Tout marquer lu
+                </button>
+              )}
+            </div>
+            <div className="max-h-96 overflow-y-auto">
+              {items.length === 0 ? (
+                <div className="text-center py-8 px-4">
+                  <span className="w-11 h-11 rounded-2xl flex items-center justify-center mx-auto mb-2.5" style={{ background: `${C.primary}14`, color: C.primary }}><Mail size={20} /></span>
+                  <p className="text-xs" style={{ color: C.muted, fontFamily: BODY_FONT }}>Rien de nouveau pour l'instant.</p>
+                </div>
+              ) : (
+                <>
+                  {unreadItems.length > 0 && (
+                    <>
+                      <div className="px-3.5 pt-2.5 pb-1"><span className="text-[10px] font-bold uppercase gowl-mono-tag" style={{ color: C.primary }}>Nouveau</span></div>
+                      {unreadItems.map((n) => <NotifRow key={n.id} n={n} unread />)}
+                    </>
+                  )}
+                  {readItems.length > 0 && (
+                    <>
+                      <div className="px-3.5 pt-2.5 pb-1"><span className="text-[10px] font-bold uppercase gowl-mono-tag" style={{ color: C.muted }}>Plus tôt</span></div>
+                      {readItems.map((n) => <NotifRow key={n.id} n={n} unread={false} />)}
+                    </>
+                  )}
+                </>
+              )}
             </div>
           </div>
-          <div className="max-h-80 overflow-y-auto">
-            {items.length === 0 ? (
-              <div className="text-center py-8 px-4">
-                <Mail size={22} style={{ color: C.muted, opacity: 0.6, margin: "0 auto" }} />
-                <p className="text-xs mt-2" style={{ color: C.muted, fontFamily: BODY_FONT }}>Rien de nouveau pour l'instant.</p>
-              </div>
-            ) : items.map((n) => (
-              <button key={n.id} onClick={() => { setTab(n.tab); setOpen(false); }} className="flex items-start gap-2.5 w-full text-left px-3.5 py-2.5 transition-colors hover:opacity-90" style={{ borderBottom: `1px solid ${C.line}` }}>
-                <span className="w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5" style={{ background: `${n.accent}1A`, color: n.accent }}>{n.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs leading-snug font-semibold" style={{ color: C.text, fontFamily: BODY_FONT }}>{n.text}</p>
-                  {n.sub && <p className="text-[11px] leading-snug mt-0.5" style={{ color: C.muted, fontFamily: BODY_FONT }}>{n.sub}</p>}
-                  <span className="text-[10px]" style={{ color: C.muted, fontFamily: MONO_FONT }}>{timeAgo(n.createdAt)}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
+        </>,
+        document.body
       )}
     </div>
   );
@@ -4397,13 +4925,10 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
       window.alert(error.message);
     }
   }
-  async function remove(id) {
-    try {
-      await communityRequest(`/writeups/${id}`, { method: "DELETE" });
-      setWriteups((current) => current.filter((w) => w.id !== id));
-    } catch (error) {
-      window.alert(error.message);
-    }
+  function remove(id) {
+    const next = writeups.filter((w) => w.id !== id);
+    setWriteups(next);
+    saveCollection("gowlsec:writeups", next);
   }
 
   return (
@@ -4436,6 +4961,10 @@ function WriteupsTab({ pseudo, writeups, setWriteups, isAdmin, currentUser = nul
                   ))}
                 </div>
               </Field>
+              <div className="flex items-start gap-2 px-2.5 py-2 rounded-md text-xs" style={{ background: `${C.warn}14`, border: `1px solid ${C.warn}44`, color: C.warn, fontFamily: BODY_FONT }}>
+                <AlertTriangle size={14} className="shrink-0 mt-0.5" />
+                <span>Ne partage pas les flags : donne uniquement ton avis et ta méthodologie sur le lab.</span>
+              </div>
               <Field label="Résumé (1-2 lignes)"><input value={summary} onChange={(e) => setSummary(e.target.value)} className="w-full px-2.5 py-1.75 rounded-md text-sm" style={inputStyle} /></Field>
               <Field label="Méthodologie / write-up complet"><textarea value={content} onChange={(e) => setContent(e.target.value)} rows={6} placeholder="Reconnaissance, énumération, exploitation, élévation de privilèges..." className="w-full px-2.5 py-1.75 rounded-md text-sm resize-none" style={inputStyle} /></Field>
               <Field label="Lien externe (optionnel)"><input value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://..." className="w-full px-2.5 py-1.75 rounded-md text-sm" style={inputStyle} /></Field>
@@ -5144,11 +5673,12 @@ export default function GowlSec() {
   const topLeaders = useMemo(() => {
     const scores = {};
     const add = (author, pts) => { if (!author) return; scores[author] = (scores[author] || 0) + pts; };
-    trophies.forEach((t) => add(t.author, TROPHY_POINTS[t.difficulty] || 10));
-    questions.forEach((q) => { add(q.author, 2); (q.answers || []).forEach((a) => add(a.author, 3)); });
-    labs.forEach((l) => add(l.owner, 5));
+    trophies.forEach((t) => add(t.author, XP_RULES.trophy));
+    questions.forEach((q) => { add(q.author, XP_RULES.question); (q.answers || []).forEach((a) => add(a.author, XP_RULES.answer)); });
+    labs.forEach((l) => add(l.owner, XP_RULES.lab));
+    writeups.forEach((w) => add(w.author, XP_RULES.writeup));
     return Object.entries(scores).map(([author, total]) => ({ author, total })).sort((a, b) => b.total - a.total).slice(0, 3);
-  }, [questions, trophies, labs]);
+  }, [questions, trophies, labs, writeups]);
 
   const openLabs = useMemo(() => labs.filter((l) => l.members.length < (l.maxMembers || LAB_MAX_MEMBERS)).slice(0, 3), [labs]);
 
@@ -5308,7 +5838,7 @@ export default function GowlSec() {
         .gowl-podium-bar { transform-origin: bottom; animation: gowl-podium-rise 0.6s cubic-bezier(.2,.8,.2,1) both; }
         @keyframes gowl-rank-glow { 0%, 100% { filter: drop-shadow(0 0 2px currentColor); } 50% { filter: drop-shadow(0 0 9px currentColor); } }
         .gowl-rank-glow { animation: gowl-rank-glow 2.2s ease-in-out infinite; }
-        .gowl-trophy-badge { position: relative; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%); }
+        .gowl-trophy-badge { position: relative; width: 46px; height: 46px; display: flex; align-items: center; justify-content: center; }
         @keyframes gowl-sweep { 0% { transform: translateX(-120%) skewX(-15deg); } 100% { transform: translateX(220%) skewX(-15deg); } }
         .gowl-sweep-wrap { position: relative; overflow: hidden; }
         .gowl-sweep-wrap::after { content: ""; position: absolute; top: 0; left: 0; width: 40%; height: 100%; background: linear-gradient(90deg, transparent, #ffffff22, transparent); animation: gowl-sweep 3.2s ease-in-out infinite; pointer-events: none; }
@@ -5348,7 +5878,7 @@ export default function GowlSec() {
         .gowl-news-delete:hover { color: ${C.alert}; background: ${C.alert}14; }
         .gowl-news-filter { transition: all 0.15s ease; }
         .gowl-news-filter:hover { color: ${C.text}; border-color: ${C.primary}77; }
-        .gowl-glass { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: linear-gradient(165deg, ${C.panel}F2, ${C.panel2}D9) !important; }
+        .gowl-glass { backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); background: linear-gradient(165deg, ${C.panel}99, ${C.panel2}80) !important; }
         .gowl-inner-line { position: absolute; top: 0; left: 12px; right: 12px; height: 1px; background: linear-gradient(90deg, transparent, #ffffff22, transparent); pointer-events: none; }
         @keyframes gowl-bar-fill { from { width: 0; } }
         .gowl-bar-fill { animation: gowl-bar-fill 0.8s cubic-bezier(.2,.8,.2,1) both; }
@@ -5357,6 +5887,34 @@ export default function GowlSec() {
         .gowl-live-dot { position: relative; width: 7px; height: 7px; border-radius: 999px; background: ${C.alert}; display: inline-block; }
         .gowl-live-dot::after { content: ""; position: absolute; inset: -4px; border-radius: 999px; border: 1px solid currentColor; animation: gowl-ping-ring 1.6s ease-out infinite; }
         .gowl-medal-pop { display: inline-block; animation: gowl-count-pop 0.5s cubic-bezier(.34,1.56,.64,1) both; }
+        .gowl-profile-stat { transition: transform 0.18s ease, border-color 0.18s ease; }
+        .gowl-profile-stat:hover { transform: translateY(-2px); border-color: currentColor; }
+        .gowl-activity-row { transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease; }
+        .gowl-activity-row:hover { transform: translateX(3px); background: ${C.panel} !important; }
+        .gowl-social-link { transition: border-color 0.15s ease, transform 0.15s ease, color 0.15s ease; }
+        .gowl-social-link:hover { border-color: ${C.primary}88 !important; color: ${C.primary} !important; transform: translateY(-1px); }
+        .gowl-profile-card { transition: border-color 0.2s ease; }
+        .gowl-profile-name { background-clip: text; -webkit-background-clip: text; -webkit-text-fill-color: transparent; color: transparent; }
+        .gowl-avatar-swatch { transition: transform 0.15s ease; }
+        .gowl-avatar-swatch:hover { transform: translateY(-2px) scale(1.05); }
+        .gowl-avatar-edit { background: rgba(5,6,10,0.35); opacity: 0; transition: opacity 0.15s ease; }
+        .gowl-avatar-edit:hover { opacity: 1; background: rgba(5,6,10,0.55); }
+        .gowl-banner-edit { background: rgba(5,6,10,0.3); opacity: 0; transition: opacity 0.15s ease; }
+        .gowl-banner-edit:hover { opacity: 1; background: rgba(5,6,10,0.5); }
+        .gowl-upload-btn { transition: background 0.15s ease, border-color 0.15s ease; }
+        .gowl-upload-btn:hover { background: ${C.line} !important; border-color: ${C.primary}55 !important; }
+        .gowl-timeline { position: relative; }
+        .gowl-notif-bell[data-ring="true"] { position: relative; }
+        .gowl-notif-bell[data-ring="true"]::after { content: ""; position: absolute; inset: -3px; border-radius: 10px; border: 1.5px solid ${C.alert}88; animation: gowl-ping-ring 1.8s ease-out infinite; pointer-events: none; }
+        .gowl-notif-row { transition: background 0.15s ease, transform 0.15s ease; }
+        .gowl-notif-row:hover { transform: translateX(3px); background: ${C.panel2} !important; }
+        .gowl-notif-markread { transition: background 0.15s ease, color 0.15s ease; }
+        .gowl-notif-markread:hover { background: ${C.primary}1A; }
+        .gowl-usermenu-item { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 9px; width: 100%; padding: 8px 14px; font-size: 13px; font-family: ${BODY_FONT}; color: ${C.text}; cursor: pointer; transition: background 0.15s ease; }
+        .gowl-usermenu-item:hover { background: ${C.panel2}; }
+        .gowl-usermenu-icon { width: 22px; height: 22px; border-radius: 7px; display: flex; align-items: center; justify-content: center; background: currentColor18; flex-shrink: 0; }
+        .gowl-usermenu-icon { background: rgba(255,255,255,0.06); }
+        .gowl-usermenu-danger:hover { background: ${C.alert}14; color: ${C.alert}; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-thumb { background: ${C.line}; border-radius: 4px; }
         * { scrollbar-color: ${C.line} transparent; }
@@ -5410,6 +5968,10 @@ export default function GowlSec() {
         .gowl-navtab.active:hover { color: #fff; transform: translateY(0); }
         .gowl-navtab-mobile { position: relative; transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease; }
         .gowl-navtab-mobile.active { box-shadow: 0 4px 14px -5px ${C.primary}AA; }
+        .gowl-moremenu-item { position: relative; background: transparent; border-left: 2px solid transparent; transition: background 0.15s ease, border-color 0.15s ease; }
+        .gowl-moremenu-item:hover { background: ${C.panel2}; }
+        .gowl-moremenu-item.active { background: ${C.primary}14; border-left: 2px solid ${C.primary}; }
+        .gowl-moremenu-item.active:hover { background: ${C.primary}22; }
 
         /* --- Pied de page --- */
         .gowl-footer-glow { height: 1px; background: linear-gradient(90deg, transparent, ${C.primary}88, ${C.gold}88, ${C.ok}88, transparent); opacity: 0.7; }
@@ -5458,6 +6020,9 @@ export default function GowlSec() {
         .gowl-hub-msg:hover { background: rgba(255,255,255,0.035); }
         .gowl-hub-msg-author { display: flex; align-items: baseline; gap: 7px; margin-bottom: 3px; }
         .gowl-hub-msg-bubble { display: inline-block; padding: 9px 13px; border-radius: 4px 14px 14px 14px; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-size: 14px; line-height: 1.6; font-family: ${BODY_FONT}; max-width: min(100%, 560px); word-break: break-word; box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset; }
+        .gowl-hub-msg-action { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 6px; transition: background 0.15s ease, color 0.15s ease; }
+        .gowl-hub-msg-action:hover { background: ${C.panel2}; }
+        .gowl-hub-msg-edit { max-width: min(100%, 560px); }
         .gowl-hub-reaction { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 2px 8px; border-radius: 999px; cursor: pointer; background: ${C.panel2}; border: 1px solid ${C.line}; color: ${C.text}; font-family: ${MONO_FONT}; transition: all 0.15s ease; }
         .gowl-hub-reaction[data-active="true"] { background: ${C.primary}22; border-color: ${C.primary}; }
         .gowl-hub-reaction:hover { border-color: ${C.primary}88; }
@@ -5560,13 +6125,13 @@ export default function GowlSec() {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <NotificationBell currentUser={currentUser} questions={questions} teams={teams} labs={labs} notifications={notifications} setTab={setTab} />
+            <AuthWidget currentUser={currentUser} setCurrentUser={setCurrentUser} profiles={profiles} setProfiles={setProfiles} credentials={credentials} setCredentials={setCredentials} setTab={setTab} />
             {isAdmin && (
               <button onClick={() => setTab("admin")} className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold" style={{ background: `${C.gold}14`, border: `1px solid ${C.gold}44`, color: C.gold, fontFamily: MONO_FONT }}>
                 <Shield size={12} /> {L("admin")}
               </button>
             )}
-            <NotificationBell currentUser={currentUser} questions={questions} teams={teams} labs={labs} notifications={notifications} setTab={setTab} />
-            <AuthWidget currentUser={currentUser} setCurrentUser={setCurrentUser} profiles={profiles} setProfiles={setProfiles} credentials={credentials} setCredentials={setCredentials} setTab={setTab} />
             <div className="hidden sm:flex items-center gap-2.5 pr-2.5" style={{ borderRight: `1px solid ${C.line}` }}>
               <OnlineIndicator />
             </div>
@@ -5606,6 +6171,8 @@ export default function GowlSec() {
                 trophies={trophies}
                 teams={teams}
                 labs={labs}
+                writeups={writeups}
+                events={events}
               />
             )}
             {tab === "actus" && <NewsTab news={news} setNews={setNews} isAdmin={isAdmin} profiles={profiles} notifications={notifications} setNotifications={setNotifications} full />}
@@ -5613,7 +6180,7 @@ export default function GowlSec() {
             {tab === "salons" && <RoomsTab pseudo={pseudo} messages={messages} setMessages={setMessages} isAdmin={isAdmin} lang={lang || "fr"} profiles={profiles} currentUser={currentUser} />}
             {tab === "equipes" && <TeamsTab pseudo={pseudo} teams={teams} setTeams={setTeams} announcements={teamAnnouncements} setAnnouncements={setTeamAnnouncements} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} />}
             {tab === "labs" && <LabsTab pseudo={pseudo} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages} isAdmin={isAdmin} lang={lang || "fr"} currentUser={currentUser} />}
-            {tab === "classement" && <LeaderboardTab questions={questions} trophies={trophies} labs={labs} teams={teams} profiles={profiles} currentUser={currentUser} />}
+            {tab === "classement" && <LeaderboardTab questions={questions} trophies={trophies} labs={labs} teams={teams} profiles={profiles} writeups={writeups} currentUser={currentUser} />}
             {tab === "trophies" && <TrophyTab pseudo={pseudo} trophies={trophies} setTrophies={setTrophies} isAdmin={isAdmin} currentUser={currentUser} />}
             {tab === "writeups" && <WriteupsTab pseudo={pseudo} writeups={writeups} setWriteups={setWriteups} isAdmin={isAdmin} currentUser={currentUser} />}
             {tab === "evenements" && <EventsTab pseudo={pseudo} events={events} setEvents={setEvents} isAdmin={isAdmin} currentUser={currentUser} />}
@@ -5621,8 +6188,8 @@ export default function GowlSec() {
             {tab === "boutique" && <ShopTab />}
             {tab === "assistant" && <AIAssistantTab pseudo={pseudo} />}
             {tab === "support" && <SupportTab pseudo={pseudo} currentUser={currentUser} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} />}
-            {tab === "profil" && <ProtectedTab><ProfileTab currentUser={user} setCurrentUser={setUser} profiles={profiles} setProfiles={setProfiles} questions={questions} trophies={trophies} labs={labs} teams={teams} messages={messages} setTab={setTab} /> </ProtectedTab>}
-            {tab === "admin" && (user?.role === "admin" ? <AdminTab isAdmin={isAdmin} setIsAdmin={setIsAdmin} questions={questions} setQuestions={setQuestions} messages={messages} setMessages={setMessages} trophies={trophies} setTrophies={setTrophies} events={events} setEvents={setEvents} profiles={profiles} teams={teams} setTeams={setTeams} teamAnnouncements={teamAnnouncements} setTeamAnnouncements={setTeamAnnouncements} orders={orders} setOrders={setOrders} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} /> : <div style={{ padding: "40px", textAlign: "center", color: "#fff" }}><h2>Accès refusé</h2><p>Vous devez être administrateur pour accéder à cette page.</p></div>)}
+            {tab === "profil" && <ProtectedTab><ProfileTab currentUser={user} setCurrentUser={setUser} profiles={profiles} setProfiles={setProfiles} questions={questions} trophies={trophies} labs={labs} teams={teams} messages={messages} writeups={writeups} setTab={setTab} /> </ProtectedTab>}
+            {tab === "admin" && (user?.role === "admin" ? <AdminTab isAdmin={isAdmin} setIsAdmin={setIsAdmin} questions={questions} setQuestions={setQuestions} messages={messages} setMessages={setMessages} trophies={trophies} setTrophies={setTrophies} events={events} setEvents={setEvents} profiles={profiles} setProfiles={setProfiles} teams={teams} setTeams={setTeams} teamAnnouncements={teamAnnouncements} setTeamAnnouncements={setTeamAnnouncements} orders={orders} setOrders={setOrders} labs={labs} setLabs={setLabs} labMessages={labMessages} setLabMessages={setLabMessages} tickets={tickets} setTickets={setTickets} supportThreads={supportThreads} setSupportThreads={setSupportThreads} writeups={writeups} currentUser={user} /> : <div style={{ padding: "40px", textAlign: "center", color: "#fff" }}><h2>Accès refusé</h2><p>Vous devez être administrateur pour accéder à cette page.</p></div>)}
           </>
         )}
       </main>
@@ -5788,7 +6355,7 @@ function HackerWorkstation() {
   );
 }
 
-function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, trophies, teams, labs }) {
+function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, trophies, teams, labs, writeups = [], events = [] }) {
   const gh = {
     bg: "#07101a",
     panel: "#0b1520",
@@ -5804,11 +6371,11 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
   };
 
   const featureCards = [
+    { icon: Compass, title: "Parcours", text: "Suis un chemin guidé : labs, ressources et défis structurés étape par étape.", tab: "parcours", color: gh.indigo, meta: `${LEARNING_PATHS.length} parcours disponible${LEARNING_PATHS.length > 1 ? "s" : ""}` },
     { icon: MessageSquare, title: "Hub", text: "Discute en direct par thème avec la communauté.", tab: "salons", color: gh.blue, meta: liveCount ? `${liveCount} en ligne maintenant` : "Salons ouverts en direct", live: true },
     { icon: MessageCircle, title: "Question", text: "Pose une question et obtiens de l'aide de la communauté.", tab: "forum", color: gh.green, meta: `${questions.length} question${questions.length > 1 ? "s" : ""} posée${questions.length > 1 ? "s" : ""}` },
-    { icon: Users, title: "Team", text: "Crée ou rejoins une team (16 max), publique ou privée.", tab: "equipes", color: gh.purple, meta: `${teams.length} team${teams.length > 1 ? "s" : ""} active${teams.length > 1 ? "s" : ""}` },
-    { icon: FlaskConical, title: "Labs", text: "Travaille ensemble sur des labs (8 max) HTB, THM, Root-Me...", tab: "labs", color: gh.orange, meta: `${labs.length} lab${labs.length > 1 ? "s" : ""} en cours` },
-    { icon: Compass, title: "Parcours", text: "Suis un chemin guidé : labs, ressources et défis structurés étape par étape.", tab: "parcours", color: gh.indigo, meta: `${LEARNING_PATHS.length} parcours disponible${LEARNING_PATHS.length > 1 ? "s" : ""}` },
+    { icon: Newspaper, title: "Actualité", text: "Suis les nouveautés du site, les annonces et les félicitations de l'équipe.", tab: "actus", color: gh.orange, meta: `${news.length} actualité${news.length > 1 ? "s" : ""}` },
+    { icon: Calendar, title: "Événement", text: "Découvre et participe aux prochains événements de la communauté.", tab: "evenements", color: gh.purple, meta: `${events.length} événement${events.length > 1 ? "s" : ""}` },
   ];
 
   const activity = [
@@ -5827,17 +6394,18 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
   const topTalents = useMemo(() => {
     const scores = {};
     const add = (author, points) => { if (author) scores[author] = (scores[author] || 0) + points; };
-    trophies.forEach((t) => add(t.author, TROPHY_POINTS[t.difficulty] || 10));
+    trophies.forEach((t) => add(t.author, XP_RULES.trophy));
     questions.forEach((q) => {
-      add(q.author, 2);
-      (q.answers || []).forEach((a) => add(a.author, 3));
+      add(q.author, XP_RULES.question);
+      (q.answers || []).forEach((a) => add(a.author, XP_RULES.answer));
     });
-    labs.forEach((l) => add(l.owner, 5));
+    labs.forEach((l) => add(l.owner, XP_RULES.lab));
+    writeups.forEach((w) => add(w.author, XP_RULES.writeup));
     return Object.entries(scores)
       .map(([author, total]) => ({ author, total, profile: profiles.find((p) => p.username === author) }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 3);
-  }, [trophies, questions, labs, profiles]);
+  }, [trophies, questions, labs, writeups, profiles]);
 
 
   const stats = [
