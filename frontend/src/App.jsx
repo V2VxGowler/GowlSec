@@ -2168,7 +2168,7 @@ function NewsCard({ item, isAdmin, onDelete }) {
               <Chip label={cat.label} color={cat.color} />
             </div>
           </div>
-          {isAdmin && (
+          {isAdmin && !item.external && (
             <button onClick={() => onDelete(item.id)} className="gowl-news-delete shrink-0 w-6 h-6 rounded-md flex items-center justify-center" style={{ color: C.muted }}>
               <Trash2 size={13} />
             </button>
@@ -5483,8 +5483,41 @@ export default function GowlSec() {
   const [supportThreads, setSupportThreads] = useState([]);
   const [writeups, setWriteups] = useState([]);
   const [events, setEvents] = useState([]);
+  const [memberCount, setMemberCount] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchOpen, setSearchOpen] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadMemberCount() {
+      try {
+        const response = await fetch(
+          `${COMMUNITY_API_URL}/api/stats/members`
+        );
+        const data = await response.json().catch(() => null);
+
+        if (
+          active &&
+          response.ok &&
+          Number.isInteger(data?.count) &&
+          data.count >= 0
+        ) {
+          setMemberCount(data.count);
+        }
+      } catch (error) {
+        console.error("Chargement du nombre de membres impossible :", error);
+      }
+    }
+
+    loadMemberCount();
+    const interval = window.setInterval(loadMemberCount, 15000);
+
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, []);
 
   useEffect(() => {
     const loadHubMessages = () => {
@@ -5584,9 +5617,71 @@ export default function GowlSec() {
         loadCollection("gowlsec:events", []),
         loadCollection("gowlsec:notifications", []),
       ]);
-      setProfiles(pr); setCredentials(cr); setQuestions(q); setTrophies(t); setNews(n);
+      const localNews = Array.isArray(n) ? n : SEED_NEWS;
+
+      setProfiles(pr); setCredentials(cr); setQuestions(q); setTrophies(t); setNews(localNews);
       setTeams(tm); setTeamAnnouncements(ta); setOrders(ord); setLabs(lb); setLabMessages(lm); setTickets(tk); setSupportThreads(th);
       setWriteups(wu); setEvents(ev); setNotifications(nf);
+
+      try {
+        const response = await fetch(
+          `${COMMUNITY_API_URL}/api/ctftime/events`
+        );
+        const ctftime = await response.json().catch(() => null);
+
+        if (!response.ok) {
+          throw new Error(
+            ctftime?.message || "Impossible de charger les événements CTFtime."
+          );
+        }
+
+        const ctftimeNews = Array.isArray(ctftime?.events)
+          ? ctftime.events.map((event) => {
+              const start = new Date(event.start);
+              const finish = new Date(event.finish);
+              const startLabel = Number.isNaN(start.getTime())
+                ? "Date à confirmer"
+                : start.toLocaleString("fr-FR");
+              const finishLabel = Number.isNaN(finish.getTime())
+                ? ""
+                : finish.toLocaleString("fr-FR");
+              const schedule = finishLabel
+                ? `${startLabel} → ${finishLabel}`
+                : startLabel;
+              const details = [
+                event.format || "CTF",
+                event.location || "En ligne",
+                schedule,
+              ].filter(Boolean).join(" · ");
+
+              return {
+                id: `ctftime-${event.id}`,
+                ref: `CTF-${event.id}`,
+                category: "event",
+                title: event.title || "Événement CTF",
+                summary: event.description
+                  ? `${details} — ${event.description}`
+                  : details,
+                source: "CTFtime",
+                url:
+                  event.ctftimeUrl ||
+                  event.officialUrl ||
+                  `https://ctftime.org/event/${event.id}/`,
+                date: event.start || new Date().toISOString(),
+                external: true,
+              };
+            })
+          : [];
+
+        setNews([
+          ...ctftimeNews,
+          ...localNews.filter(
+            (item) => !String(item.id).startsWith("ctftime-")
+          ),
+        ]);
+      } catch (error) {
+        console.error("Chargement CTFtime impossible :", error);
+      }
 
       try {
         const community = await communityRequest();
@@ -6138,6 +6233,7 @@ export default function GowlSec() {
                 L={L}
                 setTab={setTab}
                 profiles={profiles}
+                memberCount={memberCount}
                 liveCount={liveCount}
                 news={news}
                 questions={questions}
@@ -6327,7 +6423,7 @@ function HackerWorkstation() {
   );
 }
 
-function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, trophies, teams, labs, events = [] }) {
+function ProfessionalHome({ L, setTab, profiles, memberCount, liveCount, news, questions, trophies, teams, labs, events = [] }) {
   const gh = {
     bg: "#07101a",
     panel: "#0b1520",
@@ -6379,8 +6475,13 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
   }, [trophies, questions, labs, profiles]);
 
 
+  const registeredMemberCount =
+    Number.isInteger(memberCount) && memberCount >= 0
+      ? memberCount
+      : profiles.length;
+
   const stats = [
-    { label: "Membres", value: profiles.length, icon: Users, color: gh.blue },
+    { label: "Membres", value: registeredMemberCount, icon: Users, color: gh.blue },
     { label: "Trophées décrochés", value: trophies.length, icon: Trophy, color: gh.orange },
     { label: "Questions répondues", value: questions.filter((q) => (q.answers || []).length > 0).length, icon: MessageCircle, color: gh.purple },
   ];
@@ -6589,7 +6690,7 @@ function ProfessionalHome({ L, setTab, profiles, liveCount, news, questions, tro
           <div className="ghx-proof">
             <MemberAvatarStack profiles={profiles} max={5} />
             <span className="ghx-proof-text">
-              {profiles.length > 0 ? <><strong style={{ color: gh.text }}>{profiles.length}</strong> membre{profiles.length > 1 ? "s" : ""} ont déjà rejoint la communauté</> : "Sois l'un des premiers membres de la communauté"}
+              {registeredMemberCount > 0 ? <><strong style={{ color: gh.text }}>{registeredMemberCount}</strong> membre{registeredMemberCount > 1 ? "s" : ""} ont déjà rejoint la communauté</> : "Sois l'un des premiers membres de la communauté"}
             </span>
           </div>
         </div>
