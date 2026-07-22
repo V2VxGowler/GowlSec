@@ -21,6 +21,18 @@ model User {
   resetPasswordTokenExpires DateTime?
   createdAt                 DateTime  @default(now())
 
+  bio            String  @default("") @db.VarChar(300)
+  github         String  @default("") @db.VarChar(39)
+  twitter        String  @default("") @db.VarChar(50)
+  discord        String  @default("") @db.VarChar(80)
+  avatarKey      String  @default("bird") @db.VarChar(30)
+  avatarImage    String? @db.Text
+  avatarPublicId String? @db.VarChar(255)
+  banner         String  @default("indigo") @db.VarChar(30)
+  bannerImage    String? @db.Text
+  bannerPublicId String? @db.VarChar(255)
+  bannerColor    String  @default("") @db.VarChar(20)
+
   refreshTokens RefreshToken[]
   hubMessages   HubMessage[]
   questions     Question[]

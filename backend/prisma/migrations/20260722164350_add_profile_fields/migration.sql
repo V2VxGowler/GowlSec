@@ -1,0 +1,12 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "avatarImage" TEXT,
+ADD COLUMN     "avatarKey" VARCHAR(30) NOT NULL DEFAULT 'bird',
+ADD COLUMN     "avatarPublicId" VARCHAR(255),
+ADD COLUMN     "banner" VARCHAR(30) NOT NULL DEFAULT 'indigo',
+ADD COLUMN     "bannerColor" VARCHAR(20) NOT NULL DEFAULT '',
+ADD COLUMN     "bannerImage" TEXT,
+ADD COLUMN     "bannerPublicId" VARCHAR(255),
+ADD COLUMN     "bio" VARCHAR(300) NOT NULL DEFAULT '',
+ADD COLUMN     "discord" VARCHAR(80) NOT NULL DEFAULT '',
+ADD COLUMN     "github" VARCHAR(39) NOT NULL DEFAULT '',
+ADD COLUMN     "twitter" VARCHAR(50) NOT NULL DEFAULT '';
