@@ -4,6 +4,7 @@ import {
   deleteProfileImage,
   uploadProfileImage,
 } from "../services/cloudinary.js";
+import { getProfileBadgesAndPoints } from "../services/badge.service.js";
 
 const avatarKeys = [
   "bird",
@@ -16,13 +17,44 @@ const avatarKeys = [
   "flame",
 ];
 
-const bannerKeys = [
-  "indigo",
-  "crimson",
-  "forest",
-  "sunset",
-  "night",
+const bannerKeys = ["indigo", "crimson", "forest", "sunset", "night"];
+
+const profileStatuses = ["available", "learning", "looking-team"];
+const profileSpecialties = [
+  "Web",
+  "Réseau",
+  "Linux",
+  "Active Directory",
+  "OSINT",
+  "Forensics",
+  "Crypto",
+  "Pwn",
 ];
+const badgeKeys = ["first-ctf", "mentor", "web-hacker", "network", "top-10"];
+
+const formBoolean = (defaultValue) =>
+  z.preprocess(
+    (value) =>
+      value === undefined ? defaultValue : value === true || value === "true",
+    z.boolean(),
+  );
+
+const formStringArray = (allowed, max) =>
+  z.preprocess(
+    (value) => {
+      if (Array.isArray(value)) return value;
+      if (typeof value !== "string" || value.trim() === "") return [];
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+    },
+    z.array(z.enum(allowed)).max(max),
+  );
 
 const optionalBoolean = z
   .union([z.literal("true"), z.literal("false")])
@@ -53,15 +85,28 @@ const profileSchema = z.object({
     .trim()
     .refine(
       (value) => value === "" || /^#[0-9A-Fa-f]{6}$/.test(value),
-      "Couleur de bannière invalide."
+      "Couleur de bannière invalide.",
     )
     .optional()
     .default(""),
+  profileStatus: z.enum(profileStatuses).optional().default("learning"),
+  specialties: formStringArray(profileSpecialties, profileSpecialties.length),
+  isProfilePublic: formBoolean(true),
+  showAge: formBoolean(true),
+  showSocials: formBoolean(true),
+  age: z.preprocess(
+    (value) =>
+      value === "" || value === null || value === undefined
+        ? null
+        : Number(value),
+    z.number().int().min(13).max(100).nullable(),
+  ),
+  pinnedBadges: formStringArray(badgeKeys, 3),
   removeAvatar: optionalBoolean,
   removeBanner: optionalBoolean,
 });
 
-const publicProfileSelect = {
+const privateProfileSelect = {
   id: true,
   email: true,
   username: true,
@@ -78,12 +123,49 @@ const publicProfileSelect = {
   bannerImage: true,
   bannerPublicId: true,
   bannerColor: true,
+  currentStreak: true,
+  longestStreak: true,
+  lastActiveDate: true,
+  profileStatus: true,
+  specialties: true,
+  isProfilePublic: true,
+  showAge: true,
+  showSocials: true,
+  age: true,
+  pinnedBadges: true,
+  customRole: true,
 };
 
-function formatProfile(user) {
-  return {
+const publicProfileSelect = {
+  id: true,
+  username: true,
+  role: true,
+  createdAt: true,
+  bio: true,
+  github: true,
+  twitter: true,
+  discord: true,
+  avatarKey: true,
+  avatarImage: true,
+  banner: true,
+  bannerImage: true,
+  bannerColor: true,
+  currentStreak: true,
+  longestStreak: true,
+  lastActiveDate: true,
+  profileStatus: true,
+  specialties: true,
+  isProfilePublic: true,
+  showAge: true,
+  showSocials: true,
+  age: true,
+  pinnedBadges: true,
+  customRole: true,
+};
+
+function formatProfile(user, extras = {}, includePrivate = false) {
+  const profile = {
     id: user.id,
-    email: user.email,
     username: user.username,
     role: user.role,
     createdAt: user.createdAt,
@@ -94,12 +176,38 @@ function formatProfile(user) {
     banner: user.banner,
     bannerImage: user.bannerImage || "",
     bannerColor: user.bannerColor,
+    currentStreak: user.currentStreak || 0,
+    longestStreak: user.longestStreak || 0,
+    lastActiveDate: user.lastActiveDate,
+    profileStatus: user.profileStatus || "learning",
+    specialties: user.specialties || [],
+    isProfilePublic: user.isProfilePublic !== false,
+    showAge: user.showAge !== false,
+    showSocials: user.showSocials !== false,
+    age: user.age,
+    pinnedBadges: (user.pinnedBadges || []).slice(0, 3),
+    customRole: user.customRole || "",
     socials: {
       github: user.github,
       twitter: user.twitter,
       discord: user.discord,
     },
+    ...extras,
   };
+
+  if (includePrivate) profile.email = user.email;
+  if (!includePrivate && user.isProfilePublic === false) {
+    profile.bio = "";
+    profile.specialties = [];
+    profile.age = null;
+    profile.socials = { github: "", twitter: "", discord: "" };
+    profile.privateProfile = true;
+  } else if (!includePrivate) {
+    if (user.showAge === false) profile.age = null;
+    if (user.showSocials === false)
+      profile.socials = { github: "", twitter: "", discord: "" };
+  }
+  return profile;
 }
 
 function getUserId(req) {
@@ -121,7 +229,7 @@ export const getMe = async (req, res) => {
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: publicProfileSelect,
+      select: privateProfileSelect,
     });
 
     if (!user) {
@@ -131,7 +239,8 @@ export const getMe = async (req, res) => {
       });
     }
 
-    return res.json(formatProfile(user));
+    const extras = await getProfileBadgesAndPoints(user.id);
+    return res.json(formatProfile(user, extras, true));
   } catch (error) {
     console.error("Erreur récupération profil :", error);
 
@@ -156,7 +265,7 @@ export const updateMe = async (req, res) => {
     const data = profileSchema.parse(req.body);
     const currentUser = await prisma.user.findUnique({
       where: { id: userId },
-      select: publicProfileSelect,
+      select: privateProfileSelect,
     });
 
     if (!currentUser) {
@@ -176,6 +285,13 @@ export const updateMe = async (req, res) => {
       avatarKey: data.avatarKey,
       banner: data.bannerKey,
       bannerColor: data.bannerColor,
+      profileStatus: data.profileStatus,
+      specialties: data.specialties,
+      isProfilePublic: data.isProfilePublic,
+      showAge: data.showAge,
+      showSocials: data.showSocials,
+      age: data.age,
+      pinnedBadges: data.pinnedBadges,
     };
 
     if (avatarFile) {
@@ -215,13 +331,17 @@ export const updateMe = async (req, res) => {
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: updateData,
-      select: publicProfileSelect,
+      select: privateProfileSelect,
     });
 
     return res.json({
       success: true,
       message: "Profil mis à jour avec succès.",
-      user: formatProfile(updatedUser),
+      user: formatProfile(
+        updatedUser,
+        await getProfileBadgesAndPoints(userId),
+        true,
+      ),
     });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -236,6 +356,112 @@ export const updateMe = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "Impossible de mettre à jour le profil.",
+    });
+  }
+};
+
+export const listPublicProfiles = async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({
+      orderBy: { createdAt: "asc" },
+      select: publicProfileSelect,
+    });
+
+    const profiles = users.map((user) => formatProfile(user));
+
+    return res.json({ success: true, profiles });
+  } catch (error) {
+    console.error("Erreur liste des profils publics :", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Impossible de charger les profils." });
+  }
+};
+
+export const getPublicProfile = async (req, res) => {
+  try {
+    const username = String(req.params.username || "").trim();
+    const user = await prisma.user.findUnique({
+      where: { username },
+      select: publicProfileSelect,
+    });
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Profil introuvable." });
+    }
+
+    const extras = await getProfileBadgesAndPoints(user.id);
+    return res.json({ success: true, profile: formatProfile(user, extras) });
+  } catch (error) {
+    console.error("Erreur profil public :", error);
+    return res
+      .status(500)
+      .json({ success: false, message: "Impossible de charger ce profil." });
+  }
+};
+
+function utcDayStart(value = new Date()) {
+  const date = new Date(value);
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+}
+
+export const recordDailyActivity = async (req, res) => {
+  try {
+    const userId = getUserId(req);
+    if (!userId)
+      return res
+        .status(401)
+        .json({ success: false, message: "Utilisateur invalide." });
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: privateProfileSelect,
+    });
+    if (!user)
+      return res
+        .status(404)
+        .json({ success: false, message: "Utilisateur introuvable." });
+
+    const today = utcDayStart();
+    const lastDay = user.lastActiveDate
+      ? utcDayStart(user.lastActiveDate)
+      : null;
+    const dayDifference = lastDay
+      ? Math.round((today.getTime() - lastDay.getTime()) / 86400000)
+      : null;
+
+    let currentStreak = user.currentStreak || 0;
+    if (dayDifference === null) currentStreak = 1;
+    else if (dayDifference === 1) currentStreak += 1;
+    else if (dayDifference > 1) currentStreak = 1;
+
+    const updated =
+      dayDifference === 0
+        ? user
+        : await prisma.user.update({
+            where: { id: userId },
+            data: {
+              currentStreak,
+              longestStreak: Math.max(user.longestStreak || 0, currentStreak),
+              lastActiveDate: today,
+            },
+            select: privateProfileSelect,
+          });
+
+    const extras = await getProfileBadgesAndPoints(userId);
+    return res.json({
+      success: true,
+      user: formatProfile(updated, extras, true),
+    });
+  } catch (error) {
+    console.error("Erreur streak quotidienne :", error);
+    return res.status(500).json({
+      success: false,
+      message: "Impossible de mettre à jour la streak.",
     });
   }
 };

@@ -9,6 +9,10 @@ import { Server } from "socket.io";
 import authRoutes from "./routes/auth.js";
 import adminRoutes from "./routes/admin.js";
 import userRoutes from "./routes/user.routes.js";
+import announcementRoutes from "./routes/announcement.routes.js";
+import ctfCommunityRoutes from "./routes/ctfCommunity.routes.js";
+import socialRoutes from "./routes/social.routes.js";
+import roomManagementRoutes from "./routes/roomManagement.routes.js";
 
 import { globalLimiter } from "./middleware/rateLimiter.js";
 import { verifyAccessToken } from "./utils/jwt.js";
@@ -59,8 +63,12 @@ app.use("/api", globalLimiter);
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/community/rooms", roomManagementRoutes);
 app.use("/api/community", communityRoutes);
 app.use("/api/ctftime", ctftimeRoutes);
+app.use("/api/announcements", announcementRoutes);
+app.use("/api/ctf-community", ctfCommunityRoutes);
+app.use("/api/social", socialRoutes);
 
 app.get("/api/stats/members", async (req, res) => {
   try {
@@ -314,6 +322,27 @@ io.on("connection", (socket) => {
           });
 
         io.emit("hub-message:new", message);
+
+        const mentionedNames = [...new Set(
+          [...content.matchAll(/@([A-Za-z0-9_-]{2,30})/g)].map((match) => match[1])
+        )];
+        if (mentionedNames.length > 0) {
+          const mentionedUsers = await prisma.user.findMany({
+            where: { username: { in: mentionedNames }, id: { not: numericUserId } },
+            select: { id: true },
+          });
+          if (mentionedUsers.length > 0) {
+            await prisma.userNotification.createMany({
+              data: mentionedUsers.map((mentionedUser) => ({
+                userId: mentionedUser.id,
+                type: "mention",
+                title: "Tu as été mentionné",
+                message: `${message.user.username} t’a mentionné dans #${room}.`,
+                link: `/hub/${room}`,
+              })),
+            });
+          }
+        }
 
         return reply({
           success: true,

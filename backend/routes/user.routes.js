@@ -1,6 +1,9 @@
 import express from "express";
 import {
   getMe,
+  getPublicProfile,
+  listPublicProfiles,
+  recordDailyActivity,
   updateMe,
 } from "../controllers/user.controller.js";
 import { authMiddleware } from "../middleware/authMiddleware.js";
@@ -11,7 +14,9 @@ import {
 
 const router = express.Router();
 
+router.get("/", listPublicProfiles);
 router.get("/me", authMiddleware, getMe);
+router.post("/me/activity", authMiddleware, recordDailyActivity);
 
 router.patch(
   "/me",
@@ -21,7 +26,9 @@ router.patch(
     { name: "banner", maxCount: 1 },
   ]),
   handleProfileUploadError,
-  updateMe
+  updateMe,
 );
+
+router.get("/:username", getPublicProfile);
 
 export default router;

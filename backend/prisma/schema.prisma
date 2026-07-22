@@ -21,17 +21,28 @@ model User {
   resetPasswordTokenExpires DateTime?
   createdAt                 DateTime  @default(now())
 
-  bio            String  @default("") @db.VarChar(300)
-  github         String  @default("") @db.VarChar(39)
-  twitter        String  @default("") @db.VarChar(50)
-  discord        String  @default("") @db.VarChar(80)
-  avatarKey      String  @default("bird") @db.VarChar(30)
-  avatarImage    String? @db.Text
-  avatarPublicId String? @db.VarChar(255)
-  banner         String  @default("indigo") @db.VarChar(30)
-  bannerImage    String? @db.Text
-  bannerPublicId String? @db.VarChar(255)
-  bannerColor    String  @default("") @db.VarChar(20)
+  bio             String    @default("") @db.VarChar(300)
+  github          String    @default("") @db.VarChar(39)
+  twitter         String    @default("") @db.VarChar(50)
+  discord         String    @default("") @db.VarChar(80)
+  avatarKey       String    @default("bird") @db.VarChar(30)
+  avatarImage     String?   @db.Text
+  avatarPublicId  String?   @db.VarChar(255)
+  banner          String    @default("indigo") @db.VarChar(30)
+  bannerImage     String?   @db.Text
+  bannerPublicId  String?   @db.VarChar(255)
+  bannerColor     String    @default("") @db.VarChar(20)
+  currentStreak   Int       @default(0)
+  longestStreak   Int       @default(0)
+  lastActiveDate  DateTime?
+  profileStatus   String    @default("learning") @db.VarChar(30)
+  specialties     String[]  @default([])
+  isProfilePublic Boolean   @default(true)
+  showAge         Boolean   @default(true)
+  showSocials     Boolean   @default(true)
+  age             Int?
+  pinnedBadges    String[]  @default([])
+  customRole      String    @default("") @db.VarChar(40)
 
   refreshTokens RefreshToken[]
   hubMessages   HubMessage[]
@@ -52,7 +63,25 @@ model User {
   trophies Trophy[]
   events   Event[]
 
-  creationCooldowns CreationCooldown[]
+  creationCooldowns       CreationCooldown[]
+  badges                  UserBadge[]
+  ctfRegistrations        CtfRegistration[]
+  siteAnnouncements       Announcement[]
+  ctfResults              CtfResult[]
+  recommendationsReceived ProfileRecommendation[] @relation("RecommendationTarget")
+  recommendationsWritten  ProfileRecommendation[] @relation("RecommendationAuthor")
+  sentDirectMessages      DirectMessage[]         @relation("DirectMessageSender")
+  receivedDirectMessages  DirectMessage[]         @relation("DirectMessageReceiver")
+  sentTeamInvitations     TeamInvitation[]        @relation("TeamInvitationSender")
+  receivedTeamInvitations TeamInvitation[]        @relation("TeamInvitationRecipient")
+  teamFinderProfile       TeamFinderProfile?
+  pollsCreated            HubPoll[]
+  pollVotes               HubPollVote[]
+  challengesCreated       WeeklyChallenge[]
+  reportsCreated          CommunityReport[]       @relation("ReportReporter")
+  reportsResolved         CommunityReport[]       @relation("ReportResolver")
+  notifications           UserNotification[]
+  teamScoresCreated       TeamScoreEntry[]
 }
 
 model RefreshToken {
@@ -151,8 +180,11 @@ model Team {
   ownerId Int  @unique
   owner   User @relation("TeamOwner", fields: [ownerId], references: [id], onDelete: Cascade)
 
-  members       TeamMember[]
-  announcements TeamAnnouncement[]
+  members          TeamMember[]
+  announcements    TeamAnnouncement[]
+  ctfRegistrations CtfRegistration[]
+  invitations      TeamInvitation[]
+  scoreEntries     TeamScoreEntry[]
 
   @@index([createdAt])
 }
@@ -297,4 +329,248 @@ model CreationCooldown {
 
   @@unique([userId, type])
   @@index([lastCreatedAt])
+}
+
+model UserBadge {
+  id         Int      @id @default(autoincrement())
+  key        String   @db.VarChar(50)
+  unlockedAt DateTime @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, key])
+  @@index([key])
+}
+
+model Announcement {
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(150)
+  content     String   @db.VarChar(2000)
+  category    String   @default("announcement") @db.VarChar(30)
+  link        String   @default("") @db.VarChar(500)
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([publishedAt])
+  @@index([authorId])
+}
+
+model CtfRegistration {
+  id         Int       @id @default(autoincrement())
+  eventId    String    @db.VarChar(120)
+  eventTitle String    @db.VarChar(200)
+  startsAt   DateTime?
+  teamName   String    @default("Solo") @db.VarChar(80)
+  createdAt  DateTime  @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  teamId Int?
+  team   Team? @relation(fields: [teamId], references: [id], onDelete: SetNull)
+
+  @@unique([eventId, userId])
+  @@index([eventId])
+  @@index([teamId])
+}
+
+model CtfResult {
+  id        Int      @id @default(autoincrement())
+  eventId   String   @db.VarChar(120)
+  teamName  String   @db.VarChar(80)
+  rank      Int
+  highlight String   @default("") @db.VarChar(500)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, teamName])
+  @@index([eventId, rank])
+  @@index([authorId])
+}
+
+model ProfileRecommendation {
+  id        Int      @id @default(autoincrement())
+  type      String   @default("thanks") @db.VarChar(20)
+  skill     String   @default("") @db.VarChar(50)
+  message   String   @default("") @db.VarChar(500)
+  createdAt DateTime @default(now())
+
+  targetId Int
+  target   User @relation("RecommendationTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  authorId Int
+  author   User @relation("RecommendationAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([targetId, createdAt])
+  @@index([authorId])
+}
+
+model DirectMessage {
+  id        Int       @id @default(autoincrement())
+  content   String    @db.VarChar(1000)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  senderId   Int
+  sender     User @relation("DirectMessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId Int
+  receiver   User @relation("DirectMessageReceiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, readAt])
+}
+
+model TeamInvitation {
+  id        Int      @id @default(autoincrement())
+  message   String   @default("") @db.VarChar(300)
+  status    String   @default("pending") @db.VarChar(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  teamId      Int
+  team        Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  senderId    Int
+  sender      User @relation("TeamInvitationSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId Int
+  recipient   User @relation("TeamInvitationRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, status])
+  @@index([teamId, status])
+}
+
+model TeamFinderProfile {
+  id                Int      @id @default(autoincrement())
+  age               Int?
+  experience        String   @default("debutant") @db.VarChar(30)
+  bio               String   @default("") @db.VarChar(600)
+  specialties       String[] @default([])
+  lookingFor        String[] @default([])
+  availability      String   @default("") @db.VarChar(120)
+  contactPreference String   @default("message") @db.VarChar(30)
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([active, updatedAt])
+}
+
+model HubPoll {
+  id        Int       @id @default(autoincrement())
+  question  String    @db.VarChar(250)
+  room      String    @default("general") @db.VarChar(80)
+  endsAt    DateTime?
+  closed    Boolean   @default(false)
+  createdAt DateTime  @default(now())
+
+  authorId Int
+  author   User            @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  options  HubPollOption[]
+  votes    HubPollVote[]
+
+  @@index([room, createdAt])
+}
+
+model HubPollOption {
+  id     Int           @id @default(autoincrement())
+  label  String        @db.VarChar(120)
+  pollId Int
+  poll   HubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  votes  HubPollVote[]
+
+  @@index([pollId])
+}
+
+model HubPollVote {
+  id       Int           @id @default(autoincrement())
+  pollId   Int
+  poll     HubPoll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
+  optionId Int
+  option   HubPollOption @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  userId   Int
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([pollId, userId])
+  @@index([optionId])
+}
+
+model WeeklyChallenge {
+  id          Int      @id @default(autoincrement())
+  title       String   @db.VarChar(150)
+  description String   @db.VarChar(1200)
+  category    String   @default("Web") @db.VarChar(50)
+  difficulty  String   @default("Intermédiaire") @db.VarChar(30)
+  link        String   @default("") @db.VarChar(500)
+  startsAt    DateTime @default(now())
+  endsAt      DateTime
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([active, endsAt])
+}
+
+model CommunityReport {
+  id         Int      @id @default(autoincrement())
+  targetType String   @db.VarChar(30)
+  targetId   String   @db.VarChar(120)
+  reason     String   @db.VarChar(80)
+  details    String   @default("") @db.VarChar(600)
+  status     String   @default("open") @db.VarChar(20)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  reporterId Int
+  reporter   User  @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  resolverId Int?
+  resolver   User? @relation("ReportResolver", fields: [resolverId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
+}
+
+model UserNotification {
+  id        Int       @id @default(autoincrement())
+  type      String    @db.VarChar(30)
+  title     String    @db.VarChar(150)
+  message   String    @db.VarChar(500)
+  link      String    @default("") @db.VarChar(300)
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  userId Int
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
+}
+
+model TeamScoreEntry {
+  id         Int      @id @default(autoincrement())
+  eventId    String   @db.VarChar(120)
+  eventTitle String   @db.VarChar(200)
+  rank       Int
+  points     Int      @default(0)
+  bestPlayer String   @default("") @db.VarChar(80)
+  highlight  String   @default("") @db.VarChar(500)
+  createdAt  DateTime @default(now())
+
+  teamId   Int
+  team     Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  authorId Int
+  author   User @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, eventId])
+  @@index([teamId, rank])
 }
