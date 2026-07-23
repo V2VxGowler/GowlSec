@@ -950,3 +950,39 @@ export async function readNotifications(req, res) {
     });
   }
 }
+
+export async function readNotification(req, res) {
+  try {
+    const notificationId = idParam(req.params.id);
+    if (!notificationId) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Notification invalide." });
+    }
+    const result = await prisma.userNotification.updateMany({
+      where: {
+        id: notificationId,
+        userId: userId(req),
+        readAt: null,
+      },
+      data: { readAt: new Date() },
+    });
+    if (result.count === 0) {
+      const exists = await prisma.userNotification.findFirst({
+        where: { id: notificationId, userId: userId(req) },
+        select: { id: true },
+      });
+      if (!exists) {
+        return res
+          .status(404)
+          .json({ success: false, message: "Notification introuvable." });
+      }
+    }
+    return res.json({ success: true });
+  } catch {
+    return res.status(500).json({
+      success: false,
+      message: "Impossible de mettre à jour la notification.",
+    });
+  }
+}

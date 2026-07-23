@@ -30,7 +30,14 @@ const profileSpecialties = [
   "Crypto",
   "Pwn",
 ];
-const badgeKeys = ["first-ctf", "mentor", "web-hacker", "network", "top-10"];
+const badgeKeys = [
+  "founder",
+  "first-ctf",
+  "mentor",
+  "web-hacker",
+  "network",
+  "top-10",
+];
 
 const TROPHY_POINTS = {
   facile: 10,
@@ -154,6 +161,7 @@ const privateProfileSelect = {
   email: true,
   username: true,
   role: true,
+  isFounder: true,
   createdAt: true,
   bio: true,
   github: true,
@@ -190,6 +198,7 @@ const publicProfileSelect = {
   id: true,
   username: true,
   role: true,
+  isFounder: true,
   createdAt: true,
   bio: true,
   github: true,
@@ -242,6 +251,7 @@ function formatProfile(user, extras = {}, includePrivate = false) {
     id: user.id,
     username: user.username,
     role: user.role,
+    isFounder: user.isFounder === true,
     createdAt: user.createdAt,
     joinedAt: user.createdAt,
     bio: user.bio,
@@ -399,7 +409,9 @@ export const updateMe = async (req, res) => {
       showSocials: data.showSocials,
       showCertifications: data.showCertifications,
       age: data.age,
-      pinnedBadges: data.pinnedBadges,
+      pinnedBadges: data.pinnedBadges.filter(
+        (key) => key !== "founder" || currentUser.isFounder === true,
+      ),
     };
 
     if (avatarFile) {

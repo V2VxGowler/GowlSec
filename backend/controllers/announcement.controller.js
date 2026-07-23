@@ -57,9 +57,37 @@ export async function listAnnouncements(req, res) {
 export async function createAnnouncement(req, res) {
   try {
     const data = announcementSchema.parse(req.body);
-    const announcement = await prisma.announcement.create({
-      data: { ...data, authorId: req.admin.id },
-      include: includeAuthor,
+    const announcement = await prisma.$transaction(async (tx) => {
+      const created = await tx.announcement.create({
+        data: { ...data, authorId: req.admin.id },
+        include: includeAuthor,
+      });
+      const recipients = await tx.user.findMany({
+        where: { id: { not: req.admin.id } },
+        select: { id: true },
+      });
+
+      if (recipients.length > 0) {
+        const notificationTitle =
+          data.category === "update"
+            ? "Nouvelle mise à jour GowlSec"
+            : "Nouvelle annonce GowlSec";
+        const excerpt =
+          data.content.length > 260
+            ? `${data.content.slice(0, 257)}…`
+            : data.content;
+        await tx.userNotification.createMany({
+          data: recipients.map((recipient) => ({
+            userId: recipient.id,
+            type: "announcement",
+            title: notificationTitle,
+            message: `${created.title} — ${excerpt}`,
+            link: "/accueil",
+          })),
+        });
+      }
+
+      return created;
     });
     return res
       .status(201)

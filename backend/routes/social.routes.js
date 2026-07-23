@@ -20,6 +20,7 @@ import {
   listReports,
   listTeamFinder,
   listTeamScores,
+  readNotification,
   readNotifications,
   resolveReport,
   sendDirectMessage,
@@ -75,6 +76,7 @@ router.patch(
 
 router.get("/notifications", authMiddleware, listNotifications);
 router.patch("/notifications/read", authMiddleware, readNotifications);
+router.patch("/notifications/:id/read", authMiddleware, readNotification);
 router.get("/progress", authMiddleware, getProgressOverview);
 
 export default router;

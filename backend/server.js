@@ -21,6 +21,7 @@ import prisma from "./utils/prisma.js";
 import communityRoutes from "./routes/community.routes.js";
 
 import ctftimeRoutes from "./routes/ctftime.routes.js";
+import { startNotificationScheduler } from "./services/notificationScheduler.js";
 
 dotenv.config();
 
@@ -335,7 +336,7 @@ io.on("connection", (socket) => {
             select: { role: true },
           });
 
-          if (sender?.role !== "admin") {
+          if (String(sender?.role || "").toLowerCase() !== "admin") {
             return reply({
               success: false,
               message:
@@ -368,14 +369,25 @@ io.on("connection", (socket) => {
 
         io.emit("hub-message:new", message);
 
-        const mentionedNames = [...new Set(
-          [...content.matchAll(/@([A-Za-z0-9_-]{2,30})/g)].map((match) => match[1])
-        )];
-        if (mentionedNames.length > 0) {
-          const mentionedUsers = await prisma.user.findMany({
-            where: { username: { in: mentionedNames }, id: { not: numericUserId } },
-            select: { id: true },
-          });
+        try {
+          const mentionedNames = [
+            ...new Set(
+              [...content.matchAll(/@([A-Za-z0-9_-]{2,30})/g)].map(
+                (match) => match[1],
+              ),
+            ),
+          ];
+          const mentionedUsers =
+            mentionedNames.length > 0
+              ? await prisma.user.findMany({
+                  where: {
+                    username: { in: mentionedNames },
+                    id: { not: numericUserId },
+                  },
+                  select: { id: true },
+                })
+              : [];
+
           if (mentionedUsers.length > 0) {
             await prisma.userNotification.createMany({
               data: mentionedUsers.map((mentionedUser) => ({
@@ -387,6 +399,35 @@ io.on("connection", (socket) => {
               })),
             });
           }
+
+          if (room === "updates") {
+            const excludedIds = [
+              numericUserId,
+              ...mentionedUsers.map((mentionedUser) => mentionedUser.id),
+            ];
+            const recipients = await prisma.user.findMany({
+              where: { id: { notIn: excludedIds } },
+              select: { id: true },
+            });
+            if (recipients.length > 0) {
+              const excerpt =
+                content.length > 300 ? `${content.slice(0, 297)}…` : content;
+              await prisma.userNotification.createMany({
+                data: recipients.map((recipient) => ({
+                  userId: recipient.id,
+                  type: "site-update",
+                  title: "Nouvelle publication #updates",
+                  message: excerpt,
+                  link: "/hub/updates",
+                })),
+              });
+            }
+          }
+        } catch (notificationError) {
+          console.error(
+            "Notifications du Hub impossibles :",
+            notificationError,
+          );
         }
 
         return reply({
@@ -468,7 +509,7 @@ io.on("connection", (socket) => {
           message.userId === numericUserId;
 
         const isAdmin =
-          currentUser?.role === "admin";
+          String(currentUser?.role || "").toLowerCase() === "admin";
 
         if (!isAuthor && !isAdmin) {
           return reply({
@@ -536,4 +577,5 @@ io.on("connection", (socket) => {
 httpServer.listen(PORT, () => {
   console.log(`GowlSec Socket.IO actif sur le port ${PORT}`);
   console.log(`Chemin Socket.IO : ${io.path()}`);
+  startNotificationScheduler();
 });

@@ -13,7 +13,7 @@ export async function adminMiddleware(req, res, next) {
       select: { id: true, role: true },
     });
 
-    if (!user || user.role !== "admin") {
+    if (!user || String(user.role || "").toLowerCase() !== "admin") {
       return res.status(403).json({ success: false, message: "Accès réservé aux administrateurs." });
     }
 

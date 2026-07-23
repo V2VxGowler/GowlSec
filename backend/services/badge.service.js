@@ -15,6 +15,13 @@ export const BADGE_DEFINITIONS = [
   { key: "top-10", label: "Top 10", color: "#FF9F43", description: "Entrer dans le Top 10 GowlSec" },
 ];
 
+const FOUNDER_BADGE = {
+  key: "founder",
+  label: "Fondateur",
+  color: "#8BE9FD",
+  description: "Fondateur officiel de GowlSec",
+};
+
 function scoreUser(user) {
   const trophyPoints = (user.trophies || []).reduce(
     (total, trophy) => total + (TROPHY_POINTS[trophy.difficulty] || 10),
@@ -30,6 +37,8 @@ export async function getProfileBadgesAndPoints(userId, { persist = true } = {})
       where: { id: userId },
       select: {
         id: true,
+        username: true,
+        isFounder: true,
         trophies: { select: { difficulty: true } },
         questions: { select: { id: true } },
         answers: { select: { id: true } },
@@ -54,6 +63,10 @@ export async function getProfileBadgesAndPoints(userId, { persist = true } = {})
 
   if (!user) return { points: 0, rank: null, badges: [] };
 
+  const definitions = user.isFounder
+    ? [FOUNDER_BADGE, ...BADGE_DEFINITIONS]
+    : BADGE_DEFINITIONS;
+
   const points = scoreUser(user);
   const webSignals = trophies.filter((trophy) =>
     /web|portswigger|pentesterlab|xss|sql|api/i.test(`${trophy.platform} ${trophy.title} ${trophy.note}`)
@@ -68,6 +81,10 @@ export async function getProfileBadgesAndPoints(userId, { persist = true } = {})
   const rank = ranking.findIndex((entry) => entry.id === userId) + 1;
 
   const progressByKey = {
+    founder: {
+      unlocked: user.isFounder === true,
+      progress: user.isFounder ? "Unique" : "Verrouillé",
+    },
     "first-ctf": { unlocked: ctfCount >= 1, progress: `${Math.min(ctfCount, 1)}/1` },
     mentor: { unlocked: answerCount >= 3, progress: `${Math.min(answerCount, 3)}/3` },
     "web-hacker": { unlocked: webSignals >= 2, progress: `${Math.min(webSignals, 2)}/2` },
@@ -75,7 +92,7 @@ export async function getProfileBadgesAndPoints(userId, { persist = true } = {})
     "top-10": { unlocked: points > 0 && rank <= 10, progress: points > 0 ? `#${rank}` : "0 pt" },
   };
 
-  const newlyUnlocked = BADGE_DEFINITIONS.filter(
+  const newlyUnlocked = definitions.filter(
     (definition) => progressByKey[definition.key]?.unlocked &&
       !unlockedRows.some((row) => row.key === definition.key)
   );
@@ -104,7 +121,7 @@ export async function getProfileBadgesAndPoints(userId, { persist = true } = {})
   return {
     points,
     rank,
-    badges: BADGE_DEFINITIONS.map((definition) => ({
+    badges: definitions.map((definition) => ({
       ...definition,
       ...progressByKey[definition.key],
       unlocked: progressByKey[definition.key].unlocked || unlockedRows.some((row) => row.key === definition.key),

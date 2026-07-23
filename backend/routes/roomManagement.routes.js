@@ -30,7 +30,10 @@ router.delete("/:id", authMiddleware, async (req, res) => {
       return res
         .status(404)
         .json({ success: false, message: "Salon introuvable." });
-    if (room.ownerId !== userId && user?.role !== "admin") {
+    if (
+      room.ownerId !== userId &&
+      String(user?.role || "").toLowerCase() !== "admin"
+    ) {
       return res.status(403).json({
         success: false,
         message: "Tu ne peux pas supprimer ce salon.",

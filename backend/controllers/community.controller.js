@@ -217,6 +217,12 @@ export async function getCommunity(req, res) {
       }),
 
       prisma.hubRoom.findMany({
+        where: {
+          NOT: [
+            { key: { equals: "cfd", mode: "insensitive" } },
+            { label: { equals: "cfd", mode: "insensitive" } },
+          ],
+        },
         orderBy: { createdAt: "asc" },
         include: {
           owner: {
@@ -838,7 +844,7 @@ async function deleteOwnedResource(
     }
 
     const isOwner = resource[ownerField] === userId;
-    const isAdmin = currentUser?.role === "admin";
+    const isAdmin = String(currentUser?.role || "").toLowerCase() === "admin";
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
@@ -961,7 +967,7 @@ export async function deleteRoom(req, res) {
     }
 
     const isOwner = room.ownerId === userId;
-    const isAdmin = currentUser?.role === "admin";
+    const isAdmin = String(currentUser?.role || "").toLowerCase() === "admin";
 
     if (!isOwner && !isAdmin) {
       return res.status(403).json({
