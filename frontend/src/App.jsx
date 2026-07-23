@@ -249,6 +249,7 @@ const PROFILE_SPECIALTIES = [
   "Pwn",
 ];
 const PROFILE_BADGE_KEYS = [
+  { key: "founder", label: "Fondateur" },
   { key: "first-ctf", label: "Premier CTF" },
   { key: "mentor", label: "Mentor" },
   { key: "web-hacker", label: "Web Hacker" },
@@ -648,6 +649,12 @@ const DEFAULT_ROOMS = [
     official: true,
   },
 ];
+
+function isRetiredHubRoom(room) {
+  const key = String(room?.key || "").trim().toLowerCase();
+  const label = String(room?.label || "").trim().toLowerCase();
+  return key === "cfd" || label === "cfd";
+}
 
 const EMPTY_PLATFORM_ACCOUNTS = {
   hackTheBox: "",
@@ -1664,7 +1671,11 @@ function Chip({ label, color }) {
   );
 }
 function isAdminProfile(profile) {
-  return !!profile && (profile.role === "admin" || profile.isAdmin === true);
+  return (
+    !!profile &&
+    (String(profile.role || "").toLowerCase() === "admin" ||
+      profile.isAdmin === true)
+  );
 }
 function AdminBadge() {
   return (
@@ -1681,6 +1692,24 @@ function AdminBadge() {
       title="Administrateur"
     >
       <Cpu size={12} strokeWidth={2.2} />
+    </span>
+  );
+}
+function FounderBadge() {
+  return (
+    <span
+      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wide"
+      style={{
+        color: "#B8F3FF",
+        background:
+          "linear-gradient(135deg, rgba(91,110,245,0.2), rgba(46,217,163,0.14))",
+        border: "1px solid #8BE9FD70",
+        boxShadow: "0 0 14px rgba(139,233,253,0.14)",
+        fontFamily: MONO_FONT,
+      }}
+      title="Fondateur officiel de GowlSec"
+    >
+      <Crown size={10} /> Fondateur
     </span>
   );
 }
@@ -2287,6 +2316,7 @@ function PublicProfileModal({
                 >
                   {safeProfile.username}
                 </h3>
+                {safeProfile.isFounder && <FounderBadge />}
                 {isAdminProfile(safeProfile) && <AdminBadge />}
                 {safeProfile.customRole && (
                   <span
@@ -4477,6 +4507,19 @@ function ProfileTab({
   const bannerInputRef = useRef(null);
 
   useEffect(() => {
+    if (!currentUser || editing) return;
+    setProfileStatus(currentUser.profileStatus || "learning");
+    setSpecialties(
+      Array.isArray(currentUser.specialties) ? currentUser.specialties : [],
+    );
+  }, [
+    currentUser?.id,
+    currentUser?.profileStatus,
+    currentUser?.specialties?.join("\u0000"),
+    editing,
+  ]);
+
+  useEffect(() => {
     let active = true;
     loadCollection("gowlsec:ctf-registrations", {}, true).then(
       (registrations) => {
@@ -4762,6 +4805,19 @@ function ProfileTab({
       ? currentUser.badges
       : [];
     return [
+      ...(currentUser.isFounder
+        ? [
+            {
+              key: "founder",
+              label: "Fondateur",
+              description: "Fondateur officiel de GowlSec",
+              icon: Crown,
+              color: "#8BE9FD",
+              unlocked: true,
+              progress: "Unique",
+            },
+          ]
+        : []),
       {
         key: "first-ctf",
         label: "Premier CTF",
@@ -4820,6 +4876,7 @@ function ProfileTab({
     });
   }, [
     currentUser.username,
+    currentUser.isFounder,
     currentUser.badges,
     profiles,
     questions,
@@ -4879,8 +4936,8 @@ function ProfileTab({
           savedProfile?.bannerImage || savedProfile?.bannerUrl || bannerImage,
         bannerColor: savedProfile?.bannerColor ?? bannerColor.trim(),
         bio: savedProfile?.bio ?? cleanBio,
-        profileStatus: savedProfile?.profileStatus || profileStatus,
-        specialties: savedProfile?.specialties || specialties,
+        profileStatus: savedProfile?.profileStatus ?? profileStatus,
+        specialties: savedProfile?.specialties ?? specialties,
         age: savedProfile?.age ?? (age ? Number(age) : null),
         isProfilePublic: savedProfile?.isProfilePublic ?? isProfilePublic,
         showAge: savedProfile?.showAge ?? showAge,
@@ -4921,6 +4978,10 @@ function ProfileTab({
       setOtherPlatformName(updated.platformAccounts?.otherName || "");
       setOtherPlatformUrl(updated.platformAccounts?.otherUrl || "");
       setCertifications(updated.certifications || []);
+      setProfileStatus(updated.profileStatus || "learning");
+      setSpecialties(
+        Array.isArray(updated.specialties) ? updated.specialties : [],
+      );
       setAvatarImage(updated.avatarImage || "");
       setBannerImage(updated.bannerImage || "");
       setAvatarFile(null);
@@ -4951,8 +5012,15 @@ function ProfileTab({
     Number(currentUser.currentStreak ?? currentUser.activityStreak ?? 0) || 0;
   const statusMeta =
     PROFILE_STATUSES.find(
-      (item) => item.key === (currentUser.profileStatus || profileStatus),
+      (item) =>
+        item.key ===
+        (editing ? profileStatus : currentUser.profileStatus || profileStatus),
     ) || PROFILE_STATUSES[1];
+  const displayedSpecialties = editing
+    ? specialties
+    : Array.isArray(currentUser.specialties)
+      ? currentUser.specialties
+      : [];
   const visiblePinnedBadges = profileBadges.filter(
     (badge) =>
       (currentUser.pinnedBadges || pinnedBadges).includes(badge.key) &&
@@ -5181,6 +5249,7 @@ function ProfileTab({
                       >
                         {currentUser.username}
                       </h2>
+                      {currentUser.isFounder && <FounderBadge />}
                       {isAdminProfile(currentUser) && <AdminBadge />}
                       {currentUser.customRole && (
                         <span
@@ -5311,9 +5380,9 @@ function ProfileTab({
                 />
               </div>
 
-              {(currentUser.specialties || []).length > 0 && (
+              {displayedSpecialties.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
-                  {currentUser.specialties.map((skill) => (
+                  {displayedSpecialties.map((skill) => (
                     <span
                       key={skill}
                       className="px-2 py-1 rounded-md text-[9px]"
@@ -5819,7 +5888,11 @@ function ProfileTab({
                       <button
                         key={item.key}
                         type="button"
-                        onClick={() => setProfileStatus(item.key)}
+                        aria-pressed={profileStatus === item.key}
+                        onClick={() => {
+                          setProfileStatus(item.key);
+                          setSaveStatus({ type: "idle", message: "" });
+                        }}
                         className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left"
                         style={{
                           color:
@@ -5857,13 +5930,15 @@ function ProfileTab({
                           <button
                             key={skill}
                             type="button"
-                            onClick={() =>
+                            aria-pressed={active}
+                            onClick={() => {
                               setSpecialties((current) =>
                                 active
                                   ? current.filter((item) => item !== skill)
                                   : [...current, skill],
-                              )
-                            }
+                              );
+                              setSaveStatus({ type: "idle", message: "" });
+                            }}
                             className="px-2 py-1 rounded-md text-[10px]"
                             style={{
                               color: active ? C.ok : C.muted,
@@ -6599,8 +6674,15 @@ function NewsCard({ item, isAdmin, onDelete }) {
           {item.title}
         </h3>
         <p
-          className="text-sm flex-1 leading-relaxed"
-          style={{ color: C.muted, fontFamily: BODY_FONT }}
+          className="text-sm flex-1 leading-relaxed whitespace-pre-line"
+          style={{
+            color: C.muted,
+            fontFamily: BODY_FONT,
+            display: "-webkit-box",
+            WebkitLineClamp: 9,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
         >
           {item.summary}
         </p>
@@ -8193,7 +8275,7 @@ function ForumTab({
   }
 
   return (
-    <div>
+    <div className="gowl-community-view gowl-view-forum">
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 w-full">
           <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
@@ -8681,10 +8763,12 @@ function RoomsTab({
   const roomMessages = messages.filter((m) => (m.room || "general") === room);
   const current =
     rooms.find((r) => r.key === room) || rooms[0] || DEFAULT_ROOMS[0];
-  const visibleRooms = rooms.filter((item) =>
-    `${item.label} ${item.desc || ""} ${item.key}`
-      .toLowerCase()
-      .includes(roomSearch.trim().toLowerCase()),
+  const visibleRooms = rooms.filter(
+    (item) =>
+      !isRetiredHubRoom(item) &&
+      `${item.label} ${item.desc || ""} ${item.key}`
+        .toLowerCase()
+        .includes(roomSearch.trim().toLowerCase()),
   );
   const isOwner = current.owner === pseudo;
   const isAnnouncementOnly = current.adminOnly === true && !isAdmin;
@@ -8704,7 +8788,9 @@ function RoomsTab({
       try {
         const result = await communityRequest();
         if (!active) return;
-        const remoteRooms = Array.isArray(result.rooms) ? result.rooms : [];
+        const remoteRooms = Array.isArray(result.rooms)
+          ? result.rooms.filter((remote) => !isRetiredHubRoom(remote))
+          : [];
         const saved = [
           ...DEFAULT_ROOMS,
           ...remoteRooms.filter(
@@ -9016,9 +9102,9 @@ function RoomsTab({
   }
 
   return (
-    <div>
+    <div className="gowl-community-view gowl-view-hub">
       <Panel
-        className="overflow-hidden mb-6"
+        className="overflow-hidden mb-6 gowl-community-card"
         style={{
           border: `1px solid ${C.line}`,
           background: "rgba(255,255,255,0.02)",
@@ -9226,7 +9312,7 @@ function RoomsTab({
       </Panel>
       <div className="grid md:grid-cols-[270px_1fr] gap-4">
         <Panel
-          className="p-2.5 h-fit md:sticky md:top-20"
+          className="p-2.5 h-fit md:sticky md:top-20 gowl-community-card"
           style={{ borderColor: C.line, background: C.panel }}
         >
           <div className="px-2 pt-1 pb-2.5 flex items-center justify-between">
@@ -9307,7 +9393,7 @@ function RoomsTab({
           </div>
         </Panel>
         <Panel
-          className="flex flex-col overflow-hidden"
+          className="flex flex-col overflow-hidden gowl-community-card"
           style={{
             height: 620,
             borderColor: C.line,
@@ -10042,11 +10128,11 @@ function TeamsTab({
       (a) => a.teamId === selected.id,
     );
     return (
-      <div>
+      <div className="gowl-community-view gowl-view-teams">
         <GhostButton onClick={() => setSelectedId(null)}>
           ← Retour aux équipes
         </GhostButton>
-        <Panel className="p-4 mt-3">
+        <Panel className="p-4 mt-3 gowl-community-card">
           <div className="flex items-start gap-3 flex-wrap">
             <TeamLogo team={selected} size={44} />
             <div className="flex-1 min-w-[200px]">
@@ -10208,7 +10294,7 @@ function TeamsTab({
   }
 
   return (
-    <div>
+    <div className="gowl-community-view gowl-view-teams">
       <div className="flex flex-col lg:flex-row gap-4 items-start">
         <div className="flex-1 min-w-0 w-full">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
@@ -10673,11 +10759,11 @@ function LabsTab({
       LAB_PLATFORMS.find((p) => p.key === selected.platform) ||
       LAB_PLATFORMS[3];
     return (
-      <div>
+      <div className="gowl-community-view gowl-view-labs">
         <GhostButton onClick={() => setSelectedId(null)}>
           ← Retour aux labs
         </GhostButton>
-        <Panel className="p-5 mt-4">
+        <Panel className="p-5 mt-4 gowl-community-card">
           <div className="flex items-start gap-4 flex-wrap">
             <div
               className="w-14 h-14 rounded-md flex items-center justify-center shrink-0"
@@ -10926,7 +11012,7 @@ function LabsTab({
   }
 
   return (
-    <div>
+    <div className="gowl-community-view gowl-view-labs">
       <div className="flex flex-col lg:flex-row gap-6 items-start">
         <div className="flex-1 min-w-0 w-full">
           <div className="flex flex-col gap-3 mb-5 md:flex-row md:items-start md:justify-between">
@@ -14093,7 +14179,7 @@ function AdminTab({
                     {announcementDraft.title || "Titre de l’annonce"}
                   </h4>
                   <p
-                    className="text-xs leading-relaxed mt-2"
+                    className="text-xs leading-relaxed mt-2 whitespace-pre-wrap"
                     style={{ color: C.muted, fontFamily: BODY_FONT }}
                   >
                     {announcementDraft.content ||
@@ -15076,6 +15162,21 @@ function NotificationBell({
           accent: C.alert,
           tab: "actus",
         },
+        "ctf-new": {
+          icon: <Calendar size={13} />,
+          accent: C.ok,
+          tab: "actus",
+        },
+        announcement: {
+          icon: <Megaphone size={13} />,
+          accent: C.primary,
+          tab: "accueil",
+        },
+        "site-update": {
+          icon: <Radio size={13} />,
+          accent: C.gold,
+          tab: "salons",
+        },
         "badge-unlocked": {
           icon: <Award size={13} />,
           accent: C.gold,
@@ -15093,6 +15194,7 @@ function NotificationBell({
       };
       out.push({
         id: `server-${notification.id}`,
+        serverId: notification.id,
         text: notification.title,
         sub: notification.message,
         createdAt: notification.createdAt,
@@ -15175,6 +15277,17 @@ function NotificationBell({
     return (
       <button
         onClick={() => {
+          if (n.source === "server" && n.serverId && !n.readAt) {
+            const readAt = new Date().toISOString();
+            setServerNotifications((current) =>
+              current.map((item) =>
+                item.id === n.serverId ? { ...item, readAt } : item,
+              ),
+            );
+            apiRequest(`/api/social/notifications/${n.serverId}/read`, {
+              method: "PATCH",
+            }).catch(() => {});
+          }
           setTab(n.tab);
           setOpen(false);
         }}
@@ -15468,7 +15581,7 @@ function WriteupsTab({
   }
 
   return (
-    <div>
+    <div className="gowl-community-view gowl-view-writeups">
       <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
         <SectionHeader
           icon={<FileText size={19} />}
@@ -15618,7 +15731,10 @@ function WriteupsTab({
           const isOpen = !!expanded[w.id];
           const canManage = isAdmin || (currentUser && w.author === pseudo);
           return (
-            <Panel key={w.id} className="p-4">
+            <Panel
+              key={w.id}
+              className="p-4 gowl-community-card gowl-glass"
+            >
               {canManage && (
                 <div className="absolute top-3 right-3 z-10 flex items-center gap-2.5">
                   <button
@@ -16111,7 +16227,7 @@ function LearningPathsTab({ currentUser, setTab }) {
     activePath.steps[activePath.steps.length - 1];
 
   return (
-    <div className="max-w-7xl mx-auto">
+    <div className="max-w-7xl mx-auto gowl-academy-world">
       <SectionHeader
         icon={<Compass size={19} />}
         eyebrow="GowlSec Academy"
@@ -16158,10 +16274,54 @@ function LearningPathsTab({ currentUser, setTab }) {
       )}
 
       <style>{`
-        .academy-stage { transition: transform .2s ease, border-color .2s ease, background .2s ease; }
-        .academy-stage:hover { transform: translateX(3px); }
-        .academy-step { transition: border-color .2s ease, transform .2s ease, background .2s ease; }
-        .academy-step:hover { transform: translateY(-1px); }
+        .gowl-academy-world {
+          position: relative;
+          isolation: isolate;
+          padding: clamp(14px, 2.2vw, 28px);
+          border-radius: 26px;
+          overflow: hidden;
+          border: 1px solid rgba(91, 110, 245, .28);
+          background:
+            radial-gradient(760px 380px at 8% -8%, rgba(91,110,245,.28), transparent 62%),
+            radial-gradient(620px 360px at 100% 30%, rgba(46,217,163,.16), transparent 66%),
+            linear-gradient(145deg, rgba(25,42,61,.97), rgba(16,29,43,.96));
+          box-shadow: 0 30px 80px -50px rgba(91,110,245,.65), inset 0 1px 0 rgba(255,255,255,.05);
+        }
+        .gowl-academy-world::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: -2;
+          opacity: .26;
+          background-image:
+            linear-gradient(rgba(139,233,253,.13) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(139,233,253,.13) 1px, transparent 1px),
+            radial-gradient(circle at 20% 30%, rgba(255,255,255,.7) 0 1px, transparent 1.5px),
+            radial-gradient(circle at 76% 18%, rgba(255,255,255,.55) 0 1px, transparent 1.5px);
+          background-size: 54px 54px, 54px 54px, 180px 180px, 230px 230px;
+          mask-image: linear-gradient(to bottom, #000, transparent 86%);
+        }
+        .gowl-academy-world::after {
+          content: "";
+          position: absolute;
+          width: 480px;
+          height: 480px;
+          right: -310px;
+          top: 22%;
+          z-index: -1;
+          border-radius: 999px;
+          border: 1px solid rgba(139,233,253,.18);
+          box-shadow: 0 0 80px rgba(46,217,163,.1), inset 0 0 60px rgba(91,110,245,.08);
+        }
+        .academy-stage { position: relative; transition: transform .2s ease, border-color .2s ease, background .2s ease, box-shadow .2s ease; }
+        .academy-stage::before { content: ""; position: absolute; left: -15px; top: 50%; width: 8px; height: 8px; border-radius: 50%; background: rgba(139,233,253,.22); transform: translateY(-50%); }
+        .academy-stage:hover { transform: translateX(4px); }
+        .academy-stage.is-active { box-shadow: 0 12px 30px -22px currentColor, inset 0 1px 0 rgba(255,255,255,.05); }
+        .academy-step { transition: border-color .2s ease, transform .2s ease, background .2s ease, box-shadow .2s ease; backdrop-filter: blur(10px); }
+        .academy-step:hover { transform: translateY(-2px); box-shadow: 0 16px 34px -26px rgba(139,233,253,.45); }
+        .academy-step.is-next { box-shadow: 0 0 0 1px rgba(139,233,253,.12), 0 16px 38px -28px rgba(139,233,253,.7); }
+        .academy-step.is-done { opacity: .88; }
+        @media (max-width: 640px) { .gowl-academy-world { padding: 12px; border-radius: 18px; } }
       `}</style>
 
       <Panel
@@ -16254,7 +16414,7 @@ function LearningPathsTab({ currentUser, setTab }) {
                   key={path.key}
                   type="button"
                   onClick={() => goTo(pathIndex)}
-                  className="academy-stage w-full rounded-xl p-3 text-left"
+                  className={`academy-stage ${active ? "is-active" : ""} w-full rounded-xl p-3 text-left`}
                   style={{
                     background: active ? `${path.accent}14` : C.panel2,
                     border: `1px solid ${active ? `${path.accent}60` : C.line}`,
@@ -16460,7 +16620,7 @@ function LearningPathsTab({ currentUser, setTab }) {
                   return (
                     <div
                       key={step.id}
-                      className="academy-step rounded-xl p-3 sm:p-4 flex items-start gap-3"
+                      className={`academy-step ${done ? "is-done" : ""} ${isNext ? "is-next" : ""} rounded-xl p-3 sm:p-4 flex items-start gap-3`}
                       style={{
                         background: done ? `${activePath.accent}0B` : C.panel2,
                         border: `1px solid ${isNext ? `${activePath.accent}60` : done ? `${activePath.accent}30` : C.line}`,
@@ -17365,11 +17525,13 @@ function TeamFinderTab({ currentUser, teams = [], onMessage }) {
       (profile.lookingFor || []).includes(filter),
   );
   return (
-    <div className="max-w-7xl mx-auto">
-      <SectionTitle
+    <div className="max-w-7xl mx-auto gowl-community-view gowl-view-finder">
+      <SectionHeader
+        icon={<Search size={19} />}
         eyebrow="Matchmaking CTF"
         title="Trouver des coéquipiers"
         subtitle="Publie ton mini-CV cyber, précise tes forces et les compétences recherchées."
+        accent={C.ok}
       />
       <div className="flex flex-wrap gap-2 mb-5">
         {["Toutes", "Web", "Réseau", "Crypto", "Pwn", "Forensics"].map(
@@ -17399,7 +17561,7 @@ function TeamFinderTab({ currentUser, teams = [], onMessage }) {
         )}
       </div>
       {editing && (
-        <Panel className="p-4 mb-5">
+        <Panel className="p-4 mb-5 gowl-community-card">
           <form onSubmit={save} className="grid lg:grid-cols-2 gap-4">
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
@@ -17518,7 +17680,10 @@ function TeamFinderTab({ currentUser, teams = [], onMessage }) {
       <div className="grid lg:grid-cols-[1fr_340px] gap-5">
         <div className="grid md:grid-cols-2 gap-3">
           {filtered.map((profile) => (
-            <Panel key={profile.id} className="p-4">
+            <Panel
+              key={profile.id}
+              className="p-4 gowl-community-card gowl-glass"
+            >
               <div className="flex items-center gap-3">
                 <Avatar profile={profile.user} size={42} />
                 <div className="min-w-0 flex-1">
@@ -17610,7 +17775,7 @@ function TeamFinderTab({ currentUser, teams = [], onMessage }) {
             </Panel>
           ))}
         </div>
-        <Panel className="p-4 h-fit lg:sticky lg:top-24">
+        <Panel className="p-4 h-fit lg:sticky lg:top-24 gowl-community-card">
           <div className="flex items-center gap-2 mb-4">
             <Trophy size={14} style={{ color: C.gold }} />
             <h3 className="text-sm font-bold" style={{ color: C.text }}>
@@ -18319,80 +18484,84 @@ function AuthActionPage({
   icon,
   title,
   subtitle,
+  complete = false,
   children,
 }) {
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
-      style={{ background: C.bg, fontFamily: BODY_FONT }}
+      className="gowl-auth-world min-h-screen flex items-center justify-center p-4 relative overflow-hidden"
+      style={{ "--auth-accent": accent, fontFamily: BODY_FONT }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Source+Sans+3:wght@400;500;600&display=swap');
-        @keyframes gowl-action-pulse { 0%, 100% { box-shadow: 0 0 0 0 ${accent}33; } 50% { box-shadow: 0 0 0 10px ${accent}00; } }
-        @keyframes gowl-action-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .gowl-action-card { animation: gowl-action-in 0.45s ease both; }
-        .gowl-action-icon { animation: gowl-action-pulse 2.2s ease-in-out infinite; }
+        @import url('https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Source+Sans+3:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        @keyframes gowl-auth-in { from { opacity: 0; transform: translateY(14px) scale(.985); } to { opacity: 1; transform: none; } }
+        @keyframes gowl-auth-pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb,var(--auth-accent) 28%,transparent),0 16px 34px -20px var(--auth-accent); } 50% { box-shadow: 0 0 0 12px transparent,0 20px 42px -18px var(--auth-accent); } }
+        @keyframes gowl-auth-shoot { 0%,72% { transform: translate(-35vw,-16vh) rotate(-24deg); opacity:0; } 78% { opacity:.85; } 100% { transform: translate(125vw,58vh) rotate(-24deg); opacity:0; } }
+        .gowl-auth-world { background: radial-gradient(760px 440px at 12% -5%,rgba(91,110,245,.28),transparent 65%),radial-gradient(620px 380px at 95% 85%,rgba(46,217,163,.13),transparent 68%),#0D1722; }
+        .gowl-auth-world::before { content:""; position:absolute; inset:0; opacity:.4; background-image:radial-gradient(circle at 18% 22%,rgba(255,255,255,.8) 0 1px,transparent 1.4px),radial-gradient(circle at 72% 16%,rgba(139,233,253,.65) 0 1px,transparent 1.5px),linear-gradient(rgba(91,110,245,.09) 1px,transparent 1px),linear-gradient(90deg,rgba(91,110,245,.09) 1px,transparent 1px); background-size:190px 190px,240px 240px,64px 64px,64px 64px; mask-image:radial-gradient(ellipse at center,#000 28%,transparent 90%); }
+        .gowl-auth-shoot { position:absolute; width:190px; height:1px; left:0; top:0; background:linear-gradient(90deg,transparent,rgba(139,233,253,.9),transparent); filter:drop-shadow(0 0 6px rgba(139,233,253,.7)); animation:gowl-auth-shoot 8s linear infinite; }
+        .gowl-auth-shell { position:relative; z-index:2; width:min(980px,100%); display:grid; grid-template-columns:minmax(0,1.05fr) minmax(380px,.95fr); overflow:hidden; border-radius:28px; border:1px solid rgba(139,233,253,.2); background:rgba(18,31,46,.9); box-shadow:0 38px 110px -54px rgba(0,0,0,.95),0 0 70px -38px var(--auth-accent),inset 0 1px 0 rgba(255,255,255,.06); backdrop-filter:blur(22px); animation:gowl-auth-in .5s cubic-bezier(.2,.8,.2,1) both; }
+        .gowl-auth-brand { position:relative; min-height:610px; padding:50px; display:flex; flex-direction:column; justify-content:space-between; overflow:hidden; background:radial-gradient(500px 330px at 12% 4%,rgba(91,110,245,.3),transparent 68%),linear-gradient(155deg,rgba(37,58,81,.97),rgba(22,39,57,.97)); border-right:1px solid rgba(139,233,253,.14); }
+        .gowl-auth-brand::after { content:"GOWLSEC // IDENTITY"; position:absolute; right:-72px; bottom:92px; transform:rotate(-90deg); color:rgba(139,233,253,.12); font:500 10px 'IBM Plex Mono',monospace; letter-spacing:.32em; }
+        .gowl-auth-wordmark { display:flex; align-items:center; gap:12px; position:relative; z-index:1; }
+        .gowl-auth-wordmark strong { color:#F4F8FC; font:800 20px 'Sora',sans-serif; letter-spacing:-.03em; }
+        .gowl-auth-wordmark small { display:block; color:#8A9BB0; font:500 9px 'IBM Plex Mono',monospace; letter-spacing:.15em; text-transform:uppercase; }
+        .gowl-auth-copy { position:relative; z-index:1; max-width:410px; }
+        .gowl-auth-copy > span { color:#8BE9FD; font:600 10px 'IBM Plex Mono',monospace; letter-spacing:.18em; text-transform:uppercase; }
+        .gowl-auth-copy h2 { margin:12px 0; color:#F4F8FC; font:800 clamp(28px,4vw,42px)/1.08 'Sora',sans-serif; letter-spacing:-.045em; }
+        .gowl-auth-copy p { color:#A8B6C7; font-size:15px; line-height:1.65; }
+        .gowl-auth-trust { position:relative; z-index:1; display:grid; gap:10px; }
+        .gowl-auth-trust-row { display:flex; align-items:center; gap:10px; color:#B7C4D2; font-size:12px; }
+        .gowl-auth-trust-row > span { width:30px; height:30px; display:grid; place-items:center; border-radius:9px; color:#8BE9FD; background:rgba(139,233,253,.08); border:1px solid rgba(139,233,253,.18); }
+        .gowl-auth-action { padding:44px 40px; display:flex; flex-direction:column; justify-content:center; background:linear-gradient(180deg,rgba(27,45,64,.96),rgba(18,31,46,.98)); }
+        .gowl-action-icon { width:64px; height:64px; display:grid; place-items:center; border-radius:20px; color:var(--auth-accent); background:color-mix(in srgb,var(--auth-accent) 14%,rgba(24,40,58,.9)); border:1px solid color-mix(in srgb,var(--auth-accent) 44%,transparent); animation:gowl-auth-pulse 2.4s ease-in-out infinite; }
+        .gowl-auth-kicker { margin-top:22px; color:var(--auth-accent); font:600 9px 'IBM Plex Mono',monospace; letter-spacing:.2em; text-transform:uppercase; }
+        .gowl-auth-action h1 { margin-top:7px; color:#F4F8FC; font:800 clamp(24px,3vw,32px)/1.15 'Sora',sans-serif; letter-spacing:-.035em; }
+        .gowl-auth-subtitle { margin-top:8px; color:#97A8BA; font-size:14px; line-height:1.5; }
+        .gowl-auth-content { margin-top:24px; }
+        .gowl-auth-content input { background:rgba(13,23,34,.72)!important; border-color:rgba(139,233,253,.17)!important; }
+        .gowl-auth-content input:focus { border-color:var(--auth-accent)!important; box-shadow:0 0 0 3px color-mix(in srgb,var(--auth-accent) 12%,transparent)!important; }
+        .gowl-auth-steps { display:grid; grid-template-columns:repeat(3,1fr); gap:7px; margin-top:24px; padding-top:18px; border-top:1px solid rgba(139,233,253,.11); }
+        .gowl-auth-step { color:#718297; font:500 8px 'IBM Plex Mono',monospace; text-transform:uppercase; letter-spacing:.08em; }
+        .gowl-auth-step::before { content:""; display:block; height:2px; margin-bottom:7px; border-radius:2px; background:rgba(139,233,253,.14); }
+        .gowl-auth-step.is-active { color:var(--auth-accent); }
+        .gowl-auth-step.is-active::before { background:var(--auth-accent); box-shadow:0 0 10px color-mix(in srgb,var(--auth-accent) 60%,transparent); }
+        @media(max-width:820px){.gowl-auth-shell{grid-template-columns:1fr;max-width:520px}.gowl-auth-brand{min-height:auto;padding:24px}.gowl-auth-copy{margin-top:34px}.gowl-auth-copy h2{font-size:27px}.gowl-auth-trust{display:none}.gowl-auth-action{padding:32px 24px}}
+        @media(max-width:460px){.gowl-auth-world{padding:0;align-items:stretch}.gowl-auth-shell{min-height:100vh;border:0;border-radius:0}.gowl-auth-brand{padding:20px}.gowl-auth-copy{margin-top:24px}.gowl-auth-copy p{display:none}.gowl-auth-action{padding:28px 20px 34px}}
       `}</style>
-      <div
-        aria-hidden
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          backgroundImage: `linear-gradient(${C.line}26 1px, transparent 1px), linear-gradient(90deg, ${C.line}26 1px, transparent 1px)`,
-          backgroundSize: "42px 42px",
-          maskImage:
-            "radial-gradient(ellipse 75% 55% at 50% 25%, #000 40%, transparent 100%)",
-          WebkitMaskImage:
-            "radial-gradient(ellipse 75% 55% at 50% 25%, #000 40%, transparent 100%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute rounded-full pointer-events-none"
-        style={{
-          width: 460,
-          height: 460,
-          top: "-16%",
-          left: "50%",
-          marginLeft: -230,
-          background: `radial-gradient(circle, ${accent}22, transparent 70%)`,
-          filter: "blur(14px)",
-        }}
-      />
-      <Panel
-        className="gowl-action-card relative w-full max-w-md p-7 sm:p-8 text-center"
-        style={{
-          border: `1px solid ${accent}38`,
-          boxShadow: `0 24px 64px -26px ${accent}66, inset 0 1px 0 0 #ffffff0A`,
-        }}
-      >
-        <div className="flex justify-center mb-4">
-          <OwlLogo size={44} />
-        </div>
-        <div className="flex justify-center mb-4">
-          <span
-            className="gowl-action-icon w-14 h-14 rounded-2xl flex items-center justify-center"
-            style={{
-              background: `${accent}18`,
-              border: `1px solid ${accent}44`,
-              color: accent,
-            }}
-          >
-            {icon}
-          </span>
-        </div>
-        <h1
-          className="text-xl font-extrabold mb-1.5"
-          style={{ color: C.text, fontFamily: DISPLAY_FONT }}
-        >
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-sm mb-5" style={{ color: C.muted }}>
-            {subtitle}
-          </p>
-        )}
-        {children}
-      </Panel>
+      <span aria-hidden className="gowl-auth-shoot" />
+      <div className="gowl-auth-shell">
+        <section className="gowl-auth-brand">
+          <div className="gowl-auth-wordmark">
+            <OwlLogo size={50} />
+            <div><strong>GowlSec</strong><small>Cyber community</small></div>
+          </div>
+          <div className="gowl-auth-copy">
+            <span>Secure identity gateway</span>
+            <h2>Reprends le contrôle de ton accès.</h2>
+            <p>Une étape sécurisée pour confirmer ton identité et retrouver la communauté GowlSec sans interrompre ta progression.</p>
+          </div>
+          <div className="gowl-auth-trust">
+            <div className="gowl-auth-trust-row"><span><Shield size={14} /></span> Connexion chiffrée et contrôlée</div>
+            <div className="gowl-auth-trust-row"><span><Clock size={14} /></span> Lien temporaire à usage limité</div>
+            <div className="gowl-auth-trust-row"><span><Lock size={14} /></span> Mot de passe jamais affiché</div>
+          </div>
+        </section>
+        <section className="gowl-auth-action">
+          <span className="gowl-action-icon">{icon}</span>
+          <span className="gowl-auth-kicker">GowlSec Identity</span>
+          <h1>{title}</h1>
+          {subtitle && <p className="gowl-auth-subtitle">{subtitle}</p>}
+          <div className="gowl-auth-content">{children}</div>
+          <div className="gowl-auth-steps" aria-label="Étapes de sécurité">
+            <span className="gowl-auth-step is-active">Lien sécurisé</span>
+            <span className="gowl-auth-step is-active">Vérification</span>
+            <span className={`gowl-auth-step ${complete ? "is-active" : ""}`}>
+              Accès
+            </span>
+          </div>
+        </section>
+      </div>
     </div>
   );
 }
@@ -19084,11 +19253,20 @@ export default function GowlSec() {
       <AuthActionPage
         accent={accent}
         icon={icon}
-        title="Vérification de l'e-mail"
+        complete={verificationStatus === "success"}
+        title={
+          verificationLoading
+            ? "Vérification en cours"
+            : verificationStatus === "success"
+              ? "Adresse e-mail confirmée"
+              : "Vérification impossible"
+        }
         subtitle={
           verificationLoading
-            ? "Un instant, on confirme ton adresse…"
-            : undefined
+            ? "Nous contrôlons ton lien sécurisé avec le serveur GowlSec."
+            : verificationStatus === "success"
+              ? "Ton identité est validée. Tu peux maintenant rejoindre pleinement la communauté."
+              : "Le lien est peut-être incomplet, expiré ou déjà utilisé."
         }
       >
         {!verificationLoading && (
@@ -19128,11 +19306,18 @@ export default function GowlSec() {
       <AuthActionPage
         accent={accent}
         icon={icon}
-        title="Réinitialiser le mot de passe"
+        complete={resetStatus === "success"}
+        title={
+          resetStatus === "success"
+            ? "Accès sécurisé restauré"
+            : "Créer un nouveau mot de passe"
+        }
         subtitle={
           resetToken && resetStatus !== "success"
-            ? "Choisis un nouveau mot de passe sécurisé."
-            : undefined
+            ? "Choisis une combinaison unique pour protéger ton compte GowlSec."
+            : resetStatus === "success"
+              ? "Ton nouveau mot de passe est actif. Tu peux reprendre ta session."
+              : "Ce lien de récupération ne peut pas être utilisé."
         }
       >
         {!resetToken ? (
@@ -19272,6 +19457,86 @@ export default function GowlSec() {
         @keyframes gowl-border-glow { 0%, 100% { box-shadow: 0 0 0 1px var(--gowl-accent, ${C.primary})33, 0 0 18px -6px var(--gowl-accent, ${C.primary})55; } 50% { box-shadow: 0 0 0 1px var(--gowl-accent, ${C.primary})66, 0 0 26px -4px var(--gowl-accent, ${C.primary})AA; } }
         .gowl-hud-card { position: relative; transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
         .gowl-hud-card:hover { transform: translateY(-2px); border-color: var(--gowl-accent, ${C.primary})77 !important; box-shadow: 0 14px 28px -20px var(--gowl-accent, ${C.primary})AA, 0 0 0 1px var(--gowl-accent, ${C.primary})33; }
+        /* --- Espaces communautaires : identité visuelle par module --- */
+        .gowl-community-view {
+          --community-accent: ${C.primary};
+          position: relative;
+          isolation: isolate;
+          padding: clamp(14px, 2vw, 24px);
+          border-radius: 24px;
+          overflow: hidden;
+          border: 1px solid color-mix(in srgb, var(--community-accent) 28%, ${C.line});
+          background:
+            radial-gradient(620px 320px at 0% 0%, color-mix(in srgb, var(--community-accent) 19%, transparent), transparent 68%),
+            radial-gradient(520px 280px at 100% 18%, rgba(139,233,253,.08), transparent 72%),
+            linear-gradient(145deg, rgba(28,45,64,.97), rgba(18,32,47,.96));
+          box-shadow: 0 28px 70px -48px color-mix(in srgb, var(--community-accent) 70%, transparent), inset 0 1px 0 rgba(255,255,255,.055);
+        }
+        .gowl-view-forum { --community-accent: #6E8BFF; }
+        .gowl-view-hub { --community-accent: #3AD6CF; }
+        .gowl-view-teams { --community-accent: #FFB45D; }
+        .gowl-view-labs { --community-accent: #B78CFF; }
+        .gowl-view-writeups { --community-accent: #43D7A5; }
+        .gowl-view-finder { --community-accent: #62E6B6; }
+        .gowl-community-view::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          z-index: -2;
+          pointer-events: none;
+          opacity: .24;
+          background-image:
+            linear-gradient(color-mix(in srgb, var(--community-accent) 18%, transparent) 1px, transparent 1px),
+            linear-gradient(90deg, color-mix(in srgb, var(--community-accent) 18%, transparent) 1px, transparent 1px),
+            radial-gradient(circle at 22% 28%, rgba(255,255,255,.65) 0 1px, transparent 1.4px),
+            radial-gradient(circle at 80% 12%, rgba(255,255,255,.45) 0 1px, transparent 1.4px);
+          background-size: 48px 48px, 48px 48px, 170px 170px, 220px 220px;
+          mask-image: linear-gradient(to bottom, #000, transparent 82%);
+        }
+        .gowl-community-view::after {
+          content: "";
+          position: absolute;
+          z-index: -1;
+          width: 280px;
+          height: 280px;
+          right: -190px;
+          top: 70px;
+          border-radius: 999px;
+          border: 1px solid color-mix(in srgb, var(--community-accent) 24%, transparent);
+          box-shadow: 0 0 70px color-mix(in srgb, var(--community-accent) 12%, transparent), inset 0 0 50px color-mix(in srgb, var(--community-accent) 8%, transparent);
+          pointer-events: none;
+        }
+        .gowl-community-view .gowl-section-head { margin-bottom: 10px; }
+        .gowl-community-view .gowl-section-icon { width: 48px; height: 48px; border-radius: 15px; }
+        .gowl-community-view .gowl-hud-card,
+        .gowl-community-view .gowl-community-card {
+          background: linear-gradient(145deg, rgba(35,55,76,.94), rgba(24,40,57,.92)) !important;
+          border-color: color-mix(in srgb, var(--community-accent) 22%, ${C.line}) !important;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,.045), 0 18px 38px -34px rgba(0,0,0,.9);
+          backdrop-filter: blur(12px);
+        }
+        .gowl-community-view .gowl-community-card:hover {
+          transform: translateY(-2px);
+          border-color: color-mix(in srgb, var(--community-accent) 55%, ${C.line}) !important;
+          box-shadow: 0 18px 38px -28px color-mix(in srgb, var(--community-accent) 42%, transparent);
+        }
+        .gowl-community-view input,
+        .gowl-community-view textarea,
+        .gowl-community-view select {
+          background-color: rgba(24,40,57,.92) !important;
+          border-color: color-mix(in srgb, var(--community-accent) 22%, ${C.line}) !important;
+        }
+        .gowl-community-view input:focus,
+        .gowl-community-view textarea:focus,
+        .gowl-community-view select:focus {
+          border-color: color-mix(in srgb, var(--community-accent) 64%, #fff) !important;
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--community-accent) 12%, transparent) !important;
+        }
+        .gowl-community-view .gowl-qthread { background: rgba(18,32,47,.56); }
+        @media (max-width: 640px) {
+          .gowl-community-view { padding: 12px; border-radius: 18px; }
+          .gowl-community-view .gowl-section-icon { width: 42px; height: 42px; }
+        }
         .gowl-hud-card::before, .gowl-hud-card::after {
           content: ""; position: absolute; width: 10px; height: 10px; pointer-events: none; opacity: 0; transition: opacity 0.2s ease;
           border-color: var(--gowl-accent, ${C.primary});
@@ -20833,7 +21098,7 @@ function ProfessionalHome({
         .ghx-update-featured-icon { position: relative; z-index: 1; width: 42px; height: 42px; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px; color: var(--update-accent); background: color-mix(in srgb, var(--update-accent) 15%, transparent); border: 1px solid color-mix(in srgb, var(--update-accent) 40%, transparent); }
         .ghx-update-featured-meta { position: relative; z-index: 1; display: flex; align-items: center; gap: 7px; margin-top: 17px; color: var(--update-accent); font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.09em; font-family: ${MONO_FONT}; }
         .ghx-update-featured-title { position: relative; z-index: 1; display: block; max-width: 560px; margin-top: 9px; color: ${gh.text}; font-size: clamp(19px, 2.3vw, 25px); line-height: 1.25; font-weight: 800; font-family: ${DISPLAY_FONT}; }
-        .ghx-update-featured-text { position: relative; z-index: 1; display: block; max-width: 600px; margin-top: 10px; color: ${gh.muted}; font-size: 13.5px; line-height: 1.6; }
+        .ghx-update-featured-text { position: relative; z-index: 1; display: -webkit-box; max-width: 600px; margin-top: 10px; color: ${gh.muted}; font-size: 13.5px; line-height: 1.6; white-space: pre-line; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
         .ghx-update-featured-footer { position: relative; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: auto; padding-top: 20px; color: ${gh.muted}; font-size: 10px; font-family: ${MONO_FONT}; }
         .ghx-update-read { display: inline-flex; align-items: center; gap: 5px; color: var(--update-accent); font-weight: 700; }
         .ghx-updates-list { display: flex; flex-direction: column; border-left: 1px solid ${gh.border}; }
